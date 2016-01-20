@@ -5,13 +5,12 @@ import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 
 import java.util.*;
-import java.util.function.ObjDoubleConsumer;
 
 /**
  * Implements the time-decay and landmark parts of SummaryStore. API:
  *    register(streamID, aggregateDataStructure)
- *    append(streamID, List<Value>)
- *    query(aggregateFunction, t1, t2)
+ *    append(streamID, List<TaggedValue>)
+ *    query(streamID, t1, t2, aggregateFunction)
  * At this point we make no distinction between time and count, i.e. we assume
  * exactly one element arrives at t = 0, 1, 2, 3, ...
  * Created by a.vulimiri on 1/15/16.
@@ -81,36 +80,13 @@ public class TimeDecayedStore {
         }
     }
 
-    public void append(final StreamID streamID, final List<Value> values) throws StreamException, LandmarkEventException {
+    public void append(final StreamID streamID, final List<TaggedValue> values) throws StreamException, LandmarkEventException {
         final StreamInfo streamInfo;
         synchronized (streamsInfo) {
             if (!streamsInfo.containsKey(streamID)) {
                 throw new StreamException("attempting to append to unregistered streamID " + streamID);
             } else {
                 streamInfo = streamsInfo.get(streamID);
-            }
-        }
-
-        class PendingBucketActions {
-            final BucketID bucketID;
-            List<BucketID> bucketsToMerge;
-            Map<Integer, Object> valuesToInsert;
-
-            int startN, endN;
-            boolean isLandmark;
-
-            PendingBucketActions(BucketID bucketID, int startN, int endN, boolean isLandmark) {
-                this.bucketID = bucketID;
-                bucketsToMerge = new ArrayList<BucketID>();
-                valuesToInsert = new LinkedHashMap<Integer, Object>();
-
-                this.startN = startN;
-                this.endN = endN;
-                this.isLandmark = isLandmark;
-            }
-
-            PendingBucketActions(BucketInfo bucketInfo) {
-                this(bucketInfo.bucketID, bucketInfo.startN, bucketInfo.endN, bucketInfo.isLandmark);
             }
         }
 
@@ -128,40 +104,51 @@ public class TimeDecayedStore {
                 nextBucketID = new BucketID(0);
             }
 
-            BucketID activeLandmarkBucket = activeLandmarkBuckets.get(streamID);
-            Map<BucketID, PendingBucketActions> pendingBucketActions = new LinkedHashMap<BucketID, PendingBucketActions>();
+            Map<BucketID, LinkedHashMap<Integer, Object>> pendingInserts = new HashMap<BucketID, LinkedHashMap<Integer, Object>>();
+            LinkedHashMap<BucketID, BucketInfo>
+                    baseBuckets = new LinkedHashMap<BucketID, BucketInfo>(),
+                    landmarkBuckets = new LinkedHashMap<BucketID, BucketInfo>();
             for (BucketInfo bucketInfo: streamInfo.buckets) {
-                pendingBucketActions.put(bucketInfo.bucketID, new PendingBucketActions(bucketInfo));
+                if (bucketInfo.isLandmark) {
+                    landmarkBuckets.put(bucketInfo.bucketID, bucketInfo);
+                } else {
+                    baseBuckets.put(bucketInfo.bucketID, bucketInfo);
+                }
             }
+            BucketID activeLandmarkBucket = activeLandmarkBuckets.get(streamID);
             for (int i = 0; i < values.size(); ++i) {
                 int n = N0 + i;
-                Value v = values.get(i);
+                TaggedValue tv = values.get(i);
                 /* We always create a new base bucket of size 1 for every inserted element. As with any other
                  base bucket, it can be empty if the value at that position goes into a landmark bucket instead */
-                PendingBucketActions newBaseBucketActions = new PendingBucketActions(nextBucketID, n, n, false);
+                BucketID newBaseBucket = nextBucketID;
+                baseBuckets.put(newBaseBucket, new BucketInfo(newBaseBucket, n, n, false));
                 nextBucketID = nextBucketID.nextBucketID();
-                pendingBucketActions.put(newBaseBucketActions.bucketID, newBaseBucketActions);
 
-                if (v.event == Value.Event.LANDMARK_START) {
+                if (tv.associatedEvent == TaggedValue.Event.LANDMARK_START) {
                     // create a landmark bucket
                     if (activeLandmarkBucket != null) {
                         throw new LandmarkEventException();
                     }
                     activeLandmarkBucket = nextBucketID;
+                    landmarkBuckets.put(activeLandmarkBucket, new BucketInfo(activeLandmarkBucket, n, n, true));
                     nextBucketID = nextBucketID.nextBucketID();
-                    PendingBucketActions landmarkActions = new PendingBucketActions(activeLandmarkBucket, n, n, true);
-                    pendingBucketActions.put(landmarkActions.bucketID, landmarkActions);
                 }
                 if (activeLandmarkBucket != null) {
-                    // insert element into landmark bucket
-                    PendingBucketActions landmarkActions = pendingBucketActions.get(activeLandmarkBucket);
-                    landmarkActions.valuesToInsert.put(n, v.value);
-                    landmarkActions.endN = n;
+                    assert landmarkBuckets.containsKey(activeLandmarkBucket);
+                    landmarkBuckets.get(activeLandmarkBucket).endN = n;
+                    if (!pendingInserts.containsKey(activeLandmarkBucket)) {
+                        pendingInserts.put(activeLandmarkBucket, new LinkedHashMap<Integer, Object>());
+                    }
+                    pendingInserts.get(activeLandmarkBucket).put(n, tv.value);
                 } else {
                     // insert into the new base bucket of size 1
-                    newBaseBucketActions.valuesToInsert.put(n, v.value);
+                    if (!pendingInserts.containsKey(newBaseBucket)) {
+                        pendingInserts.put(newBaseBucket, new LinkedHashMap<Integer, Object>());
+                    }
+                    pendingInserts.get(newBaseBucket).put(n, tv.value);
                 }
-                if (v.event == Value.Event.LANDMARK_END) {
+                if (tv.associatedEvent == TaggedValue.Event.LANDMARK_END) {
                     /* Close the landmark bucket. Right now we don't track open/closed in the bucket explicitly,
                     so all we need to do is unmark activeLandmarkBucket */
                     if (activeLandmarkBucket == null) {
@@ -170,6 +157,9 @@ public class TimeDecayedStore {
                     activeLandmarkBucket = null;
                 }
             }
+
+
+            // TODO: update activeLandmarkBuckets
         }
     }
 
