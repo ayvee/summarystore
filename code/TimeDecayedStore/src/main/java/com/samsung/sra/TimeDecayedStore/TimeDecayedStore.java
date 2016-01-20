@@ -92,8 +92,8 @@ public class TimeDecayedStore {
 
         synchronized (streamInfo.writerSyncObj) {
             /* All writes will be serialized at this point. We will also synchronize on the
-             reader object below once we've done the math and are ready to start modifying
-             the data structure */
+             reader object below once we've done the bucket merge math and are ready to start
+             modifying the data structure */
             int N0 = streamInfo.numElements, N = N0 + values.size();
             BucketID bucketID0, nextBucketID;
             if (streamInfo.numElements > 0) {
@@ -117,6 +117,7 @@ public class TimeDecayedStore {
             }
             BucketID activeLandmarkBucket = activeLandmarkBuckets.get(streamID);
             for (int i = 0; i < values.size(); ++i) {
+                // insert into appropriate bucket (creating the target bucket if necessary)
                 int n = N0 + i;
                 TaggedValue tv = values.get(i);
                 /* We always create a new base bucket of size 1 for every inserted element. As with any other
@@ -125,7 +126,7 @@ public class TimeDecayedStore {
                 baseBuckets.put(newBaseBucket, new BucketInfo(newBaseBucket, n, n, false));
                 nextBucketID = nextBucketID.nextBucketID();
 
-                if (tv.associatedEvent == TaggedValue.Event.LANDMARK_START) {
+                if (tv.landmarkStartsHere) {
                     // create a landmark bucket
                     if (activeLandmarkBucket != null) {
                         throw new LandmarkEventException();
@@ -135,6 +136,7 @@ public class TimeDecayedStore {
                     nextBucketID = nextBucketID.nextBucketID();
                 }
                 if (activeLandmarkBucket != null) {
+                    // insert into active landmark bucket
                     assert landmarkBuckets.containsKey(activeLandmarkBucket);
                     landmarkBuckets.get(activeLandmarkBucket).endN = n;
                     if (!pendingInserts.containsKey(activeLandmarkBucket)) {
@@ -148,7 +150,7 @@ public class TimeDecayedStore {
                     }
                     pendingInserts.get(newBaseBucket).put(n, tv.value);
                 }
-                if (tv.associatedEvent == TaggedValue.Event.LANDMARK_END) {
+                if (tv.landmarkEndsHere) {
                     /* Close the landmark bucket. Right now we don't track open/closed in the bucket explicitly,
                     so all we need to do is unmark activeLandmarkBucket */
                     if (activeLandmarkBucket == null) {

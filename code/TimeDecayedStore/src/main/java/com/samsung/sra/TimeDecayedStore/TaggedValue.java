@@ -5,20 +5,16 @@ package com.samsung.sra.TimeDecayedStore;
  * Created by a.vulimiri on 1/19/16.
  */
 public class TaggedValue {
-    public static enum Event {
-        LANDMARK_START,
-        LANDMARK_END
-    }
-
     public final Object value;
-    public final Event associatedEvent;
+    public final boolean landmarkStartsHere, landmarkEndsHere;
 
-    public TaggedValue(Object value, Event associatedEvent) {
+    public TaggedValue(Object value, boolean landmarkStartsHere, boolean landmarkEndsHere) {
         this.value = value;
-        this.associatedEvent = associatedEvent;
+        this.landmarkStartsHere = landmarkStartsHere;
+        this.landmarkEndsHere = landmarkEndsHere;
     }
 
     public TaggedValue(Object value) {
-        this(value, null);
+        this(value, false, false);
     }
 }
