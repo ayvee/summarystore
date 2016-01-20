@@ -5,6 +5,8 @@ import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Implements the time-decay and landmark parts of SummaryStore. API:
@@ -16,6 +18,8 @@ import java.util.*;
  * Created by a.vulimiri on 1/15/16.
  */
 public class TimeDecayedStore {
+    private final Logger logger = Logger.getLogger(TimeDecayedStore.class.getName());
+    private boolean assertsAreEnabled;
     private final String rocksDBPath;
     private BucketMerger merger;
     private RocksDB rocksDB = null;
@@ -30,13 +34,13 @@ public class TimeDecayedStore {
 
         // TODO: register an object to track what data structure we will use for each bucket
 
-        final List<BucketInfo> buckets; // should this be a Map or a List?
+        final LinkedHashMap<BucketID, BucketInfo> buckets; // should this be a Map or a List?
 
         StreamInfo(StreamID streamID) {
             this.streamID = streamID;
             this.readerSyncObj = new Object();
             this.writerSyncObj = new Object();
-            this.buckets = new ArrayList<BucketInfo>();
+            this.buckets = new LinkedHashMap<BucketID, BucketInfo>();
             this.numElements = 0;
         }
     }
@@ -69,6 +73,8 @@ public class TimeDecayedStore {
     private Map<StreamID, BucketID> activeLandmarkBuckets;
 
     public TimeDecayedStore(String rocksDBPath, BucketMerger merger) throws RocksDBException {
+        assertsAreEnabled = false;
+        assert assertsAreEnabled = true;
         /* TODO: implement a lock to ensure exclusive access to this RocksDB path.
                  RocksDB does not seem to have built-in locking */
         this.rocksDBPath = rocksDBPath;
@@ -121,7 +127,7 @@ public class TimeDecayedStore {
             LinkedHashMap<BucketID, BucketInfo>
                     baseBuckets = new LinkedHashMap<BucketID, BucketInfo>(),
                     landmarkBuckets = new LinkedHashMap<BucketID, BucketInfo>();
-            for (BucketInfo bucketInfo: streamInfo.buckets) {
+            for (BucketInfo bucketInfo: streamInfo.buckets.values()) {
                 BucketInfo bucketInfoCopy = new BucketInfo(bucketInfo);
                 if (bucketInfo.isLandmark) {
                     landmarkBuckets.put(bucketInfo.bucketID, bucketInfoCopy);
@@ -174,12 +180,73 @@ public class TimeDecayedStore {
                 }
             }
 
+            assert mergeInputIsSane(baseBuckets, N0, N);
+            LinkedHashMap<BucketID, BucketInfo> baseBucketsCopy = null; // will be used to cross-check merge output
+            if (assertsAreEnabled) {
+                baseBucketsCopy = new LinkedHashMap<BucketID, BucketInfo>();
+                for (Map.Entry<BucketID, BucketInfo> entry: baseBuckets.entrySet()) {
+                    baseBucketsCopy.put(entry.getKey(), new BucketInfo(entry.getValue()));
+                }
+            }
             List<List<BucketID>> pendingMerges = merger.merge(baseBuckets, N0, N);
+            // baseBuckets may have been modified by merge, make sure we don't try to reuse it
+            baseBuckets = null;
+            assert mergeOutputIsSane(pendingMerges, baseBucketsCopy, N);
         }
     }
 
+    private boolean mergeInputIsSane(LinkedHashMap<BucketID, BucketInfo> baseBuckets, int N0, int N) {
+        if (baseBuckets == null) {
+            logger.log(Level.SEVERE, "Problem in merge input: null baseBuckets");
+            return false;
+        }
+        if (N0 >= N) {
+            logger.log(Level.SEVERE, "Problem in merge input: N0 >= N (" + N0 + " >= " + N + ")");
+            return false;
+        }
+        int prevEnd = -1;
+        for (BucketInfo bucketInfo: baseBuckets.values()) {
+            if (bucketInfo.startN != prevEnd + 1) {
+                logger.log(Level.SEVERE, "Problem in merge input: bucket gap, bucket " + bucketInfo.bucketID
+                        + " starts at " + bucketInfo.startN + " but previous bucket ends at " + prevEnd);
+                return false;
+            }
+            prevEnd = bucketInfo.endN;
+        }
+        if (prevEnd != N) {
+            logger.log(Level.SEVERE, "Problem in merge input: invalid N, last bucket ends at "
+                    + prevEnd + " but N = " + N);
+            return false;
+        }
+        return true;
+    }
+
+    private boolean mergeOutputIsSane(List<List<BucketID>> pendingMerges, LinkedHashMap<BucketID, BucketInfo> baseBuckets, int N) {
+        if (pendingMerges == null) {
+            logger.log(Level.SEVERE, "Problem in merge output: null pendingMerges");
+            return false;
+        }
+        int prevEnd = -1;
+        for (List<BucketID> blist: pendingMerges) {
+            for (BucketID bucketID: blist) {
+                BucketInfo bucketInfo = baseBuckets.get(bucketID);
+                if (bucketInfo.startN != prevEnd + 1) {
+                    logger.log(Level.SEVERE, "Problem in merge output: bucket gap, bucket " + bucketInfo.bucketID
+                            + " starts at " + bucketInfo.startN + " but previous bucket ends at " + prevEnd);
+                    return false;
+                }
+            }
+        }
+        if (prevEnd != N) {
+            logger.log(Level.SEVERE, "Problem in merge output: invalid N, last bucket ends at "
+                    + prevEnd + " but N = " + N);
+            return false;
+        }
+        return true;
+    }
+
     public void close() {
-        // FIXME: should wait for any in-process appends to terminate first
+        // FIXME: should wait for any processing appends to terminate first
         if (rocksDB != null) {
             rocksDB.close();
         }
