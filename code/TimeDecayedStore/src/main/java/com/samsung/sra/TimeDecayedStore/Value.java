@@ -5,9 +5,8 @@ package com.samsung.sra.TimeDecayedStore;
  */
 public class Value {
     public static enum Event {
-        LANDMARK_START, // set on
-        LANDMARK_END,
-        NONE
+        LANDMARK_START,
+        LANDMARK_END
     }
 
     public final Event event;

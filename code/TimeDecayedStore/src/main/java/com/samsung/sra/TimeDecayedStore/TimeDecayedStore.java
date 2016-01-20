@@ -81,7 +81,7 @@ public class TimeDecayedStore {
         }
     }
 
-    public void append(final StreamID streamID, final List<Value> values) throws StreamException {
+    public void append(final StreamID streamID, final List<Value> values) throws StreamException, LandmarkEventException {
         final StreamInfo streamInfo;
         synchronized (streamsInfo) {
             if (!streamsInfo.containsKey(streamID)) {
@@ -136,14 +136,38 @@ public class TimeDecayedStore {
             for (int i = 0; i < values.size(); ++i) {
                 int n = N0 + i;
                 Value v = values.get(i);
-                PendingBucketActions action = new PendingBucketActions(nextBucketID, n, n, false);
-                switch (v.event) {
-                    case LANDMARK_START:
-                        break;
-                    case LANDMARK_END:
-                        break;
-                    case NONE:
-                        break;
+                /* We always create a new base bucket of size 1 for every inserted element. As with any other
+                 base bucket, it can be empty if the value at that position goes into a landmark bucket instead */
+                PendingBucketActions newBaseBucketActions = new PendingBucketActions(nextBucketID, n, n, false);
+                nextBucketID = nextBucketID.nextBucketID();
+                pendingBucketActions.put(newBaseBucketActions.bucketID, newBaseBucketActions);
+
+                if (v.event == Value.Event.LANDMARK_START) {
+                    // create a landmark bucket
+                    if (activeLandmarkBucket != null) {
+                        throw new LandmarkEventException();
+                    }
+                    activeLandmarkBucket = nextBucketID;
+                    nextBucketID = nextBucketID.nextBucketID();
+                    PendingBucketActions landmarkActions = new PendingBucketActions(activeLandmarkBucket, n, n, true);
+                    pendingBucketActions.put(landmarkActions.bucketID, landmarkActions);
+                }
+                if (activeLandmarkBucket != null) {
+                    // insert element into landmark bucket
+                    PendingBucketActions landmarkActions = pendingBucketActions.get(activeLandmarkBucket);
+                    landmarkActions.valuesToInsert.put(n, v.value);
+                    landmarkActions.endN = n;
+                } else {
+                    // insert into the new base bucket of size 1
+                    newBaseBucketActions.valuesToInsert.put(n, v.value);
+                }
+                if (v.event == Value.Event.LANDMARK_END) {
+                    /* Close the landmark bucket. Right now we don't track open/closed in the bucket explicitly,
+                    so all we need to do is unmark activeLandmarkBucket */
+                    if (activeLandmarkBucket == null) {
+                        throw new LandmarkEventException();
+                    }
+                    activeLandmarkBucket = null;
                 }
             }
         }
