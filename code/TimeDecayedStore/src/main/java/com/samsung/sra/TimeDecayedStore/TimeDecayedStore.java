@@ -9,7 +9,7 @@ import java.util.*;
 /**
  * Implements the time-decay and landmark parts of SummaryStore. API:
  *    register(streamID, aggregateDataStructure)
- *    append(streamID, List<TaggedValue>)
+ *    append(streamID, List<FlaggedValue>)
  *    query(streamID, t1, t2, aggregateFunction)
  * At this point we make no distinction between time and count, i.e. we assume
  * exactly one element arrives at t = 0, 1, 2, 3, ...
@@ -17,6 +17,7 @@ import java.util.*;
  */
 public class TimeDecayedStore {
     private final String rocksDBPath;
+    private BucketMerger merger;
     private RocksDB rocksDB = null;
     private Options rocksDBOptions = null;
 
@@ -51,18 +52,30 @@ public class TimeDecayedStore {
             this.endN = endN;
             this.isLandmark = isLandmark;
         }
+
+        BucketInfo(BucketInfo that) {
+            this(that.bucketID, that.startN, that.endN, that.isLandmark);
+        }
     }
 
+    /* The buckets proper are stored in RocksDB. We maintain additional in-memory indexes
+    to help reads and writes:
+        streamsInfo: basic stream metadata + list of bucket endpoints for each stream
+        activeLandmarkBuckets: BucketIDs for streams that have an open landmark bucket
+     Right now, the append operation is responsible for ensuring these indexes are synchronized
+     with the base data on RocksDB.
+     */
     private final Map<StreamID, StreamInfo> streamsInfo;
     private Map<StreamID, BucketID> activeLandmarkBuckets;
 
-    public TimeDecayedStore(String rocksDBPath) throws RocksDBException {
+    public TimeDecayedStore(String rocksDBPath, BucketMerger merger) throws RocksDBException {
         /* TODO: implement a lock to ensure exclusive access to this RocksDB path.
                  RocksDB does not seem to have built-in locking */
         this.rocksDBPath = rocksDBPath;
         RocksDB.loadLibrary();
         rocksDBOptions = new Options().setCreateIfMissing(true);
         rocksDB = RocksDB.open(rocksDBOptions, rocksDBPath);
+        this.merger = merger;
 
         this.streamsInfo = new HashMap<StreamID, StreamInfo>();
         this.activeLandmarkBuckets = new HashMap<StreamID, BucketID>();
@@ -80,7 +93,7 @@ public class TimeDecayedStore {
         }
     }
 
-    public void append(final StreamID streamID, final List<TaggedValue> values) throws StreamException, LandmarkEventException {
+    public void append(final StreamID streamID, final List<FlaggedValue> values) throws StreamException, LandmarkEventException {
         final StreamInfo streamInfo;
         synchronized (streamsInfo) {
             if (!streamsInfo.containsKey(streamID)) {
@@ -109,24 +122,25 @@ public class TimeDecayedStore {
                     baseBuckets = new LinkedHashMap<BucketID, BucketInfo>(),
                     landmarkBuckets = new LinkedHashMap<BucketID, BucketInfo>();
             for (BucketInfo bucketInfo: streamInfo.buckets) {
+                BucketInfo bucketInfoCopy = new BucketInfo(bucketInfo);
                 if (bucketInfo.isLandmark) {
-                    landmarkBuckets.put(bucketInfo.bucketID, bucketInfo);
+                    landmarkBuckets.put(bucketInfo.bucketID, bucketInfoCopy);
                 } else {
-                    baseBuckets.put(bucketInfo.bucketID, bucketInfo);
+                    baseBuckets.put(bucketInfo.bucketID, bucketInfoCopy);
                 }
             }
             BucketID activeLandmarkBucket = activeLandmarkBuckets.get(streamID);
             for (int i = 0; i < values.size(); ++i) {
                 // insert into appropriate bucket (creating the target bucket if necessary)
                 int n = N0 + i;
-                TaggedValue tv = values.get(i);
+                FlaggedValue fv = values.get(i);
                 /* We always create a new base bucket of size 1 for every inserted element. As with any other
                  base bucket, it can be empty if the value at that position goes into a landmark bucket instead */
                 BucketID newBaseBucket = nextBucketID;
                 baseBuckets.put(newBaseBucket, new BucketInfo(newBaseBucket, n, n, false));
                 nextBucketID = nextBucketID.nextBucketID();
 
-                if (tv.landmarkStartsHere) {
+                if (fv.landmarkStartsHere) {
                     // create a landmark bucket
                     if (activeLandmarkBucket != null) {
                         throw new LandmarkEventException();
@@ -142,15 +156,15 @@ public class TimeDecayedStore {
                     if (!pendingInserts.containsKey(activeLandmarkBucket)) {
                         pendingInserts.put(activeLandmarkBucket, new LinkedHashMap<Integer, Object>());
                     }
-                    pendingInserts.get(activeLandmarkBucket).put(n, tv.value);
+                    pendingInserts.get(activeLandmarkBucket).put(n, fv.value);
                 } else {
                     // insert into the new base bucket of size 1
                     if (!pendingInserts.containsKey(newBaseBucket)) {
                         pendingInserts.put(newBaseBucket, new LinkedHashMap<Integer, Object>());
                     }
-                    pendingInserts.get(newBaseBucket).put(n, tv.value);
+                    pendingInserts.get(newBaseBucket).put(n, fv.value);
                 }
-                if (tv.landmarkEndsHere) {
+                if (fv.landmarkEndsHere) {
                     /* Close the landmark bucket. Right now we don't track open/closed in the bucket explicitly,
                     so all we need to do is unmark activeLandmarkBucket */
                     if (activeLandmarkBucket == null) {
@@ -160,12 +174,12 @@ public class TimeDecayedStore {
                 }
             }
 
-
-            // TODO: update activeLandmarkBuckets
+            List<List<BucketID>> pendingMerges = merger.merge(baseBuckets, N0, N);
         }
     }
 
     public void close() {
+        // FIXME: should wait for any in-process appends to terminate first
         if (rocksDB != null) {
             rocksDB.close();
         }
@@ -175,7 +189,7 @@ public class TimeDecayedStore {
     public static void main(String[] args) {
         TimeDecayedStore store = null;
         try {
-            store = new TimeDecayedStore("/tmp/tdstore");
+            store = new TimeDecayedStore("/tmp/tdstore", new WBMHBucketMerger());
         } catch (RocksDBException e) {
             e.printStackTrace();
         } finally {

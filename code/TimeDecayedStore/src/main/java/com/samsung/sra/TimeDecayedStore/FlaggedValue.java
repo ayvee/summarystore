@@ -1,20 +1,20 @@
 package com.samsung.sra.TimeDecayedStore;
 
 /**
- * Values with associated tags marking out landmark start and end events.
+ * Values with associated flags marking out landmark start and end events.
  * Created by a.vulimiri on 1/19/16.
  */
-public class TaggedValue {
+public class FlaggedValue {
     public final Object value;
     public final boolean landmarkStartsHere, landmarkEndsHere;
 
-    public TaggedValue(Object value, boolean landmarkStartsHere, boolean landmarkEndsHere) {
+    public FlaggedValue(Object value, boolean landmarkStartsHere, boolean landmarkEndsHere) {
         this.value = value;
         this.landmarkStartsHere = landmarkStartsHere;
         this.landmarkEndsHere = landmarkEndsHere;
     }
 
-    public TaggedValue(Object value) {
+    public FlaggedValue(Object value) {
         this(value, false, false);
     }
 }
