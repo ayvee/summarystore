@@ -4,7 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 
 /**
- * Encapsulates code for the EH/WBMH/similar mechanisms
+ * Encapsulates code for EH/WBMH/similar mechanisms
  * Created by a.vulimiri on 1/20/16.
  */
 public interface BucketMerger {
@@ -19,6 +19,6 @@ public interface BucketMerger {
      *
      * The baseBuckets argument can be consumed destructively.
      */
-    public List<List<BucketID>> merge(LinkedHashMap<BucketID, TimeDecayedStore.BucketInfo> baseBuckets,
+    public List<List<BucketID>> merge(LinkedHashMap<BucketID, BucketInfo> baseBuckets,
                                       int N0, int N);
 }

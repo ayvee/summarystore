@@ -52,4 +52,9 @@ public class StreamID {
     public int hashCode() {
         return id;
     }
+
+    @Override
+    public String toString() {
+        return Integer.toString(id);
+    }
 }

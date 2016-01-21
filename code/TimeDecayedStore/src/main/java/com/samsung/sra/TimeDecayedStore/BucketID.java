@@ -57,6 +57,11 @@ public class BucketID implements Comparable<BucketID> {
         return id;
     }
 
+    @Override
+    public String toString() {
+        return Integer.toString(id);
+    }
+
     public int compareTo(BucketID that) {
         if (that == null) {
             throw new NullPointerException("comparing null BucketID");
