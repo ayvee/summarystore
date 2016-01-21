@@ -3,9 +3,6 @@ package com.samsung.sra.TimeDecayedStore;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 
-/**
- * Created by a.vulimiri on 1/19/16.
- */
 public class BucketID implements Comparable<BucketID>, Serializable {
     private final int id;
 
@@ -19,7 +16,6 @@ public class BucketID implements Comparable<BucketID>, Serializable {
 
     /**
      * How many bytes long is a StreamID?
-     * @return
      */
     public static int getByteCount() {
         return 4;
@@ -27,7 +23,6 @@ public class BucketID implements Comparable<BucketID>, Serializable {
 
     /**
      * put id into buffer. Like all ByteBuffer puts, this advances the buffer position
-     * @param buffer
      */
     void writeToByteBuffer(ByteBuffer buffer) {
         buffer.putInt(id);
@@ -35,8 +30,6 @@ public class BucketID implements Comparable<BucketID>, Serializable {
 
     /**
      * get id from buffer. Like all ByteBuffer gets, this advances the buffer position
-     * @param buffer
-     * @return
      */
     static BucketID readFromByteBuffer(ByteBuffer buffer) {
         return new BucketID(buffer.getInt());

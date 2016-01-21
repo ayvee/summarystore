@@ -2,9 +2,6 @@ package com.samsung.sra.TimeDecayedStore;
 
 import java.nio.ByteBuffer;
 
-/**
- * Created by a.vulimiri on 1/19/16.
- */
 public class StreamID {
     private final int id;
 
@@ -14,7 +11,6 @@ public class StreamID {
 
     /**
      * How many bytes long is a StreamID?
-     * @return
      */
     public static int getByteCount() {
         return 4;
@@ -22,7 +18,6 @@ public class StreamID {
 
     /**
      * put id into buffer. Like all ByteBuffer puts, this advances the buffer position
-     * @param buffer
      */
     void writeToByteBuffer(ByteBuffer buffer) {
         buffer.putInt(id);
@@ -30,8 +25,6 @@ public class StreamID {
 
     /**
      * get id from buffer. Like all ByteBuffer gets, this advances the buffer position
-     * @param buffer
-     * @return
      */
     static StreamID readFromByteBuffer(ByteBuffer buffer) {
         return new StreamID(buffer.getInt());

@@ -27,10 +27,12 @@ public class TimeDecayedStore {
     to help reads and writes:
         streamsInfo: basic stream metadata + list of bucket endpoints for each stream
         activeLandmarkBuckets: BucketIDs for streams that have an open landmark bucket
+        timeIndex: a time -> bucket index for answering queries
      Right now, the append operation is responsible for ensuring these indexes are synchronized
      with the base data on RocksDB.
      */
     private final Map<StreamID, StreamInfo> streamsInfo;
+    private Map<StreamID, TreeMap<Integer, BucketID>> timeIndex;
     private Map<StreamID, BucketID> activeLandmarkBuckets;
 
     public TimeDecayedStore(String rocksDBPath, BucketMerger merger) throws RocksDBException {
@@ -43,6 +45,7 @@ public class TimeDecayedStore {
 
         this.streamsInfo = new HashMap<StreamID, StreamInfo>();
         this.activeLandmarkBuckets = new HashMap<StreamID, BucketID>();
+        this.timeIndex = new HashMap<StreamID, TreeMap<Integer, BucketID>>();
     }
 
     public void registerStream(final StreamID streamID) throws StreamException {
@@ -53,7 +56,40 @@ public class TimeDecayedStore {
             } else {
                 streamsInfo.put(streamID, new StreamInfo(streamID));
                 activeLandmarkBuckets.put(streamID, null);
+                timeIndex.put(streamID, new TreeMap<Integer, BucketID>());
             }
+        }
+    }
+
+    public Object query(StreamID streamID, int queryType, int t0, int t1) throws StreamException, QueryException {
+        if (t0 > t1 || t0 < 0) {
+            throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
+        }
+        final StreamInfo streamInfo;
+        synchronized (streamsInfo) {
+            if (!streamsInfo.containsKey(streamID)) {
+                throw new StreamException("attempting to read from unregistered stream " + streamID);
+            } else {
+                streamInfo = streamsInfo.get(streamID);
+            }
+        }
+        synchronized (streamInfo.readerSyncObj) {
+            if (t1 >= streamInfo.numElements) {
+                throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
+            }
+            TreeMap<Integer, BucketID> index = timeIndex.get(streamID);
+            Integer l = index.floorKey(t0); // first startN <= t0
+            Integer r = index.higherKey(t1); // first startN > t1
+            if (r == null) {
+                r = streamInfo.numElements;
+            }
+            // all buckets with l <= startN < r
+            SortedMap<Integer, BucketID> spanningBucketsIDs = index.subMap(l, true, r, false);
+            List<Bucket> spanningBuckets = new ArrayList<Bucket>();
+            for (BucketID bucketID: spanningBucketsIDs.values()) {
+                spanningBuckets.add(rocksGet(streamID, bucketID, false));
+            }
+            return Bucket.multiBucketQuery(spanningBuckets, queryType, t0, t1);
         }
     }
 
@@ -75,7 +111,7 @@ public class TimeDecayedStore {
              the reader object below once we've done the bucket merge math and are ready to start
              modifying the data structure */
             int N0 = streamInfo.numElements, N = N0 + values.size();
-            // id of last bucket present in RocksDB
+            // id of last bucket currently present in RocksDB
             BucketID lastBucketID = null;
             if (streamInfo.numElements > 0) {
                 for (BucketID bucketID: streamInfo.buckets.keySet()) {
@@ -112,8 +148,6 @@ public class TimeDecayedStore {
             assert mergeOutputIsSane(pendingMerges, baseBuckets, N);
 
             // compile pendingInserts and pendingMerges into a list of actions on each bucket
-            /* TreeMap sorts modifications on BucketID. This is where the assumption that
-            BucketIDs are assigned in increasing order becomes significant */
             TreeMap<BucketID, BucketModification> pendingModifications =
                     identifyBucketModifications(pendingInserts, pendingMerges, baseBuckets, landmarkBuckets, lastBucketID);
 
@@ -206,18 +240,26 @@ public class TimeDecayedStore {
                     mod.valuesToInsert = inserts;
                     mod.finalBucketInfo.startN = baseBuckets.get(bucketID).startN;
                     mod.finalBucketInfo.endN = inserts.lastKey();
+                    if (isANewBucket) {
+                        mod.initialBucketInfo = (mod.finalBucketInfo.isLandmark ? landmarkBuckets.get(bucketID) : baseBuckets.get(bucketID));
+                    }
                     pendingModifications.put(bucketID, mod);
                 }
             } else { // merge
                 BucketID targetBucketID = null;
+                TreeMap<Integer, Object> inserts = null;
                 List<BucketID> merges = new ArrayList<BucketID>();
-                TreeMap<Integer, Object> inserts = new TreeMap<Integer, Object>();
                 for (BucketID bucketID: mergeList) {
                     if (targetBucketID == null) {
                         targetBucketID = bucketID;
+                        inserts = pendingInserts.get(targetBucketID);
+                        if (inserts == null) {
+                            inserts = new TreeMap<Integer, Object>();
+                        }
                         continue;
                     }
-                    if (lastBucketID != null && bucketID.compareTo(lastBucketID) <= 0) { // this bucket actually exists right now
+                    if (lastBucketID != null && lastBucketID.compareTo(bucketID) >= 0) {
+                        // this bucket actually exists right now
                         merges.add(bucketID);
                     }
                     TreeMap<Integer, Object> intermediateInserts = pendingInserts.get(bucketID);
@@ -226,7 +268,7 @@ public class TimeDecayedStore {
                     }
                 }
                 if (!merges.isEmpty() || !inserts.isEmpty()) {
-                    boolean isANewBucket = (lastBucketID == null || targetBucketID.compareTo(lastBucketID) > 0);
+                    boolean isANewBucket = (lastBucketID == null || lastBucketID.compareTo(targetBucketID) < 0);
                     BucketModification mod = new BucketModification(targetBucketID, isANewBucket, false);
                     mod.finalBucketInfo.startN = baseBuckets.get(targetBucketID).startN;
                     if (!merges.isEmpty()) {
@@ -237,6 +279,9 @@ public class TimeDecayedStore {
                         mod.valuesToInsert = inserts;
                         mod.finalBucketInfo.endN = inserts.lastKey();
                     }
+                    if (isANewBucket) {
+                        mod.initialBucketInfo = (mod.finalBucketInfo.isLandmark ? landmarkBuckets.get(targetBucketID) : baseBuckets.get(targetBucketID));
+                    }
                     pendingModifications.put(targetBucketID, mod);
                 }
             }
@@ -245,11 +290,14 @@ public class TimeDecayedStore {
         for (BucketID bucketID: landmarkBuckets.keySet()) {
             TreeMap<Integer, Object> inserts = pendingInserts.get(bucketID);
             if (inserts != null) {
-                boolean isANewBucket = (lastBucketID == null || bucketID.compareTo(lastBucketID) > 0);
+                boolean isANewBucket = (lastBucketID == null || lastBucketID.compareTo(bucketID) < 0);
                 BucketModification mod = new BucketModification(bucketID, isANewBucket, true);
                 mod.valuesToInsert = inserts;
                 mod.finalBucketInfo.startN = landmarkBuckets.get(bucketID).startN;
                 mod.finalBucketInfo.endN = inserts.lastKey();
+                if (isANewBucket) {
+                    mod.initialBucketInfo = (mod.finalBucketInfo.isLandmark ? landmarkBuckets.get(bucketID) : baseBuckets.get(bucketID));
+                }
                 pendingModifications.put(bucketID, mod);
             }
         }
@@ -268,11 +316,37 @@ public class TimeDecayedStore {
         public TreeMap<Integer, Object> valuesToInsert = null;
         public final boolean isANewBucket; // bucket does not yet exist in RocksDB, needs to be created
         public final BucketInfo finalBucketInfo;
+        // if isANewBucket, what BucketInfo should the bucket initially be created with
+        public BucketInfo initialBucketInfo = null;
 
         public BucketModification(BucketID bucketID, boolean isANewBucket, boolean isLandmark) {
             this.bucketID = bucketID;
             this.isANewBucket = isANewBucket;
             this.finalBucketInfo = new BucketInfo(bucketID, isLandmark);
+        }
+
+        @Override
+        public String toString() {
+            String ret = "BucketModification(" + bucketID + "):";
+            if (bucketsToMergeInto != null) {
+                ret += " merge[ ";
+                for (BucketID mergee: bucketsToMergeInto) {
+                    ret += mergee + " ";
+                }
+                ret += "]";
+            }
+            if (valuesToInsert != null) {
+                ret += " inserts[ ";
+                for (Map.Entry<Integer, Object> entry: valuesToInsert.entrySet()) {
+                    ret += "(" + entry.getKey() + ", " + entry.getValue() + ") ";
+                }
+                ret += "]";
+            }
+            if (isANewBucket) {
+                ret += " create[" + initialBucketInfo + "]";
+            }
+            ret += " final state " + finalBucketInfo;
+            return ret;
         }
     }
 
@@ -280,17 +354,56 @@ public class TimeDecayedStore {
      * This is the basic atomic modify operation in the system.
      */
     private void processBucketModification(BucketModification mod, StreamInfo streamInfo) {
-        // TODO: actually modify the buckets in RocksDB
         // merge buckets
+        List<Bucket> mergees = new ArrayList<Bucket>();
         if (mod.bucketsToMergeInto != null && !mod.bucketsToMergeInto.isEmpty()) {
             for (BucketID mergee: mod.bucketsToMergeInto) {
+                mergees.add(rocksGet(streamInfo.streamID, mergee, true));
                 streamInfo.buckets.remove(mergee);
             }
         }
-        // insert elements
+        if (!mergees.isEmpty() || (mod.valuesToInsert != null && !mod.valuesToInsert.isEmpty())) {
+            Bucket target;
+            if (mod.isANewBucket) {
+                target = new Bucket(mod.initialBucketInfo);
+            } else {
+                target = rocksGet(streamInfo.streamID, mod.bucketID, false);
+            }
+            target.merge(mergees, mod.valuesToInsert);
+            assert mod.finalBucketInfo.startN == target.info.startN && mod.finalBucketInfo.endN == target.info.endN;
+            rocksPut(streamInfo.streamID, mod.bucketID, target);
+        }
 
         streamInfo.buckets.put(mod.bucketID, mod.finalBucketInfo);
         streamInfo.numElements = Math.max(streamInfo.numElements, 1 + mod.finalBucketInfo.endN);
+
+        reconstructTimeIndex(streamInfo);
+    }
+
+    private void reconstructTimeIndex(StreamInfo streamInfo) {
+        TreeMap<Integer, BucketID> index = timeIndex.get(streamInfo.streamID);
+        index.clear();
+        for (BucketInfo bucketInfo: streamInfo.buckets.values()) {
+            assert bucketInfo.startN >= 0;
+            index.put(bucketInfo.startN, bucketInfo.bucketID);
+        }
+    }
+
+    // TODO: rocksDB
+    private final Map<StreamID, Map<BucketID, Bucket>> rocks = new HashMap<StreamID, Map<BucketID, Bucket>>();
+    private Bucket rocksGet(StreamID streamID, BucketID bucketID, boolean delete) {
+        if (delete) {
+            return rocks.get(streamID).remove(bucketID);
+        } else {
+            return rocks.get(streamID).get(bucketID);
+        }
+    }
+
+    private void rocksPut(StreamID streamID, BucketID bucketID, Bucket bucket) {
+        if (!rocks.containsKey(streamID)) {
+            rocks.put(streamID, new HashMap<BucketID, Bucket>());
+        }
+        rocks.get(streamID).put(bucketID, bucket);
     }
 
     private void printBucketState(StreamID streamID) {
@@ -370,13 +483,16 @@ public class TimeDecayedStore {
             store = new TimeDecayedStore("/tmp/tdstore", new WBMHBucketMerger(3));
             StreamID streamID = new StreamID(0);
             store.registerStream(streamID);
-            store.printBucketState(streamID);
-            for (int i = 0; i < 10; ++i) {
+            for (int i = 1; i <= 10; ++i) {
                 List<FlaggedValue> values = new ArrayList<FlaggedValue>();
                 values.add(new FlaggedValue(i));
                 store.append(streamID, values);
-                store.printBucketState(streamID);
             }
+            store.printBucketState(streamID);
+            int t0 = 0, t1 = 9;
+            System.out.println(
+                    "sum[" + t0 + ", " + t1 + "] = " + store.query(streamID, Bucket.QUERY_SUM, t0, t1) + "; " +
+                    "count[" + t0 + ", " + t1 + "] = " + store.query(streamID, Bucket.QUERY_COUNT, t0, t1));
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
