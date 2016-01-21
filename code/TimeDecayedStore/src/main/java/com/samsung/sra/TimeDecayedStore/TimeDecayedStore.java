@@ -19,7 +19,6 @@ import java.util.logging.Logger;
  */
 public class TimeDecayedStore {
     private final Logger logger = Logger.getLogger(TimeDecayedStore.class.getName());
-    private final String rocksDBPath;
     private BucketMerger merger;
     private RocksDB rocksDB = null;
     private Options rocksDBOptions = null;
@@ -37,7 +36,6 @@ public class TimeDecayedStore {
     public TimeDecayedStore(String rocksDBPath, BucketMerger merger) throws RocksDBException {
         /* TODO: implement a lock to ensure exclusive access to this RocksDB path.
                  RocksDB does not seem to have built-in locking */
-        this.rocksDBPath = rocksDBPath;
         RocksDB.loadLibrary();
         rocksDBOptions = new Options().setCreateIfMissing(true);
         rocksDB = RocksDB.open(rocksDBOptions, rocksDBPath);
@@ -66,7 +64,7 @@ public class TimeDecayedStore {
         final StreamInfo streamInfo;
         synchronized (streamsInfo) {
             if (!streamsInfo.containsKey(streamID)) {
-                throw new StreamException("attempting to append to unregistered streamID " + streamID);
+                throw new StreamException("attempting to append to unregistered stream " + streamID);
             } else {
                 streamInfo = streamsInfo.get(streamID);
             }
@@ -77,15 +75,12 @@ public class TimeDecayedStore {
              the reader object below once we've done the bucket merge math and are ready to start
              modifying the data structure */
             int N0 = streamInfo.numElements, N = N0 + values.size();
-            // id of last bucket created so far and next bucket to create
-            BucketID bucketID0 = null, nextBucketID;
+            // id of last bucket present in RocksDB
+            BucketID lastBucketID = null;
             if (streamInfo.numElements > 0) {
                 for (BucketID bucketID: streamInfo.buckets.keySet()) {
-                    bucketID0 = bucketID;
+                    lastBucketID = bucketID;
                 }
-                nextBucketID = bucketID0.nextBucketID();
-            } else {
-                nextBucketID = new BucketID(0);
             }
 
             LinkedHashMap<BucketID, BucketInfo>
@@ -99,127 +94,28 @@ public class TimeDecayedStore {
                     baseBuckets.put(bucketInfo.bucketID, bucketInfoCopy);
                 }
             }
-            BucketID activeLandmarkBucket = activeLandmarkBuckets.get(streamID);
 
-            /* Process inserts: figure out which bucket every new <time, value> pair needs to be inserted into,
-            creating new base or landmark buckets as necessary */
-            Map<BucketID, TreeMap<Integer, Object>> pendingInserts = new HashMap<BucketID, TreeMap<Integer, Object>>();
-            for (int i = 0; i < values.size(); ++i) {
-                int n = N0 + i;
-                FlaggedValue fv = values.get(i);
-                /* We always create a new base bucket of size 1 for every inserted element. As with any other
-                 base bucket, it can be empty if the value at that position goes into a landmark bucket instead */
-                BucketID newBaseBucket = nextBucketID;
-                baseBuckets.put(newBaseBucket, new BucketInfo(newBaseBucket, n, n, false));
-                nextBucketID = nextBucketID.nextBucketID();
+            // insert values into buckets, creating new buckets as necessary
+            Map<BucketID, TreeMap<Integer, Object>> pendingInserts =
+                    processInserts(values, N0, streamID, baseBuckets, landmarkBuckets, lastBucketID);
 
-                if (fv.landmarkStartsHere) {
-                    // create a landmark bucket
-                    if (activeLandmarkBucket != null) {
-                        throw new LandmarkEventException();
-                    }
-                    activeLandmarkBucket = nextBucketID;
-                    landmarkBuckets.put(activeLandmarkBucket, new BucketInfo(activeLandmarkBucket, n, n, true));
-                    nextBucketID = nextBucketID.nextBucketID();
-                }
-                if (activeLandmarkBucket != null) {
-                    // insert into active landmark bucket
-                    assert landmarkBuckets.containsKey(activeLandmarkBucket);
-                    landmarkBuckets.get(activeLandmarkBucket).endN = n;
-                    if (!pendingInserts.containsKey(activeLandmarkBucket)) {
-                        pendingInserts.put(activeLandmarkBucket, new TreeMap<Integer, Object>());
-                    }
-                    pendingInserts.get(activeLandmarkBucket).put(n, fv.value);
-                } else {
-                    // insert into the new base bucket of size 1
-                    if (!pendingInserts.containsKey(newBaseBucket)) {
-                        pendingInserts.put(newBaseBucket, new TreeMap<Integer, Object>());
-                    }
-                    pendingInserts.get(newBaseBucket).put(n, fv.value);
-                }
-                if (fv.landmarkEndsHere) {
-                    /* Close the landmark bucket. Right now we don't track open/closed in the bucket explicitly,
-                    so all we need to do is unmark activeLandmarkBucket */
-                    if (activeLandmarkBucket == null) {
-                        throw new LandmarkEventException();
-                    }
-                    activeLandmarkBucket = null;
-                }
-            }
-
-            // Figure out which base buckets need to be merged
+            // figure out which base buckets need to be merged
             assert mergeInputIsSane(baseBuckets, N0, N);
-            LinkedHashMap<BucketID, BucketInfo> baseBucketsCopy = new LinkedHashMap<BucketID, BucketInfo>();
-            for (Map.Entry<BucketID, BucketInfo> entry: baseBuckets.entrySet()) {
-                baseBucketsCopy.put(entry.getKey(), new BucketInfo(entry.getValue()));
+            List<List<BucketID>> pendingMerges;
+            {
+                LinkedHashMap<BucketID, BucketInfo> baseBucketsCopy = new LinkedHashMap<BucketID, BucketInfo>();
+                for (Map.Entry<BucketID, BucketInfo> entry : baseBuckets.entrySet()) {
+                    baseBucketsCopy.put(entry.getKey(), new BucketInfo(entry.getValue()));
+                }
+                pendingMerges = merger.merge(baseBucketsCopy, N0, N);
             }
-            List<List<BucketID>> pendingMerges = merger.merge(baseBucketsCopy, N0, N);
-            assert mergeOutputIsSane(pendingMerges, baseBucketsCopy, N);
+            assert mergeOutputIsSane(pendingMerges, baseBuckets, N);
 
-            // Compile pendingInserts and pendingMerges into a list of actions on each bucket
+            // compile pendingInserts and pendingMerges into a list of actions on each bucket
             /* TreeMap sorts modifications on BucketID. This is where the assumption that
             BucketIDs are assigned in increasing order becomes significant */
-            TreeMap<BucketID, BucketModification> pendingModifications = new TreeMap<BucketID, BucketModification>();
-            // first process base buckets
-            for (List<BucketID> mergeList: pendingMerges) {
-                if (mergeList == null || mergeList.isEmpty()) {
-                    logger.log(Level.WARNING, "empty or null list in merge output");
-                } else if (mergeList.size() == 1) { // no merge
-                    BucketID bucketID = mergeList.get(0);
-                    TreeMap<Integer, Object> inserts = pendingInserts.get(bucketID);
-                    if (inserts != null) {
-                        boolean isANewBucket = (bucketID0 == null || bucketID.compareTo(bucketID0) > 0);
-                        BucketModification mod = new BucketModification(bucketID, isANewBucket, false);
-                        mod.valuesToInsert = inserts;
-                        mod.finalBucketInfo.startN = baseBuckets.get(bucketID).startN;
-                        mod.finalBucketInfo.endN = inserts.lastKey();
-                        pendingModifications.put(bucketID, mod);
-                    }
-                } else { // merge
-                    BucketID targetBucketID = null;
-                    List<BucketID> merges = new ArrayList<BucketID>();
-                    TreeMap<Integer, Object> inserts = new TreeMap<Integer, Object>();
-                    for (BucketID bucketID: mergeList) {
-                        if (targetBucketID == null) {
-                            targetBucketID = bucketID;
-                            continue;
-                        }
-                        if (bucketID0 != null && bucketID.compareTo(bucketID0) <= 0) { // this bucket actually exists right now
-                            merges.add(bucketID);
-                        }
-                        TreeMap<Integer, Object> intermediateInserts = pendingInserts.get(bucketID);
-                        if (intermediateInserts != null) {
-                            inserts.putAll(intermediateInserts);
-                        }
-                    }
-                    if (!merges.isEmpty() || !inserts.isEmpty()) {
-                        boolean isANewBucket = (bucketID0 == null || targetBucketID.compareTo(bucketID0) > 0);
-                        BucketModification mod = new BucketModification(targetBucketID, isANewBucket, false);
-                        mod.finalBucketInfo.startN = baseBuckets.get(targetBucketID).startN;
-                        if (!merges.isEmpty()) {
-                            mod.bucketsToMergeInto = merges;
-                            mod.finalBucketInfo.endN = baseBuckets.get(merges.get(merges.size() - 1)).endN;
-                        }
-                        if (!inserts.isEmpty()) {
-                            mod.valuesToInsert = inserts;
-                            mod.finalBucketInfo.endN = inserts.lastKey();
-                        }
-                        pendingModifications.put(targetBucketID, mod);
-                    }
-                }
-            }
-            // next process landmark buckets
-            for (BucketID bucketID: landmarkBuckets.keySet()) {
-                TreeMap<Integer, Object> inserts = pendingInserts.get(bucketID);
-                if (inserts != null) {
-                    boolean isANewBucket = (bucketID0 == null || bucketID.compareTo(bucketID0) > 0);
-                    BucketModification mod = new BucketModification(bucketID, isANewBucket, true);
-                    mod.valuesToInsert = inserts;
-                    mod.finalBucketInfo.startN = landmarkBuckets.get(bucketID).startN;
-                    mod.finalBucketInfo.endN = inserts.lastKey();
-                    pendingModifications.put(bucketID, mod);
-                }
-            }
+            TreeMap<BucketID, BucketModification> pendingModifications =
+                    identifyBucketModifications(pendingInserts, pendingMerges, baseBuckets, landmarkBuckets, lastBucketID);
 
             // Process the modifications
             for (BucketModification mod: pendingModifications.values()) {
@@ -228,9 +124,136 @@ public class TimeDecayedStore {
                     processBucketModification(mod, streamInfo);
                 }
             }
-
-            activeLandmarkBuckets.put(streamID, activeLandmarkBucket);
         }
+    }
+
+    /**
+     * Figure out which bucket every new <time, value> pair needs to be inserted into,
+     * creating new base or landmark buckets as necessary. Modifies baseBuckets and landmarkBuckets */
+    private Map<BucketID, TreeMap<Integer, Object>> processInserts(
+            List<FlaggedValue> values, int N0,
+            StreamID streamID,
+            LinkedHashMap<BucketID, BucketInfo> baseBuckets, LinkedHashMap<BucketID, BucketInfo> landmarkBuckets,
+            BucketID lastBucketID) throws LandmarkEventException {
+        Map<BucketID, TreeMap<Integer, Object>> pendingInserts = new HashMap<BucketID, TreeMap<Integer, Object>>();
+        BucketID activeLandmarkBucket = activeLandmarkBuckets.get(streamID);
+        BucketID nextBucketID = lastBucketID != null ? lastBucketID.nextBucketID() : new BucketID(0);
+        for (int i = 0; i < values.size(); ++i) {
+            int n = N0 + i;
+            FlaggedValue fv = values.get(i);
+            /* We always create a new base bucket of size 1 for every inserted element. As with any other
+             base bucket, it can be empty if the value at that position goes into a landmark bucket instead */
+            BucketID newBaseBucket = nextBucketID;
+            baseBuckets.put(newBaseBucket, new BucketInfo(newBaseBucket, n, n, false));
+            nextBucketID = nextBucketID.nextBucketID();
+
+            if (fv.landmarkStartsHere) {
+                // create a landmark bucket
+                if (activeLandmarkBucket != null) {
+                    throw new LandmarkEventException();
+                }
+                activeLandmarkBucket = nextBucketID;
+                landmarkBuckets.put(activeLandmarkBucket, new BucketInfo(activeLandmarkBucket, n, n, true));
+                nextBucketID = nextBucketID.nextBucketID();
+            }
+            if (activeLandmarkBucket != null) {
+                // insert into active landmark bucket
+                assert landmarkBuckets.containsKey(activeLandmarkBucket);
+                landmarkBuckets.get(activeLandmarkBucket).endN = n;
+                if (!pendingInserts.containsKey(activeLandmarkBucket)) {
+                    pendingInserts.put(activeLandmarkBucket, new TreeMap<Integer, Object>());
+                }
+                pendingInserts.get(activeLandmarkBucket).put(n, fv.value);
+            } else {
+                // insert into the new base bucket of size 1
+                if (!pendingInserts.containsKey(newBaseBucket)) {
+                    pendingInserts.put(newBaseBucket, new TreeMap<Integer, Object>());
+                }
+                pendingInserts.get(newBaseBucket).put(n, fv.value);
+            }
+            if (fv.landmarkEndsHere) {
+                /* Close the landmark bucket. Right now we don't track open/closed in the bucket explicitly,
+                so all we need to do is unmark activeLandmarkBucket */
+                if (activeLandmarkBucket == null) {
+                    throw new LandmarkEventException();
+                }
+                activeLandmarkBucket = null;
+            }
+        }
+        // TODO: figure out if we want to update activeLandmarkBuckets here or at the end
+        activeLandmarkBuckets.put(streamID, activeLandmarkBucket);
+        return pendingInserts;
+    }
+
+    /**
+     * Combine pendingInserts and pendingMerges into a list of bucket modifications
+     */
+    private TreeMap<BucketID, BucketModification> identifyBucketModifications(
+            Map<BucketID, TreeMap<Integer, Object>> pendingInserts, List<List<BucketID>> pendingMerges,
+            LinkedHashMap<BucketID, BucketInfo> baseBuckets, LinkedHashMap<BucketID, BucketInfo> landmarkBuckets,
+            BucketID lastBucketID) {
+        TreeMap<BucketID, BucketModification> pendingModifications = new TreeMap<BucketID, BucketModification>();
+        // first process base buckets
+        for (List<BucketID> mergeList: pendingMerges) {
+            if (mergeList == null || mergeList.isEmpty()) {
+                logger.log(Level.WARNING, "empty or null list in merge output");
+            } else if (mergeList.size() == 1) { // no merge
+                BucketID bucketID = mergeList.get(0);
+                TreeMap<Integer, Object> inserts = pendingInserts.get(bucketID);
+                if (inserts != null) {
+                    boolean isANewBucket = (lastBucketID == null || bucketID.compareTo(lastBucketID) > 0);
+                    BucketModification mod = new BucketModification(bucketID, isANewBucket, false);
+                    mod.valuesToInsert = inserts;
+                    mod.finalBucketInfo.startN = baseBuckets.get(bucketID).startN;
+                    mod.finalBucketInfo.endN = inserts.lastKey();
+                    pendingModifications.put(bucketID, mod);
+                }
+            } else { // merge
+                BucketID targetBucketID = null;
+                List<BucketID> merges = new ArrayList<BucketID>();
+                TreeMap<Integer, Object> inserts = new TreeMap<Integer, Object>();
+                for (BucketID bucketID: mergeList) {
+                    if (targetBucketID == null) {
+                        targetBucketID = bucketID;
+                        continue;
+                    }
+                    if (lastBucketID != null && bucketID.compareTo(lastBucketID) <= 0) { // this bucket actually exists right now
+                        merges.add(bucketID);
+                    }
+                    TreeMap<Integer, Object> intermediateInserts = pendingInserts.get(bucketID);
+                    if (intermediateInserts != null) {
+                        inserts.putAll(intermediateInserts);
+                    }
+                }
+                if (!merges.isEmpty() || !inserts.isEmpty()) {
+                    boolean isANewBucket = (lastBucketID == null || targetBucketID.compareTo(lastBucketID) > 0);
+                    BucketModification mod = new BucketModification(targetBucketID, isANewBucket, false);
+                    mod.finalBucketInfo.startN = baseBuckets.get(targetBucketID).startN;
+                    if (!merges.isEmpty()) {
+                        mod.bucketsToMergeInto = merges;
+                        mod.finalBucketInfo.endN = baseBuckets.get(merges.get(merges.size() - 1)).endN;
+                    }
+                    if (!inserts.isEmpty()) {
+                        mod.valuesToInsert = inserts;
+                        mod.finalBucketInfo.endN = inserts.lastKey();
+                    }
+                    pendingModifications.put(targetBucketID, mod);
+                }
+            }
+        }
+        // next process landmark buckets
+        for (BucketID bucketID: landmarkBuckets.keySet()) {
+            TreeMap<Integer, Object> inserts = pendingInserts.get(bucketID);
+            if (inserts != null) {
+                boolean isANewBucket = (lastBucketID == null || bucketID.compareTo(lastBucketID) > 0);
+                BucketModification mod = new BucketModification(bucketID, isANewBucket, true);
+                mod.valuesToInsert = inserts;
+                mod.finalBucketInfo.startN = landmarkBuckets.get(bucketID).startN;
+                mod.finalBucketInfo.endN = inserts.lastKey();
+                pendingModifications.put(bucketID, mod);
+            }
+        }
+        return pendingModifications;
     }
 
     /**
@@ -253,7 +276,9 @@ public class TimeDecayedStore {
         }
     }
 
-    // This is the basic atomic modify operation in the system
+    /**
+     * This is the basic atomic modify operation in the system.
+     */
     private void processBucketModification(BucketModification mod, StreamInfo streamInfo) {
         // TODO: actually modify the buckets in RocksDB
         // merge buckets
@@ -298,7 +323,7 @@ public class TimeDecayedStore {
             }
             prevEnd = bucketInfo.endN;
         }
-        if (prevEnd != N) {
+        if (prevEnd != N - 1) {
             logger.log(Level.SEVERE, "Problem in merge input: invalid N, last bucket ends at "
                     + prevEnd + " but N = " + N);
             return false;
@@ -320,9 +345,10 @@ public class TimeDecayedStore {
                             + " starts at " + bucketInfo.startN + " but previous bucket ends at " + prevEnd);
                     return false;
                 }
+                prevEnd = bucketInfo.endN;
             }
         }
-        if (prevEnd != N) {
+        if (prevEnd != N - 1) {
             logger.log(Level.SEVERE, "Problem in merge output: invalid N, last bucket ends at "
                     + prevEnd + " but N = " + N);
             return false;

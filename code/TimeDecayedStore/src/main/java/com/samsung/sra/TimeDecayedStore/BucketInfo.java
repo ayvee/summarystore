@@ -24,4 +24,9 @@ class BucketInfo implements Serializable {
     BucketInfo(BucketInfo that) {
         this(that.bucketID, that.startN, that.endN, that.isLandmark);
     }
+
+    @Override
+    public String toString() {
+        return "<bucket " + bucketID + " [" + startN + ", " + endN + "] " + (isLandmark ? "landmark" : "non-landmark") + ">";
+    }
 }

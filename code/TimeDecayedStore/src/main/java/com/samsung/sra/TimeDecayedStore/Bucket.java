@@ -23,7 +23,7 @@ public class Bucket implements Serializable {
                 this.count += that.count;
                 this.sum += that.sum;
                 assert this.info.endN + 1 == that.info.startN;
-                this.info.endN = that.info.startN;
+                this.info.endN = that.info.endN;
             }
         }
         if (values != null) {
