@@ -77,7 +77,7 @@ public class TimeDecayedStore {
              the reader object below once we've done the bucket merge math and are ready to start
              modifying the data structure */
             int N0 = streamInfo.numElements, N = N0 + values.size();
-            // id of last bucket inserted so far and next bucket to insert
+            // id of last bucket created so far and next bucket to create
             BucketID bucketID0 = null, nextBucketID;
             if (streamInfo.numElements > 0) {
                 for (BucketID bucketID: streamInfo.buckets.keySet()) {
@@ -228,6 +228,8 @@ public class TimeDecayedStore {
                     processBucketModification(mod, streamInfo);
                 }
             }
+
+            activeLandmarkBuckets.put(streamID, activeLandmarkBucket);
         }
     }
 

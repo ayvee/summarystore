@@ -1,9 +1,11 @@
 package com.samsung.sra.TimeDecayedStore;
 
+import java.io.Serializable;
+
 /**
  * Created by a.vulimiri on 1/20/16.
  */
-class BucketInfo {
+class BucketInfo implements Serializable {
     final BucketID bucketID;
     int startN, endN;
     final boolean isLandmark;

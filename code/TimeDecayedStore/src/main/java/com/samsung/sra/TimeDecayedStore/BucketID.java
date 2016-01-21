@@ -1,11 +1,12 @@
 package com.samsung.sra.TimeDecayedStore;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 
 /**
  * Created by a.vulimiri on 1/19/16.
  */
-public class BucketID implements Comparable<BucketID> {
+public class BucketID implements Comparable<BucketID>, Serializable {
     private final int id;
 
     public BucketID(int id) {
