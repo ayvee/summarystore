@@ -8,15 +8,13 @@ import java.util.TreeMap;
 
 public class Bucket implements Serializable {
     public static final int QUERY_COUNT = 0, QUERY_SUM = 1;
-    int count = 0;
-    int sum = 0;
-    final BucketInfo info;
+    private int count = 0;
+    private int sum = 0;
+    public final BucketInfo info;
 
     public Bucket(BucketInfo info) { this.info = info; }
 
-    //public Bucket(BucketID bucketID, boolean isALandmark) { this(new BucketInfo(bucketID, isALandmark)); }
-
-    public void merge(List<Bucket> buckets, TreeMap<Integer, Object> values) {
+    public void merge(List<Bucket> buckets, TreeMap<Integer, Object> values, int finalEndN) {
         if (buckets != null) {
             for (Bucket that: buckets) {
                 this.count += that.count;
@@ -31,15 +29,17 @@ public class Bucket implements Serializable {
                 Integer v = (Integer)entry.getValue();
                 count += 1;
                 sum += v;
-                if (info.endN < n)
+                if (n > info.endN) {
                     info.endN = n;
-                if (info.startN == -1) // this is the first element inserted into the bucket
-                    info.startN = n;
+                }
             }
         }
+        // finalEndN can be strictly larger if this bucket is "empty" at the end because of a landmark overlap
+        assert info.endN <= finalEndN;
+        info.endN = finalEndN;
     }
 
-    public int query(int queryType, int t0, int t1) throws QueryException {
+    private int query(int queryType, int t0, int t1) throws QueryException {
         switch (queryType) {
             case QUERY_COUNT:
                 return count;

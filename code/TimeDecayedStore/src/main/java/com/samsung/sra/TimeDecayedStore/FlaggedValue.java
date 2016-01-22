@@ -5,8 +5,8 @@ package com.samsung.sra.TimeDecayedStore;
  * Created by a.vulimiri on 1/19/16.
  */
 public class FlaggedValue {
-    public final Object value;
-    public final boolean landmarkStartsHere, landmarkEndsHere;
+    public Object value;
+    public boolean landmarkStartsHere, landmarkEndsHere;
 
     public FlaggedValue(Object value, boolean landmarkStartsHere, boolean landmarkEndsHere) {
         this.value = value;

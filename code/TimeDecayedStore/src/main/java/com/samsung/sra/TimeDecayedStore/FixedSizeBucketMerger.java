@@ -2,9 +2,6 @@ package com.samsung.sra.TimeDecayedStore;
 
 import java.util.*;
 
-/**
- * Created by a.vulimiri on 1/20/16.
- */
 public class FixedSizeBucketMerger implements BucketMerger {
     private final int bucketSize;
 

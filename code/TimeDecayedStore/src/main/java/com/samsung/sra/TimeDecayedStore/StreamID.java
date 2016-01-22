@@ -12,9 +12,7 @@ public class StreamID {
     /**
      * How many bytes long is a StreamID?
      */
-    public static int getByteCount() {
-        return 4;
-    }
+    public static final int byteCount = 4;
 
     /**
      * put id into buffer. Like all ByteBuffer puts, this advances the buffer position
