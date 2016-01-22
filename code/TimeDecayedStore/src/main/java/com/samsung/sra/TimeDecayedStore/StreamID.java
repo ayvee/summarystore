@@ -19,14 +19,14 @@ public class StreamID {
     /**
      * put id into buffer. Like all ByteBuffer puts, this advances the buffer position
      */
-    void writeToByteBuffer(ByteBuffer buffer) {
+    public void writeToByteBuffer(ByteBuffer buffer) {
         buffer.putInt(id);
     }
 
     /**
      * get id from buffer. Like all ByteBuffer gets, this advances the buffer position
      */
-    static StreamID readFromByteBuffer(ByteBuffer buffer) {
+    public static StreamID readFromByteBuffer(ByteBuffer buffer) {
         return new StreamID(buffer.getInt());
     }
 

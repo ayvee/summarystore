@@ -1,9 +1,11 @@
 package com.samsung.sra.TimeDecayedStore;
 
+import org.nustaq.serialization.FSTConfiguration;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -20,6 +22,8 @@ import java.util.logging.Logger;
 public class TimeDecayedStore {
     private final Logger logger = Logger.getLogger(TimeDecayedStore.class.getName());
     private BucketMerger merger;
+
+    private static final FSTConfiguration fstConf;
     private RocksDB rocksDB = null;
     private Options rocksDBOptions = null;
 
@@ -30,15 +34,22 @@ public class TimeDecayedStore {
         timeIndex: a time -> bucket index for answering queries
      Right now, the append operation is responsible for ensuring these indexes are synchronized
      with the base data on RocksDB.
+     TODO: should merge timeIndex and activeLandmark into StreamInfo
      */
     private final Map<StreamID, StreamInfo> streamsInfo;
     private Map<StreamID, TreeMap<Integer, BucketID>> timeIndex;
     private Map<StreamID, BucketID> activeLandmarkBuckets;
 
+    static {
+        fstConf = FSTConfiguration.createDefaultConfiguration();
+        fstConf.registerClass(Bucket.class);
+
+        RocksDB.loadLibrary();
+    }
+
     public TimeDecayedStore(String rocksDBPath, BucketMerger merger) throws RocksDBException {
         /* TODO: implement a lock to ensure exclusive access to this RocksDB path.
                  RocksDB does not seem to have built-in locking */
-        RocksDB.loadLibrary();
         rocksDBOptions = new Options().setCreateIfMissing(true);
         rocksDB = RocksDB.open(rocksDBOptions, rocksDBPath);
         this.merger = merger;
@@ -61,7 +72,7 @@ public class TimeDecayedStore {
         }
     }
 
-    public Object query(StreamID streamID, int queryType, int t0, int t1) throws StreamException, QueryException {
+    public Object query(StreamID streamID, int queryType, int t0, int t1) throws StreamException, QueryException, RocksDBException {
         if (t0 > t1 || t0 < 0) {
             throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
         }
@@ -93,7 +104,7 @@ public class TimeDecayedStore {
         }
     }
 
-    public void append(StreamID streamID, List<FlaggedValue> values) throws StreamException, LandmarkEventException {
+    public void append(StreamID streamID, List<FlaggedValue> values) throws StreamException, LandmarkEventException, RocksDBException {
         if (values == null || values.isEmpty()) {
             return;
         }
@@ -214,7 +225,6 @@ public class TimeDecayedStore {
                 activeLandmarkBucket = null;
             }
         }
-        // TODO: figure out if we want to update activeLandmarkBuckets here or at the end
         activeLandmarkBuckets.put(streamID, activeLandmarkBucket);
         return pendingInserts;
     }
@@ -353,7 +363,7 @@ public class TimeDecayedStore {
     /**
      * This is the basic atomic modify operation in the system.
      */
-    private void processBucketModification(BucketModification mod, StreamInfo streamInfo) {
+    private void processBucketModification(BucketModification mod, StreamInfo streamInfo) throws RocksDBException {
         // merge buckets
         List<Bucket> mergees = new ArrayList<Bucket>();
         if (mod.bucketsToMergeInto != null && !mod.bucketsToMergeInto.isEmpty()) {
@@ -389,21 +399,27 @@ public class TimeDecayedStore {
         }
     }
 
-    // TODO: rocksDB
-    private final Map<StreamID, Map<BucketID, Bucket>> rocks = new HashMap<StreamID, Map<BucketID, Bucket>>();
-    private Bucket rocksGet(StreamID streamID, BucketID bucketID, boolean delete) {
-        if (delete) {
-            return rocks.get(streamID).remove(bucketID);
-        } else {
-            return rocks.get(streamID).get(bucketID);
-        }
+    private byte[] getRocksDBKey(StreamID streamID, BucketID bucketID) {
+        ByteBuffer bytebuf = ByteBuffer.allocate(StreamID.getByteCount() + BucketID.getByteCount());
+        streamID.writeToByteBuffer(bytebuf);
+        bucketID.writeToByteBuffer(bytebuf);
+        bytebuf.flip();
+        return bytebuf.array();
     }
 
-    private void rocksPut(StreamID streamID, BucketID bucketID, Bucket bucket) {
-        if (!rocks.containsKey(streamID)) {
-            rocks.put(streamID, new HashMap<BucketID, Bucket>());
+    private Bucket rocksGet(StreamID streamID, BucketID bucketID, boolean delete) throws RocksDBException {
+        byte[] rocksKey = getRocksDBKey(streamID, bucketID);
+        byte[] rocksValue = rocksDB.get(rocksKey);
+        if (delete) {
+            rocksDB.remove(rocksKey);
         }
-        rocks.get(streamID).put(bucketID, bucket);
+        return (Bucket)fstConf.asObject(rocksValue);
+    }
+
+    private void rocksPut(StreamID streamID, BucketID bucketID, Bucket bucket) throws RocksDBException {
+        byte[] rocksKey = getRocksDBKey(streamID, bucketID);
+        byte[] rocksValue = fstConf.asByteArray(bucket);
+        rocksDB.put(rocksKey, rocksValue);
     }
 
     private void printBucketState(StreamID streamID) {
@@ -483,7 +499,7 @@ public class TimeDecayedStore {
             store = new TimeDecayedStore("/tmp/tdstore", new WBMHBucketMerger(3));
             StreamID streamID = new StreamID(0);
             store.registerStream(streamID);
-            for (int i = 1; i <= 10; ++i) {
+            for (int i = 1; i <= 1000; ++i) {
                 List<FlaggedValue> values = new ArrayList<FlaggedValue>();
                 values.add(new FlaggedValue(i));
                 store.append(streamID, values);

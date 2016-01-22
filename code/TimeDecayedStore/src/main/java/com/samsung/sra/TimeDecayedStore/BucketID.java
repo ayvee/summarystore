@@ -24,14 +24,14 @@ public class BucketID implements Comparable<BucketID>, Serializable {
     /**
      * put id into buffer. Like all ByteBuffer puts, this advances the buffer position
      */
-    void writeToByteBuffer(ByteBuffer buffer) {
+    public void writeToByteBuffer(ByteBuffer buffer) {
         buffer.putInt(id);
     }
 
     /**
      * get id from buffer. Like all ByteBuffer gets, this advances the buffer position
      */
-    static BucketID readFromByteBuffer(ByteBuffer buffer) {
+    public static BucketID readFromByteBuffer(ByteBuffer buffer) {
         return new BucketID(buffer.getInt());
     }
 
