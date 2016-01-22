@@ -4,4 +4,4 @@ for jar in target/lib/*
 do
 	cp="$cp:$jar"
 done
-java -cp $cp com.samsung.sra.TimeDecayedStore.TimeDecayedStore
+java -cp $cp com.samsung.sra.DataStore.TimeDecayedStore
