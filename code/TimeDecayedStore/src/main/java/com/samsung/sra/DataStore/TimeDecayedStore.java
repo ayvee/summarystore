@@ -1,4 +1,4 @@
-package com.samsung.sra.TimeDecayedStore;
+package com.samsung.sra.DataStore;
 
 import org.nustaq.serialization.FSTConfiguration;
 import org.rocksdb.Options;

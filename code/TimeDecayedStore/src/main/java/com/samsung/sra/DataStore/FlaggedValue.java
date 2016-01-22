@@ -1,4 +1,4 @@
-package com.samsung.sra.TimeDecayedStore;
+package com.samsung.sra.DataStore;
 
 /**
  * Values with associated flags marking out landmark start and end events.

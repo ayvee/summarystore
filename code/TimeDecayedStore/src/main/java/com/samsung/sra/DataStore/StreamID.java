@@ -1,17 +1,12 @@
-package com.samsung.sra.TimeDecayedStore;
+package com.samsung.sra.DataStore;
 
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 
-public class BucketID implements Comparable<BucketID>, Serializable {
+public class StreamID {
     private final int id;
 
-    public BucketID(int id) {
+    public StreamID(int id) {
         this.id = id;
-    }
-
-    public BucketID nextBucketID() {
-        return new BucketID(id + 1);
     }
 
     /**
@@ -29,8 +24,8 @@ public class BucketID implements Comparable<BucketID>, Serializable {
     /**
      * get id from buffer. Like all ByteBuffer gets, this advances the buffer position
      */
-    public static BucketID readFromByteBuffer(ByteBuffer buffer) {
-        return new BucketID(buffer.getInt());
+    public static StreamID readFromByteBuffer(ByteBuffer buffer) {
+        return new StreamID(buffer.getInt());
     }
 
     @Override
@@ -38,7 +33,7 @@ public class BucketID implements Comparable<BucketID>, Serializable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        BucketID streamID = (BucketID) o;
+        StreamID streamID = (StreamID) o;
 
         return id == streamID.id;
 
@@ -52,12 +47,5 @@ public class BucketID implements Comparable<BucketID>, Serializable {
     @Override
     public String toString() {
         return Integer.toString(id);
-    }
-
-    public int compareTo(BucketID that) {
-        if (that == null) {
-            throw new NullPointerException("comparing null BucketID");
-        }
-        return this.id - that.id;
     }
 }
