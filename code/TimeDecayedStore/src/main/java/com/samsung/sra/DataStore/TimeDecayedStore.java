@@ -19,29 +19,7 @@ import java.util.logging.Logger;
  * exactly one element arrives at t = 0, 1, 2, 3, ...
  * Created by a.vulimiri on 1/15/16.
  */
-public class TimeDecayedStore {
-    private final Logger logger = Logger.getLogger(TimeDecayedStore.class.getName());
-    private BucketMerger merger;
-
-    // FST is a fast serialization library, used to quickly convert buckets to/from RocksDB byte arrays
-    private static final FSTConfiguration fstConf;
-    private RocksDB rocksDB = null;
-    private Options rocksDBOptions = null;
-
-    /**
-     * The buckets proper are stored in RocksDB. We maintain additional in-memory indexes and
-     * metadata in StreamInfo to help reads and writes. The append operation keeps StreamInfo
-     * consistent with the base data on RocksDB. */
-    private final Map<StreamID, StreamInfo> streamsInfo;
-
-    static {
-        fstConf = FSTConfiguration.createDefaultConfiguration();
-        fstConf.registerClass(Bucket.class);
-        fstConf.registerClass(StreamInfo.class);
-
-        RocksDB.loadLibrary();
-    }
-
+public class TimeDecayedStore implements DataStore {
     public TimeDecayedStore(String rocksDBPath, BucketMerger merger) throws RocksDBException {
         /* TODO: implement a lock to ensure exclusive access to this RocksDB path.
                  RocksDB does not seem to have built-in locking */
@@ -53,6 +31,27 @@ public class TimeDecayedStore {
 
         this.streamsInfo = new HashMap<StreamID, StreamInfo>();
     }
+
+    private static final FSTConfiguration fstConf;
+    static {
+        fstConf = FSTConfiguration.createDefaultConfiguration();
+        fstConf.registerClass(Bucket.class);
+        fstConf.registerClass(StreamInfo.class);
+
+        RocksDB.loadLibrary();
+    }
+
+    private final Logger logger = Logger.getLogger(TimeDecayedStore.class.getName());
+    private BucketMerger merger;
+    // FST is a fast serialization library, used to quickly convert buckets to/from RocksDB byte arrays
+    private RocksDB rocksDB = null;
+    private Options rocksDBOptions = null;
+
+    /**
+     * The buckets proper are stored in RocksDB. We maintain additional in-memory indexes and
+     * metadata in StreamInfo to help reads and writes. The append operation keeps StreamInfo
+     * consistent with the base data on RocksDB. */
+    private final Map<StreamID, StreamInfo> streamsInfo;
 
     public void registerStream(final StreamID streamID) throws StreamException {
         // TODO: also register what data structure we will use for each bucket
