@@ -96,7 +96,7 @@ public class TimeDecayedStore implements DataStore {
         }
     }
 
-    public void append(StreamID streamID, List<FlaggedValue> values) throws StreamException, LandmarkEventException, RocksDBException {
+    public void append(StreamID streamID, Collection<FlaggedValue> values) throws StreamException, LandmarkEventException, RocksDBException {
         if (values == null || values.isEmpty()) {
             return;
         }
@@ -168,16 +168,16 @@ public class TimeDecayedStore implements DataStore {
      * Figure out which bucket every new <time, value> pair needs to be inserted into,
      * creating new base or landmark buckets as necessary. Modifies baseBuckets and landmarkBuckets */
     private Map<BucketID, TreeMap<Integer, Object>> processInserts(
-            List<FlaggedValue> values, int N0,
+            Collection<FlaggedValue> values, int N0,
             StreamInfo streamInfo,
             LinkedHashMap<BucketID, BucketInfo> baseBuckets, LinkedHashMap<BucketID, BucketInfo> landmarkBuckets,
             BucketID lastBucketID) throws LandmarkEventException {
         Map<BucketID, TreeMap<Integer, Object>> pendingInserts = new HashMap<BucketID, TreeMap<Integer, Object>>();
         BucketID activeLandmarkBucket = streamInfo.activeLandmarkBucket;
         BucketID nextBucketID = lastBucketID != null ? lastBucketID.nextBucketID() : new BucketID(0);
-        for (int i = 0; i < values.size(); ++i) {
-            int n = N0 + i;
-            FlaggedValue fv = values.get(i);
+        int n = N0 - 1;
+        for (FlaggedValue fv: values) {
+            ++n;
             /* We always create a new base bucket of size 1 for every inserted element. As with any other
              base bucket, it can be empty if the value at that position goes into a landmark bucket instead */
             BucketID newBaseBucket = nextBucketID;

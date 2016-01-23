@@ -5,10 +5,7 @@ import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -103,7 +100,7 @@ public class EnumeratedStore implements DataStore {
         return ret;
     }
 
-    public void append(StreamID streamID, List<FlaggedValue> values) throws StreamException, LandmarkEventException, RocksDBException {
+    public void append(StreamID streamID, Collection<FlaggedValue> values) throws StreamException, LandmarkEventException, RocksDBException {
         if (values == null || values.isEmpty()) {
             return;
         }
@@ -115,9 +112,10 @@ public class EnumeratedStore implements DataStore {
             syncobj = streamSyncObjects.get(streamID);
         }
         synchronized (syncobj) {
-            int t0 = streamCounts.get(streamID);
-            for (int t = t0; t < t0 + values.size(); ++t) {
-                rocksPut(streamID, t, (Integer)values.get(t - t0).value);
+            int t0 = streamCounts.get(streamID), t = t0 - 1;
+            for (FlaggedValue fv: values) {
+                ++t;
+                rocksPut(streamID, t, (Integer)fv.value);
             }
             streamCounts.put(streamID, t0 + values.size());
         }

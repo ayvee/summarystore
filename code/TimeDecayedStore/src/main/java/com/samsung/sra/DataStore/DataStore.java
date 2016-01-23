@@ -2,6 +2,7 @@ package com.samsung.sra.DataStore;
 
 import org.rocksdb.RocksDBException;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -14,8 +15,7 @@ public interface DataStore {
 
     Object query(StreamID streamID, int queryType, int t0, int t1) throws StreamException, QueryException, RocksDBException;
 
-    // TODO: accept any Collection, not just a List
-    void append(StreamID streamID, List<FlaggedValue> values) throws StreamException, LandmarkEventException, RocksDBException;
+    void append(StreamID streamID, Collection<FlaggedValue> values) throws StreamException, LandmarkEventException, RocksDBException;
 
     void close();
 }
