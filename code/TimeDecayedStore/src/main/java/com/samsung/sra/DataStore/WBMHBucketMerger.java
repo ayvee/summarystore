@@ -83,7 +83,7 @@ public class WBMHBucketMerger implements BucketMerger {
         // src needs to be merged into dst
         merges.get(dst).add(src);
         // any buckets that would have been merged into src now need to be merged into dst instead
-        Set<BucketID> recursiveMerges = merges.get(src);
+        Set<BucketID> recursiveMerges = merges.remove(src);
         if (recursiveMerges != null) {
             for (BucketID bucketID: recursiveMerges) {
                 merges.get(dst).add(bucketID);
