@@ -13,7 +13,7 @@ import java.util.logging.Logger;
 /**
  * Implements the time-decay and landmark parts of SummaryStore. API:
  *    register(streamID, aggregateDataStructure)
- *    append(streamID, List<FlaggedValue>)
+ *    append(streamID, Collection<FlaggedValue>)
  *    query(streamID, t1, t2, aggregateFunction)
  * At this point we make no distinction between time and count, i.e. we assume
  * exactly one element arrives at t = 0, 1, 2, 3, ...
@@ -32,6 +32,8 @@ public class TimeDecayedStore implements DataStore {
         this.streamsInfo = new HashMap<StreamID, StreamInfo>();
     }
 
+    // FST is a fast serialization library, used to quickly convert Buckets to/from RocksDB byte arrays
+    // TODO: consider protobuf/thrift instead? We might eventually need it anyway when we serverize the store
     private static final FSTConfiguration fstConf;
     static {
         fstConf = FSTConfiguration.createDefaultConfiguration();
@@ -43,7 +45,6 @@ public class TimeDecayedStore implements DataStore {
 
     private final Logger logger = Logger.getLogger(TimeDecayedStore.class.getName());
     private BucketMerger merger;
-    // FST is a fast serialization library, used to quickly convert buckets to/from RocksDB byte arrays
     private RocksDB rocksDB = null;
     private Options rocksDBOptions = null;
 
@@ -260,7 +261,9 @@ public class TimeDecayedStore implements DataStore {
                         }
                         continue;
                     }
-                    BucketInfo info = (baseBuckets.containsKey(bucketID) ? baseBuckets.get(bucketID) : landmarkBuckets.get(bucketID));
+                    // only base buckets should be merged
+                    assert baseBuckets.containsKey(bucketID) && !landmarkBuckets.containsKey(bucketID);
+                    BucketInfo info = baseBuckets.get(bucketID);
                     assert info.endN > endN;
                     endN = info.endN;
                     if (lastBucketID != null && lastBucketID.compareTo(bucketID) >= 0) {

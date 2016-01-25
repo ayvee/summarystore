@@ -30,8 +30,8 @@ public class EnumeratedStore implements DataStore {
 
     private RocksDB rocksDB;
     private Options rocksDBOptions;
-    private ConcurrentHashMap<StreamID, Integer> streamCounts;
-    private Map<StreamID, Object> streamSyncObjects;
+    private final ConcurrentHashMap<StreamID, Integer> streamCounts;
+    private final Map<StreamID, Object> streamSyncObjects;
 
     public void registerStream(StreamID streamID) throws StreamException {
         synchronized (streamCounts) {

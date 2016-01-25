@@ -21,12 +21,12 @@ public class WBMHBucketMerger implements BucketMerger {
         /* Equivalent to: is there an i such that
                 (pow(base, i) - 1) / (base - 1) + 1 <= n - endN <= n - startN <= (pow(base, i+1) - 1) / (base - 1)
          */
-        assert startN <= endN;
+        assert 0 <= startN && startN <= endN;
         if (endN > n) {
             return false;
         }
         int l = n - endN, r = n - startN;
-        // TODO: can convert to a single check based on logarithms, figure out how
+        // TODO: can convert to a single check based on logarithms (w/o looping), figure out how
         for (int i = 0; ; ++i) {
             int pow_b_i = 1;
             for (int j = 0; j < i; ++j) {
@@ -46,7 +46,7 @@ public class WBMHBucketMerger implements BucketMerger {
         would be merged at each point. Have not found a more elegant solution. */
         for (int n = N0 + 1; n <= N; ++n) {
             // consider buckets two at a time, checking if prevBucket and currBucket are in the same window
-            // (recall that WBMH = merge any buckets that are in the same window)
+            // (recall that WBMH = merge any consecutive buckets that are in the same window)
             BucketInfo prevBucket = null;
             for (Iterator<Map.Entry<BucketID, BucketInfo>> iter = baseBuckets.entrySet().iterator(); iter.hasNext(); ) {
                 BucketInfo currBucket = iter.next().getValue();

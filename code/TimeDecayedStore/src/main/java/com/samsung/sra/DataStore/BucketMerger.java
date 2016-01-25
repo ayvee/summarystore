@@ -19,6 +19,5 @@ interface BucketMerger {
      *
      * The baseBuckets argument can be consumed destructively.
      */
-    List<List<BucketID>> merge(LinkedHashMap<BucketID, BucketInfo> baseBuckets,
-                                      int N0, int N);
+    List<List<BucketID>> merge(LinkedHashMap<BucketID, BucketInfo> baseBuckets, int N0, int N);
 }
