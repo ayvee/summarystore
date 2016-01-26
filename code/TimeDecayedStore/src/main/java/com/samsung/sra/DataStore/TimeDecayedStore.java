@@ -21,10 +21,8 @@ import java.util.logging.Logger;
  */
 public class TimeDecayedStore implements DataStore {
     public TimeDecayedStore(String rocksDBPath, BucketMerger merger) throws RocksDBException {
-        /* TODO: implement a lock to ensure exclusive access to this RocksDB path.
-                 RocksDB does not seem to have built-in locking */
-        /* TODO: not yet persisent, we start the DB from scratch on each code run. Should be an
-                 easy fix */
+        // TODO: not yet persisent, we start the DB from scratch on each code run
+        // (easy fix: just persist streamsInfo on RocksDB, say with the special 1-byte key "0")
         rocksDBOptions = new Options().setCreateIfMissing(true);
         rocksDB = RocksDB.open(rocksDBOptions, rocksDBPath);
         this.merger = merger;
@@ -91,7 +89,7 @@ public class TimeDecayedStore implements DataStore {
             SortedMap<Integer, BucketID> spanningBucketsIDs = index.subMap(l, true, r, false);
             List<Bucket> spanningBuckets = new ArrayList<Bucket>();
             for (BucketID bucketID: spanningBucketsIDs.values()) {
-                spanningBuckets.add(rocksGet(streamID, bucketID, false));
+                spanningBuckets.add(rocksGet(streamID, bucketID));
             }
             return Bucket.multiBucketQuery(spanningBuckets, queryType, t0, t1);
         }
@@ -363,7 +361,7 @@ public class TimeDecayedStore implements DataStore {
         if (mod.isANewBucket) {
             target = new Bucket(mod.finalBucketInfo);
         } else {
-            target = rocksGet(streamInfo.streamID, mod.bucketID, false);
+            target = rocksGet(streamInfo.streamID, mod.bucketID);
         }
         target.merge(mergees, mod.valuesToInsert, mod.finalBucketInfo.endN);
         assert mod.finalBucketInfo.startN == target.info.startN && mod.finalBucketInfo.endN == target.info.endN;
@@ -385,6 +383,10 @@ public class TimeDecayedStore implements DataStore {
         bucketID.writeToByteBuffer(bytebuf);
         bytebuf.flip();
         return bytebuf.array();
+    }
+
+    private Bucket rocksGet(StreamID streamID, BucketID bucketID) throws RocksDBException {
+        return rocksGet(streamID, bucketID, false);
     }
 
     private Bucket rocksGet(StreamID streamID, BucketID bucketID, boolean delete) throws RocksDBException {

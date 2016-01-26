@@ -13,10 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class EnumeratedStore implements DataStore {
     public EnumeratedStore(String rocksDBPath) throws RocksDBException {
-        /* TODO: implement a lock to ensure exclusive access to this RocksDB path.
-                 RocksDB does not seem to have built-in locking */
-        /* TODO: not yet persisent, we start the DB from scratch on each code run. Should be an
-                 easy fix */
+        // TODO: not yet persisent, we start the DB from scratch on each code run. Should be an easy fix
         rocksDBOptions = new Options().setCreateIfMissing(true);
         rocksDB = RocksDB.open(rocksDBOptions, rocksDBPath);
 
