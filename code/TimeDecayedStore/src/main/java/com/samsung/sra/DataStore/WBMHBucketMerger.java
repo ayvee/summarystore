@@ -22,7 +22,7 @@ public class WBMHBucketMerger implements BucketMerger {
                 (pow(base, i) - 1) / (base - 1) + 1 <= n - endN <= n - startN <= (pow(base, i+1) - 1) / (base - 1)
          */
         assert 0 <= startN && startN <= endN;
-        if (endN > n) {
+        if (endN >= n) {
             return false;
         }
         int l = n - endN, r = n - startN;
@@ -36,7 +36,7 @@ public class WBMHBucketMerger implements BucketMerger {
             int R = (base * pow_b_i - 1) / (base - 1);
             if (R < l) continue; // [L, R] is strictly to the left of [l, r]
             if (L > r) return false; // [L, R] is strictly to the right of [l, r]
-            if (L <= l && r <= R) return true; // [l, r] is strictly contained in [L, R]
+            if (L <= l && r <= R) return true; // [l, r] is contained in [L, R]
         }
     }
 
