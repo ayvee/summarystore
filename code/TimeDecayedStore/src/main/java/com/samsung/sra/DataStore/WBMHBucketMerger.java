@@ -18,15 +18,13 @@ public class WBMHBucketMerger implements BucketMerger {
      * when n elements have been inserted?
      */
     private boolean checkIfSameWindow(int startN, int endN, int n) {
-        /* Equivalent to: is there an i such that
-                (pow(base, i) - 1) / (base - 1) + 1 <= n - endN <= n - startN <= (pow(base, i+1) - 1) / (base - 1)
-         */
         assert 0 <= startN && startN <= endN;
         if (endN >= n) {
             return false;
         }
+        /* Equivalent to: is there an i such that
+                (pow(base, i) - 1) / (base - 1) + 1 <= n - endN <= n - startN <= (pow(base, i+1) - 1) / (base - 1) */
         int l = n - endN, r = n - startN;
-        // TODO: can convert to a single check based on logarithms (w/o looping), figure out how
         for (int i = 0; ; ++i) {
             int pow_b_i = 1;
             for (int j = 0; j < i; ++j) {
@@ -38,6 +36,16 @@ public class WBMHBucketMerger implements BucketMerger {
             if (L > r) return false; // [L, R] is strictly to the right of [l, r]
             if (L <= l && r <= R) return true; // [l, r] is contained in [L, R]
         }
+        /* In theory, this is the same as:
+           is there an i such that
+                i <= log_b( (base - 1) * (n - endN - 1) + 1 ) < log_b( (base - 1) * (n - startN) + 1 ) <= i + 1
+           iff:
+                floor(log_b( (base - 1) * (n - endN - 1) + 1 )) == ceil( log_b( (base - 1) * (n - startN) + 1 )) - 1
+
+        But
+          return (int)Math.floor(Math.log((base - 1) * (n - endN - 1) + 1) / Math.log(base)) ==
+                 (int)Math.ceil(Math.log((base - 1) * (n - startN) + 1) / Math.log(base)) - 1;
+        isn't yielding the same merge sequence (e.g. at n = 100k), possibly because of floating point issues. */
     }
 
     public List<List<BucketID>> merge(LinkedHashMap<BucketID, BucketInfo> baseBuckets, int N0, int N) {
