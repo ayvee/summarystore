@@ -20,27 +20,6 @@ import java.util.logging.Logger;
  * Created by a.vulimiri on 1/15/16.
  */
 public class TimeDecayedStore implements DataStore {
-    public TimeDecayedStore(String rocksDBPath, BucketMerger merger) throws RocksDBException {
-        // TODO: not yet persisent, we start the DB from scratch on each code run
-        // (easy fix: just persist streamsInfo on RocksDB, say with the special 1-byte key "0")
-        rocksDBOptions = new Options().setCreateIfMissing(true);
-        rocksDB = RocksDB.open(rocksDBOptions, rocksDBPath);
-        this.merger = merger;
-
-        this.streamsInfo = new HashMap<StreamID, StreamInfo>();
-    }
-
-    // FST is a fast serialization library, used to quickly convert Buckets to/from RocksDB byte arrays
-    // TODO: consider protobuf/thrift instead? We might eventually need it anyway when we serverize the store
-    private static final FSTConfiguration fstConf;
-    static {
-        fstConf = FSTConfiguration.createDefaultConfiguration();
-        fstConf.registerClass(Bucket.class);
-        fstConf.registerClass(StreamInfo.class);
-
-        RocksDB.loadLibrary();
-    }
-
     private final Logger logger = Logger.getLogger(TimeDecayedStore.class.getName());
     private BucketMerger merger;
     private RocksDB rocksDB = null;
@@ -50,15 +29,48 @@ public class TimeDecayedStore implements DataStore {
      * The buckets proper are stored in RocksDB. We maintain additional in-memory indexes and
      * metadata in StreamInfo to help reads and writes. The append operation keeps StreamInfo
      * consistent with the base data on RocksDB. */
-    private final Map<StreamID, StreamInfo> streamsInfo;
+    private final HashMap<StreamID, StreamInfo> streamsInfo;
 
-    public void registerStream(final StreamID streamID) throws StreamException {
+    /** We will persist streamsInfo in RocksDB, storing it under this special key. Note that this key is
+     * 1 byte, as opposed to the 8 byte keys we use for buckets, so it won't interfere with bucket storage
+     */
+    private final static byte[] streamInfoSpecialKey = {0};
+
+    private void persistStreamsInfo() throws RocksDBException {
+        rocksDB.put(streamInfoSpecialKey, fstConf.asByteArray(streamsInfo));
+    }
+
+    public TimeDecayedStore(String rocksDBPath, BucketMerger merger) throws RocksDBException {
+        rocksDBOptions = new Options().setCreateIfMissing(true);
+        rocksDB = RocksDB.open(rocksDBOptions, rocksDBPath);
+        this.merger = merger;
+
+        byte[] streamsInfoBytes = rocksDB.get(streamInfoSpecialKey);
+        if (streamsInfoBytes != null) {
+            streamsInfo = (HashMap<StreamID, StreamInfo>)fstConf.asObject(streamsInfoBytes);
+        } else {
+            streamsInfo = new HashMap<StreamID, StreamInfo>();
+        }
+    }
+
+    // FST is a fast serialization library, used to quickly convert Buckets to/from RocksDB byte arrays
+    private static final FSTConfiguration fstConf;
+    static {
+        fstConf = FSTConfiguration.createDefaultConfiguration();
+        fstConf.registerClass(Bucket.class);
+        fstConf.registerClass(StreamInfo.class);
+
+        RocksDB.loadLibrary();
+    }
+
+    public void registerStream(final StreamID streamID) throws StreamException, RocksDBException {
         // TODO: also register what data structure we will use for each bucket
         synchronized (streamsInfo) {
             if (streamsInfo.containsKey(streamID)) {
                 throw new StreamException("attempting to register streamID " + streamID + " multiple times");
             } else {
                 streamsInfo.put(streamID, new StreamInfo(streamID));
+                persistStreamsInfo();
             }
         }
     }
@@ -88,6 +100,7 @@ public class TimeDecayedStore implements DataStore {
             // Query on all buckets with l <= startN < r.  FIXME: this overapproximates in some cases with landmarks
             SortedMap<Integer, BucketID> spanningBucketsIDs = index.subMap(l, true, r, false);
             List<Bucket> spanningBuckets = new ArrayList<Bucket>();
+            // TODO: RocksDB multiget
             for (BucketID bucketID: spanningBucketsIDs.values()) {
                 spanningBuckets.add(rocksGet(streamID, bucketID));
             }
@@ -371,6 +384,10 @@ public class TimeDecayedStore implements DataStore {
         streamInfo.numElements = Math.max(streamInfo.numElements, 1 + mod.finalBucketInfo.endN);
 
         streamInfo.reconstructTimeIndex();
+
+        synchronized (streamsInfo) {
+            persistStreamsInfo();
+        }
     }
 
     /**
@@ -478,17 +495,20 @@ public class TimeDecayedStore implements DataStore {
     public static void main(String[] args) {
         TimeDecayedStore store = null;
         try {
-            store = new TimeDecayedStore("/tmp/tdstore", new WBMHBucketMerger(3));
+            String storeLoc = "/tmp/tdstore";
+            // FIXME: add a deleteStream/resetDatabase operation
+            Runtime.getRuntime().exec(new String[]{"rm", "-rf", storeLoc});
+            store = new TimeDecayedStore(storeLoc, new WBMHBucketMerger(3));
             StreamID streamID = new StreamID(0);
             store.registerStream(streamID);
+            List<FlaggedValue> values = new ArrayList<FlaggedValue>();
             for (int i = 0; i < 10; ++i) {
-                List<FlaggedValue> values = new ArrayList<FlaggedValue>();
                 values.add(new FlaggedValue(i+1));
-                if (i == 4) values.get(0).landmarkStartsHere = true;
-                if (i == 6) values.get(0).landmarkEndsHere = true;
-                store.append(streamID, values);
-                store.printBucketState(streamID);
+                if (i == 4) values.get(i).landmarkStartsHere = true;
+                if (i == 6) values.get(i).landmarkEndsHere = true;
             }
+            store.append(streamID, values);
+            store.printBucketState(streamID);
             int t0 = 0, t1 = 9;
             System.out.println(
                     "sum[" + t0 + ", " + t1 + "] = " + store.query(streamID, Bucket.QUERY_SUM, t0, t1) + "; " +

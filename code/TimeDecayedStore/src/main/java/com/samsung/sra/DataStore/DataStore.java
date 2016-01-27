@@ -11,7 +11,7 @@ import java.util.Collection;
  */
 public interface DataStore {
     // TODO: allow configuring the choice of bucket data structure for each stream (set at registration time)
-    void registerStream(StreamID streamID) throws StreamException;
+    void registerStream(StreamID streamID) throws StreamException, RocksDBException;
 
     Object query(StreamID streamID, int queryType, int t0, int t1) throws StreamException, QueryException, RocksDBException;
 

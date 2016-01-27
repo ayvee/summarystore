@@ -1,8 +1,9 @@
 package com.samsung.sra.DataStore;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 
-public class StreamID {
+public class StreamID implements Serializable {
     private final int id;
 
     public StreamID(int id) {

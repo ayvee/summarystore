@@ -1,5 +1,6 @@
 package com.samsung.sra.DataStore;
 
+import org.nustaq.serialization.FSTConfiguration;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
@@ -12,31 +13,49 @@ import java.util.concurrent.ConcurrentHashMap;
  * Stores all elements explicitly enumerated.
  */
 public class EnumeratedStore implements DataStore {
-    public EnumeratedStore(String rocksDBPath) throws RocksDBException {
-        // TODO: not yet persisent, we start the DB from scratch on each code run. Should be an easy fix
-        rocksDBOptions = new Options().setCreateIfMissing(true);
-        rocksDB = RocksDB.open(rocksDBOptions, rocksDBPath);
-
-        streamCounts = new ConcurrentHashMap<StreamID, Integer>();
-        streamSyncObjects = new HashMap<StreamID, Object>();
-    }
-
-    static {
-        RocksDB.loadLibrary();
-    }
-
     private RocksDB rocksDB;
     private Options rocksDBOptions;
     private final ConcurrentHashMap<StreamID, Integer> streamCounts;
     private final Map<StreamID, Object> streamSyncObjects;
 
-    public void registerStream(StreamID streamID) throws StreamException {
+    private final static byte[] streamCountsSpecialKey = {0};
+
+    private void persistStreamCounts() throws RocksDBException {
+        rocksDB.put(streamCountsSpecialKey, fstConf.asByteArray(streamCounts));
+    }
+
+    public EnumeratedStore(String rocksDBPath) throws RocksDBException {
+        rocksDBOptions = new Options().setCreateIfMissing(true);
+        rocksDB = RocksDB.open(rocksDBOptions, rocksDBPath);
+
+        byte[] streamCountsBytes = rocksDB.get(streamCountsSpecialKey);
+        if (streamCountsBytes != null) {
+            streamCounts = (ConcurrentHashMap<StreamID, Integer>)fstConf.asObject(streamCountsBytes);
+            streamSyncObjects = new HashMap<StreamID, Object>();
+            for (StreamID streamID: streamCounts.keySet()) {
+                streamSyncObjects.put(streamID, new Object());
+            }
+        } else {
+            streamCounts = new ConcurrentHashMap<StreamID, Integer>();
+            streamSyncObjects = new HashMap<StreamID, Object>();
+        }
+    }
+
+    private static final FSTConfiguration fstConf;
+    static {
+        fstConf = FSTConfiguration.createDefaultConfiguration();
+
+        RocksDB.loadLibrary();
+    }
+
+    public void registerStream(StreamID streamID) throws StreamException, RocksDBException {
         synchronized (streamCounts) {
             if (streamCounts.containsKey(streamID)) {
                 throw new StreamException("attempting to register stream " + streamID + " twice");
             } else {
                 streamCounts.put(streamID, 0);
                 streamSyncObjects.put(streamID, new Object());
+                persistStreamCounts();
             }
         }
     }
@@ -70,7 +89,7 @@ public class EnumeratedStore implements DataStore {
         }
         Object syncobj;
         synchronized (streamCounts) {
-            if (!streamSyncObjects.containsKey(streamID)) {
+            if (!streamCounts.containsKey(streamID)) {
                 throw new StreamException("querying invalid stream " + streamID);
             }
             syncobj = streamSyncObjects.get(streamID);
@@ -116,6 +135,9 @@ public class EnumeratedStore implements DataStore {
             }
             streamCounts.put(streamID, t0 + values.size());
         }
+        synchronized (streamCounts) {
+            persistStreamCounts();
+        }
     }
 
     public void close() {
@@ -129,7 +151,10 @@ public class EnumeratedStore implements DataStore {
     public static void main(String[] args) {
         DataStore store = null;
         try {
-            store = new EnumeratedStore("/tmp/tdstore");
+            String storeLoc = "/tmp/tdstore";
+            // FIXME: add a deleteStream/resetDatabase operation
+            Runtime.getRuntime().exec(new String[]{"rm", "-rf", storeLoc});
+            store = new EnumeratedStore(storeLoc);
             StreamID streamID = new StreamID(0);
             store.registerStream(streamID);
             for (int i = 0; i < 10; ++i) {
