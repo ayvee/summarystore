@@ -497,7 +497,7 @@ public class TimeDecayedStore implements DataStore {
         try {
             String storeLoc = "/tmp/tdstore";
             // FIXME: add a deleteStream/resetDatabase operation
-            Runtime.getRuntime().exec(new String[]{"rm", "-rf", storeLoc});
+            Runtime.getRuntime().exec(new String[]{"rm", "-rf", storeLoc}).waitFor();
             store = new TimeDecayedStore(storeLoc, new WBMHBucketMerger(3));
             StreamID streamID = new StreamID(0);
             store.registerStream(streamID);
