@@ -1,4 +1,5 @@
-set terminal pdfcairo font "Gill Sans,9" linewidth 2 rounded fontscale 1.0
+# credit: Brighten Godfrey @ http://youinfinitesnake.blogspot.com/2011/02/attractive-scientific-plots-with.html
+set terminal pdfcairo font "Calibri,9" linewidth 2 rounded fontscale 1.0
 
 # Line style for axes
 set style line 80 lt rgb "#808080"
