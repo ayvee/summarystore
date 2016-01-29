@@ -35,6 +35,6 @@ plot "varyN_latency-query.tsv" u 1:6 w lp ls 1 t "TDS",\
 
 set output "varyN_inflation-count.pdf"
 set key top left
-set ylabel "Inflation"
-set title "Random count query: inflation\n(TDS count estimate divided by ES true count)"
-plot "varyN_inflation-count.tsv" u 1:4:3:5 w yerrorlines ls 1 notitle
+set ylabel "% error"
+set title "Count query with uniform-random endpoints:\n% error (TDS always overestimates)"
+plot "varyN_inflation-count.tsv" u 1:(($4-1)*100):(($3-1)*100):(($5-1)*100) w yerrorlines ls 1 notitle
