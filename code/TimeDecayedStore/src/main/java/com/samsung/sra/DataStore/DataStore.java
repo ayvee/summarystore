@@ -18,4 +18,6 @@ public interface DataStore {
     void append(StreamID streamID, Collection<FlaggedValue> values) throws StreamException, LandmarkEventException, RocksDBException;
 
     void close();
+
+    long getStoreSizeInBytes();
 }

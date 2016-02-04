@@ -11,6 +11,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Stores all elements explicitly enumerated.
+ *
+ * Unnecessary, strictly speaking: can be emulated via TimeDecayedStore using linear
+ * bucketing with a bucket size of 1 (i.e. FixedSizeBucketMerger(1))
  */
 public class EnumeratedStore implements DataStore {
     private RocksDB rocksDB;
@@ -146,6 +149,16 @@ public class EnumeratedStore implements DataStore {
             rocksDB.close();
         }
         rocksDBOptions.dispose();
+    }
+
+    public long getStoreSizeInBytes() {
+        // TODO: synchronize
+        long ret = 0;
+        for (Integer count: streamCounts.values()) {
+            // 12 = 3 ints, viz (streamID, time, value)
+            ret += count * 12;
+        }
+        return ret;
     }
 
     public static void main(String[] args) {

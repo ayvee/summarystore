@@ -75,6 +75,50 @@ public class TimeDecayedStore implements DataStore {
         }
     }
 
+    /**
+     * If t were the left endpoint of a query, which startN <= t would we actually use instead of t in
+     * the query overapproximation?
+     */
+    public int getLeftAlignmentPoint(StreamID streamID, int t) throws QueryException, StreamException {
+        if (t < 0) {
+            throw new QueryException(t + "is out of range in stream " + streamID);
+        }
+        final StreamInfo streamInfo;
+        synchronized (streamsInfo) {
+            if (!streamsInfo.containsKey(streamID)) {
+                throw new StreamException("attempting to query unregistered stream " + streamID);
+            } else {
+                streamInfo = streamsInfo.get(streamID);
+            }
+        }
+        synchronized (streamInfo.readerSyncObj) {
+            return streamInfo.timeIndex.floorKey(t);
+        }
+    }
+
+    /**
+     * If t were the right endpoint of a query, which endN >= t would we actually use instead of t in
+     * the query overapproximation?
+     */
+    public int getRightAlignmentPoint(StreamID streamID, int t) throws QueryException, StreamException {
+        if (t < 0) {
+            throw new QueryException(t + "is out of range in stream " + streamID);
+        }
+        final StreamInfo streamInfo;
+        synchronized (streamsInfo) {
+            if (!streamsInfo.containsKey(streamID)) {
+                throw new StreamException("attempting to query unregistered stream " + streamID);
+            } else {
+                streamInfo = streamsInfo.get(streamID);
+            }
+        }
+        synchronized (streamInfo.readerSyncObj) {
+            Integer closestEnd = streamInfo.timeIndex.higherKey(t);
+            if (closestEnd == null) closestEnd = streamInfo.numElements;
+            return closestEnd - 1;
+        }
+    }
+
     public Object query(StreamID streamID, int queryType, int t0, int t1) throws StreamException, QueryException, RocksDBException {
         if (t0 > t1 || t0 < 0) {
             throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
@@ -492,23 +536,34 @@ public class TimeDecayedStore implements DataStore {
         rocksDBOptions.dispose();
     }
 
+    public long getStoreSizeInBytes() {
+        // TODO: synchronize
+        long ret = 0;
+        for (StreamInfo si: streamsInfo.values()) {
+            // timeIndex.size() = # buckets; 16 = 4 ints, viz (streamID, bucketID, count, sum)
+            ret += si.timeIndex.size() * 16;
+        }
+        return ret;
+    }
+
     public static void main(String[] args) {
         TimeDecayedStore store = null;
         try {
             String storeLoc = "/tmp/tdstore";
             // FIXME: add a deleteStream/resetDatabase operation
             Runtime.getRuntime().exec(new String[]{"rm", "-rf", storeLoc}).waitFor();
-            store = new TimeDecayedStore(storeLoc, new WBMHBucketMerger(3));
+            //store = new TimeDecayedStore(storeLoc, new WBMHBucketMerger(3));
+            store = new TimeDecayedStore(storeLoc, new FixedSizeBucketMerger(3));
             StreamID streamID = new StreamID(0);
             store.registerStream(streamID);
-            List<FlaggedValue> values = new ArrayList<FlaggedValue>();
             for (int i = 0; i < 10; ++i) {
+                List<FlaggedValue> values = new ArrayList<FlaggedValue>();
                 values.add(new FlaggedValue(i+1));
-                if (i == 4) values.get(i).landmarkStartsHere = true;
-                if (i == 6) values.get(i).landmarkEndsHere = true;
+                //if (i == 4) values.get(0).landmarkStartsHere = true;
+                //if (i == 6) values.get(0).landmarkEndsHere = true;
+                store.append(streamID, values);
+                store.printBucketState(streamID);
             }
-            store.append(streamID, values);
-            store.printBucketState(streamID);
             int t0 = 0, t1 = 9;
             System.out.println(
                     "sum[" + t0 + ", " + t1 + "] = " + store.query(streamID, Bucket.QUERY_SUM, t0, t1) + "; " +
