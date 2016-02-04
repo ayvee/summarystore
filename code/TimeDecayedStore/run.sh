@@ -6,6 +6,9 @@ do
 done
 #java -cp $cp com.samsung.sra.DataStore.TimeDecayedStore
 
-java -cp $cp com.samsung.sra.DataStoreExperiments.VaryN | tee varyN.tsv
-java -cp $cp com.samsung.sra.DataStoreExperiments.VaryQueries | tee varyQueries.tsv
-./plot.sh
+#java -cp $cp com.samsung.sra.DataStoreExperiments.VaryN | tee varyN.tsv
+#java -cp $cp com.samsung.sra.DataStoreExperiments.VaryQueries | tee varyQueries.tsv
+java -cp $cp com.samsung.sra.DataStoreExperiments.AgeLengthEffect | tee age-length-matrix.tsv
+
+#./plot.sh
+gnuplot age-length.gp
