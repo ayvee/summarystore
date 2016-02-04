@@ -3,6 +3,8 @@ package com.samsung.sra.DataStoreExperiments;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
+import java.text.DecimalFormat;
+
 public class Statistics {
     /*private double sum = 0, sqsum = 0, N = 0;
     private double min = Double.MAX_VALUE, max = Double.MIN_VALUE;*/
@@ -58,7 +60,11 @@ public class Statistics {
         }*/
     }
 
-    //private static DecimalFormat doubleFormat = new DecimalFormat("#.###");
+    // forces Java to not use scientific notation
+    /*private static DecimalFormat doubleFormat = new DecimalFormat("#");
+    static {
+        doubleFormat.setMaximumFractionDigits(340);
+    }*/
     private String format(double d) {
         //return Double.isNaN(d) ? "NaN" : doubleFormat.format(d);
         return Double.toString(d);
@@ -72,6 +78,18 @@ public class Statistics {
                     format(dstats.getMean()) + ":" + format(dstats.getStandardDeviation());
         } else {
             return sstats.getMean() + ":" + sstats.getStandardDeviation();
+        }
+    }
+
+    // FIXME: do something more systematic than stderr
+    public synchronized void printCDF() {
+        if (dstats == null) {
+            throw new IllegalStateException();
+        }
+        System.err.println("#" + getErrorbars());
+        System.err.println(dstats.getMin() + "\t0");
+        for (int i = 1; i <= 100; ++i) {
+            System.err.println(dstats.getPercentile(i) + "\t" + (i / 100d));
         }
     }
 }
