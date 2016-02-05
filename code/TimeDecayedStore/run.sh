@@ -8,7 +8,7 @@ done
 
 #java -cp $cp com.samsung.sra.DataStoreExperiments.VaryN | tee varyN.tsv
 #java -cp $cp com.samsung.sra.DataStoreExperiments.VaryQueries | tee varyQueries.tsv
-java -cp $cp com.samsung.sra.DataStoreExperiments.AgeLengthEffect | tee age-length-matrix.tsv
+java -cp $cp com.samsung.sra.DataStoreExperiments.AgeLengthEffect > age-length-matrix.tsv 2> age-length-scatter.tsv
 
 #./plot.sh
 gnuplot age-length.gp
