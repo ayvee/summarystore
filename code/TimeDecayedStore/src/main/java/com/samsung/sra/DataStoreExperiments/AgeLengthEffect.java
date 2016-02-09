@@ -36,9 +36,8 @@ public class AgeLengthEffect {
             }
             for (int n = 0; n < N; ++n) {
                 int v = 1 + rand.nextInt(100);
-                Collection<FlaggedValue> fv = Collections.singletonList(new FlaggedValue(v));
                 for (DataStore ds: datastores.values()) {
-                    ds.append(sid, fv);
+                    ds.append(sid, v, false, false);
                 }
             }
 

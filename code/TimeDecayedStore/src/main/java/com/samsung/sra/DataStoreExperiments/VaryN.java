@@ -65,9 +65,8 @@ public class VaryN {
     }
 
     private static void doAppend(DataStore ds, int v, Statistics timeStats) throws StreamException, RocksDBException, LandmarkEventException {
-        List<FlaggedValue> val = Collections.singletonList(new FlaggedValue(v));
         long t0 = System.nanoTime();
-        ds.append(sid, val);
+        ds.append(sid, v, false, false);
         long te = System.nanoTime();
         timeStats.addObservation((te - t0) / 1e6d);
     }

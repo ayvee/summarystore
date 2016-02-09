@@ -13,7 +13,7 @@ import java.util.logging.Logger;
 /**
  * Implements the time-decay and landmark parts of SummaryStore. API:
  *    register(streamID, aggregateDataStructure)
- *    append(streamID, Collection<FlaggedValue>)
+ *    append(streamID, value)
  *    query(streamID, t1, t2, aggregateFunction)
  * At this point we make no distinction between time and count, i.e. we assume
  * exactly one element arrives at t = 0, 1, 2, 3, ...
@@ -152,10 +152,8 @@ public class TimeDecayedStore implements DataStore {
         }
     }
 
-    public void append(StreamID streamID, Collection<FlaggedValue> values) throws StreamException, LandmarkEventException, RocksDBException {
-        if (values == null || values.isEmpty()) {
-            return;
-        }
+    public void append(StreamID streamID, Object value, boolean landmarkStartsHere, boolean landmarkEndsHere)
+            throws StreamException, LandmarkEventException, RocksDBException {
         final StreamInfo streamInfo;
         synchronized (streamsInfo) {
             if (!streamsInfo.containsKey(streamID)) {
@@ -169,7 +167,7 @@ public class TimeDecayedStore implements DataStore {
             /* All writes will be serialized at this point. Reads are still allowed. We will lock
              the reader object below once we've done the bucket merge math and are ready to start
              modifying the data structure */
-            int N0 = streamInfo.numElements, N = N0 + values.size();
+            int N0 = streamInfo.numElements, N = N0 + 1;
             // id of last bucket currently present in RocksDB
             BucketID lastBucketID = null;
             if (streamInfo.numElements > 0) {
@@ -192,14 +190,15 @@ public class TimeDecayedStore implements DataStore {
 
             // insert values into buckets, creating new buckets as necessary
             Map<BucketID, TreeMap<Integer, Object>> pendingInserts =
-                    processInserts(values, N0, streamInfo, baseBuckets, landmarkBuckets, lastBucketID);
+                    processInsert(value, landmarkStartsHere, landmarkEndsHere,
+                            N0, streamInfo, baseBuckets, landmarkBuckets, lastBucketID);
 
             // figure out which base buckets need to be merged
             assert mergeInputIsSane(baseBuckets, N0, N);
             List<List<BucketID>> pendingMerges;
             {
                 LinkedHashMap<BucketID, BucketInfo> baseBucketsCopy = new LinkedHashMap<BucketID, BucketInfo>();
-                for (Map.Entry<BucketID, BucketInfo> entry : baseBuckets.entrySet()) {
+                for (Map.Entry<BucketID, BucketInfo> entry: baseBuckets.entrySet()) {
                     baseBucketsCopy.put(entry.getKey(), new BucketInfo(entry.getValue()));
                 }
                 pendingMerges = merger.merge(baseBucketsCopy, N0, N);
@@ -223,55 +222,51 @@ public class TimeDecayedStore implements DataStore {
     /**
      * Figure out which bucket every new <time, value> pair needs to be inserted into,
      * creating new base or landmark buckets as necessary. Modifies baseBuckets and landmarkBuckets */
-    private Map<BucketID, TreeMap<Integer, Object>> processInserts(
-            Collection<FlaggedValue> values, int N0,
-            StreamInfo streamInfo,
+    private Map<BucketID, TreeMap<Integer, Object>> processInsert(
+            Object value, boolean landmarkStartsHere, boolean landmarkEndsHere,
+            int N0, StreamInfo streamInfo,
             LinkedHashMap<BucketID, BucketInfo> baseBuckets, LinkedHashMap<BucketID, BucketInfo> landmarkBuckets,
             BucketID lastBucketID) throws LandmarkEventException {
         Map<BucketID, TreeMap<Integer, Object>> pendingInserts = new HashMap<BucketID, TreeMap<Integer, Object>>();
         BucketID activeLandmarkBucket = streamInfo.activeLandmarkBucket;
         BucketID nextBucketID = lastBucketID != null ? lastBucketID.nextBucketID() : new BucketID(0);
-        int n = N0 - 1;
-        for (FlaggedValue fv: values) {
-            ++n;
             /* We always create a new base bucket of size 1 for every inserted element. As with any other
              base bucket, it can be empty if the value at that position goes into a landmark bucket instead */
-            BucketID newBaseBucket = nextBucketID;
-            baseBuckets.put(newBaseBucket, new BucketInfo(newBaseBucket, n, n, false));
-            nextBucketID = nextBucketID.nextBucketID();
+        BucketID newBaseBucket = nextBucketID;
+        baseBuckets.put(newBaseBucket, new BucketInfo(newBaseBucket, N0, N0, false));
+        nextBucketID = nextBucketID.nextBucketID();
 
-            if (fv.landmarkStartsHere) {
-                // create a landmark bucket
-                if (activeLandmarkBucket != null) {
-                    throw new LandmarkEventException();
-                }
-                activeLandmarkBucket = nextBucketID;
-                landmarkBuckets.put(activeLandmarkBucket, new BucketInfo(activeLandmarkBucket, n, n, true));
-                nextBucketID = nextBucketID.nextBucketID();
-            }
+        if (landmarkStartsHere) {
+            // create a landmark bucket
             if (activeLandmarkBucket != null) {
-                // insert into active landmark bucket
-                assert landmarkBuckets.containsKey(activeLandmarkBucket);
-                landmarkBuckets.get(activeLandmarkBucket).endN = n;
-                if (!pendingInserts.containsKey(activeLandmarkBucket)) {
-                    pendingInserts.put(activeLandmarkBucket, new TreeMap<Integer, Object>());
-                }
-                pendingInserts.get(activeLandmarkBucket).put(n, fv.value);
-            } else {
-                // insert into the new base bucket of size 1
-                if (!pendingInserts.containsKey(newBaseBucket)) {
-                    pendingInserts.put(newBaseBucket, new TreeMap<Integer, Object>());
-                }
-                pendingInserts.get(newBaseBucket).put(n, fv.value);
+                throw new LandmarkEventException();
             }
-            if (fv.landmarkEndsHere) {
+            activeLandmarkBucket = nextBucketID;
+            landmarkBuckets.put(activeLandmarkBucket, new BucketInfo(activeLandmarkBucket, N0, N0, true));
+            nextBucketID = nextBucketID.nextBucketID();
+        }
+        if (activeLandmarkBucket != null) {
+            // insert into active landmark bucket
+            assert landmarkBuckets.containsKey(activeLandmarkBucket);
+            landmarkBuckets.get(activeLandmarkBucket).endN = N0;
+            if (!pendingInserts.containsKey(activeLandmarkBucket)) {
+                pendingInserts.put(activeLandmarkBucket, new TreeMap<Integer, Object>());
+            }
+            pendingInserts.get(activeLandmarkBucket).put(N0, value);
+        } else {
+            // insert into the new base bucket of size 1
+            if (!pendingInserts.containsKey(newBaseBucket)) {
+                pendingInserts.put(newBaseBucket, new TreeMap<Integer, Object>());
+            }
+            pendingInserts.get(newBaseBucket).put(N0, value);
+        }
+        if (landmarkEndsHere) {
                 /* Close the landmark bucket. Right now we don't track open/closed in the bucket explicitly,
                 so all we need to do is unmark activeLandmarkBucket */
-                if (activeLandmarkBucket == null) {
-                    throw new LandmarkEventException();
-                }
-                activeLandmarkBucket = null;
+            if (activeLandmarkBucket == null) {
+                throw new LandmarkEventException();
             }
+            activeLandmarkBucket = null;
         }
         streamInfo.activeLandmarkBucket = activeLandmarkBucket;
         return pendingInserts;
@@ -337,6 +332,7 @@ public class TimeDecayedStore implements DataStore {
                 if (!merges.isEmpty()) {
                     mod.bucketsToMergeInto = merges;
                 }
+                assert inserts != null;
                 if (!inserts.isEmpty()) {
                     mod.valuesToInsert = inserts;
                 }
@@ -555,11 +551,10 @@ public class TimeDecayedStore implements DataStore {
             StreamID streamID = new StreamID(0);
             store.registerStream(streamID);
             for (int i = 0; i < 10; ++i) {
-                List<FlaggedValue> values = new ArrayList<FlaggedValue>();
-                values.add(new FlaggedValue(i+1));
-                //if (i == 4) values.get(0).landmarkStartsHere = true;
-                //if (i == 6) values.get(0).landmarkEndsHere = true;
-                store.append(streamID, values);
+                boolean landmarkStartsHere = false, landmarkEndsHere = false;
+                if (i == 4) landmarkStartsHere = true;
+                if (i == 6) landmarkEndsHere = true;
+                store.append(streamID, i + 1, landmarkStartsHere, landmarkEndsHere);
                 store.printBucketState(streamID);
             }
             int t0 = 0, t1 = 9;

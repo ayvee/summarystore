@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Stores all elements explicitly enumerated.
- *
+ * <p/>
  * Unnecessary, strictly speaking: can be emulated via TimeDecayedStore using linear
  * bucketing with a bucket size of 1 (i.e. FixedSizeBucketMerger(1))
  */
@@ -45,6 +45,7 @@ public class EnumeratedStore implements DataStore {
     }
 
     private static final FSTConfiguration fstConf;
+
     static {
         fstConf = FSTConfiguration.createDefaultConfiguration();
 
@@ -119,10 +120,8 @@ public class EnumeratedStore implements DataStore {
         return ret;
     }
 
-    public void append(StreamID streamID, Collection<FlaggedValue> values) throws StreamException, LandmarkEventException, RocksDBException {
-        if (values == null || values.isEmpty()) {
-            return;
-        }
+    public void append(StreamID streamID, Object value, boolean landmarkStartsHere, boolean landmarkEndsHere)
+            throws StreamException, LandmarkEventException, RocksDBException {
         Object syncobj;
         synchronized (streamCounts) {
             if (!streamSyncObjects.containsKey(streamID)) {
@@ -131,12 +130,9 @@ public class EnumeratedStore implements DataStore {
             syncobj = streamSyncObjects.get(streamID);
         }
         synchronized (syncobj) {
-            int t0 = streamCounts.get(streamID), t = t0 - 1;
-            for (FlaggedValue fv: values) {
-                ++t;
-                rocksPut(streamID, t, (Integer)fv.value);
-            }
-            streamCounts.put(streamID, t0 + values.size());
+            int t0 = streamCounts.get(streamID);
+            rocksPut(streamID, t0, (Integer) value);
+            streamCounts.put(streamID, t0 + 1);
         }
         synchronized (streamCounts) {
             persistStreamCounts();
@@ -171,11 +167,10 @@ public class EnumeratedStore implements DataStore {
             StreamID streamID = new StreamID(0);
             store.registerStream(streamID);
             for (int i = 0; i < 10; ++i) {
-                List<FlaggedValue> values = new ArrayList<FlaggedValue>();
-                values.add(new FlaggedValue(i+1));
-                if (i == 4) values.get(0).landmarkStartsHere = true;
-                if (i == 6) values.get(0).landmarkEndsHere = true;
-                store.append(streamID, values);
+                boolean landmarkStartsHere = false, landmarkEndsHere = false;
+                if (i == 4) landmarkStartsHere = true;
+                if (i == 6) landmarkEndsHere = true;
+                store.append(streamID, i + 1, landmarkStartsHere, landmarkEndsHere);
             }
             int t0 = 0, t1 = 9;
             System.out.println(

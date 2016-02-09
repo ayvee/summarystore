@@ -15,7 +15,7 @@ public interface DataStore {
 
     Object query(StreamID streamID, int queryType, int t0, int t1) throws StreamException, QueryException, RocksDBException;
 
-    void append(StreamID streamID, Collection<FlaggedValue> values) throws StreamException, LandmarkEventException, RocksDBException;
+    void append(StreamID streamID, Object value, boolean landmarkStartsHere, boolean landmarkEndsHere) throws StreamException, LandmarkEventException, RocksDBException;
 
     void close();
 
