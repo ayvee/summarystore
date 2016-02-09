@@ -9,7 +9,6 @@ public class AgeLengthEffect {
     private static Random rand = new Random();
     private static Runtime runtime = Runtime.getRuntime();
     private static final int N = 1000000;
-    //private static String tdLoc = "/tmp/tdstore", eLoc = "/tmp/estore";
     private static String prefix = "/tmp/tds_";
 
     /**
@@ -25,7 +24,6 @@ public class AgeLengthEffect {
     }
 
     public static void main(String[] args) {
-
         try {
             runtime.exec(new String[]{"sh", "-c", "rm -rf " + prefix + "*"}).waitFor();
             LinkedHashMap<String, DataStore> datastores = new LinkedHashMap<String, DataStore>();

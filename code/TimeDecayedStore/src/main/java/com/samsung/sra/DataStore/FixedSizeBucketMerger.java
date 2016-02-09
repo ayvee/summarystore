@@ -32,7 +32,7 @@ public class FixedSizeBucketMerger implements BucketMerger {
                     continue;
                 } else {
                     assert bucketSize(prevBucketInfo) + bucketSize(bucketInfo) <= B; // actually size(bucketInfo) should be 1
-                    assert prevBucketInfo.endN == bucketInfo.startN + 1;
+                    assert prevBucketInfo.endN + 1 == bucketInfo.startN;
                     prevBucketInfo.endN = bucketInfo.endN;
                     mergeList.add(bucketInfo.bucketID);
                     if (bucketSize(prevBucketInfo) == B) { // bucket is now full, seal it

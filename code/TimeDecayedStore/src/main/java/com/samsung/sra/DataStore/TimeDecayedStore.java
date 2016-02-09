@@ -330,19 +330,17 @@ public class TimeDecayedStore implements DataStore {
                         inserts.putAll(intermediateInserts);
                     }
                 }
-                if (!merges.isEmpty() || !inserts.isEmpty()) {
-                    boolean isANewBucket = (lastBucketID == null || lastBucketID.compareTo(mergeTarget) < 0);
-                    BucketInfo finalBucketInfo = new BucketInfo(baseBuckets.get(mergeTarget));
-                    finalBucketInfo.endN = endN;
-                    BucketModification mod = new BucketModification(mergeTarget, isANewBucket, finalBucketInfo);
-                    if (!merges.isEmpty()) {
-                        mod.bucketsToMergeInto = merges;
-                    }
-                    if (!inserts.isEmpty()) {
-                        mod.valuesToInsert = inserts;
-                    }
-                    pendingModifications.put(mergeTarget, mod);
+                boolean isANewBucket = (lastBucketID == null || lastBucketID.compareTo(mergeTarget) < 0);
+                BucketInfo finalBucketInfo = new BucketInfo(baseBuckets.get(mergeTarget));
+                finalBucketInfo.endN = endN;
+                BucketModification mod = new BucketModification(mergeTarget, isANewBucket, finalBucketInfo);
+                if (!merges.isEmpty()) {
+                    mod.bucketsToMergeInto = merges;
                 }
+                if (!inserts.isEmpty()) {
+                    mod.valuesToInsert = inserts;
+                }
+                pendingModifications.put(mergeTarget, mod);
             }
         }
         // next process landmark buckets
