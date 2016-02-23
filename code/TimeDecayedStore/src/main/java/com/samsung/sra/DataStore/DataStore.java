@@ -2,8 +2,6 @@ package com.samsung.sra.DataStore;
 
 import org.rocksdb.RocksDBException;
 
-import java.util.Collection;
-
 /**
  * We implement two stores with this interface:
  *   TimeDecayedStore: implements the time-decay and landmark portions of SummaryStore

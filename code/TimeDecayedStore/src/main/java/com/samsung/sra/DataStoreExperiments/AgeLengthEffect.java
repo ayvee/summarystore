@@ -29,7 +29,7 @@ public class AgeLengthEffect {
             LinkedHashMap<String, DataStore> datastores = new LinkedHashMap<String, DataStore>();
             datastores.put("enumeration", new EnumeratedStore(prefix + "enumeration"));
             datastores.put("summarystore", new TimeDecayedStore(prefix + "summarystore", new WBMHBucketMerger(2)));
-            datastores.put("linearstore", new TimeDecayedStore(prefix + "linearstore", new FixedSizeBucketMerger(4546)));
+            datastores.put("linearstore", new TimeDecayedStore(prefix + "linearstore", new LinearBucketMerger(4546)));
 
             for (DataStore ds: datastores.values()) {
                 ds.registerStream(sid);

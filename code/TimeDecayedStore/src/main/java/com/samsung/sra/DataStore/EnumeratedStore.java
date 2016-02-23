@@ -11,9 +11,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Stores all elements explicitly enumerated.
- * <p/>
+ *
  * Unnecessary, strictly speaking: can be emulated via TimeDecayedStore using linear
- * bucketing with a bucket size of 1 (i.e. FixedSizeBucketMerger(1))
+ * bucketing with a bucket size of 1 (i.e. LinearBucketMerger(1))
  */
 public class EnumeratedStore implements DataStore {
     private RocksDB rocksDB;

@@ -2,10 +2,10 @@ package com.samsung.sra.DataStore;
 
 import java.util.*;
 
-public class FixedSizeBucketMerger implements BucketMerger {
+public class LinearBucketMerger implements BucketMerger {
     private final int B;
 
-    public FixedSizeBucketMerger(int bucketSize) {
+    public LinearBucketMerger(int bucketSize) {
         this.B = bucketSize;
     }
 
@@ -29,7 +29,6 @@ public class FixedSizeBucketMerger implements BucketMerger {
                     mergeList = new ArrayList<BucketID>();
                     mergeList.add(bucketInfo.bucketID);
                     ret.add(mergeList);
-                    continue;
                 } else {
                     assert bucketSize(prevBucketInfo) + bucketSize(bucketInfo) <= B; // actually size(bucketInfo) should be 1
                     assert prevBucketInfo.endN + 1 == bucketInfo.startN;

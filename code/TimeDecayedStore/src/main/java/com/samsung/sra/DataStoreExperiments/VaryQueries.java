@@ -4,7 +4,6 @@ import com.samsung.sra.DataStore.*;
 import org.apache.commons.math3.distribution.ZipfDistribution;
 
 import java.io.BufferedWriter;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
@@ -14,7 +13,6 @@ public class VaryQueries {
     private static Random rand = new Random();
     private static Runtime runtime = Runtime.getRuntime();
     private static final int N = 100000;
-    //private static String tdLoc = "/tmp/tdstore", eLoc = "/tmp/estore";
     private static String prefix = "/tmp/tds_";
     private static String queryLogFile = "qlog.tsv";
 
@@ -36,7 +34,7 @@ public class VaryQueries {
                     datastores.put(name, new TimeDecayedStore(prefix + name, new WBMHBucketMerger(2)));
                 } else {
                     String name = "linearstore(" + B + ")";
-                    datastores.put(name, new TimeDecayedStore(prefix + name, new FixedSizeBucketMerger(B)));
+                    datastores.put(name, new TimeDecayedStore(prefix + name, new LinearBucketMerger(B)));
                 }
             }
 
@@ -58,7 +56,6 @@ public class VaryQueries {
                 storeSizes.put(name, size);
             }
 
-            //System.out.println("#s\tCount inflation");
             System.out.println("#s\tstore name and size\tinflation\tquery time msec");
             logWriter.write("#s\tstore name and size\tl\tr\tla\tra\tcount\ttrueCount\tquery time msec\n");
             double[] svals = {1e-6, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2};

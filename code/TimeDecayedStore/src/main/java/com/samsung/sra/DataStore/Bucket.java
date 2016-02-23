@@ -39,7 +39,7 @@ public class Bucket implements Serializable {
         info.endN = finalEndN;
     }
 
-    private int query(int queryType, int t0, int t1) throws QueryException {
+    private int queryOne(int queryType, int t0, int t1) throws QueryException {
         switch (queryType) {
             case QUERY_COUNT:
                 return count;
@@ -50,10 +50,10 @@ public class Bucket implements Serializable {
         }
     }
 
-    public static int multiBucketQuery(Collection<Bucket> buckets, int queryType, int t0, int t1) throws QueryException {
-        int ret = 0;
+    public int query(Collection<Bucket> buckets, int queryType, int t0, int t1) throws QueryException {
+        int ret = this.queryOne(queryType, t0, t1);
         for (Bucket bucket: buckets) {
-            ret += bucket.query(queryType, t0, t1);
+            ret += bucket.queryOne(queryType, t0, t1);
         }
         return ret;
     }

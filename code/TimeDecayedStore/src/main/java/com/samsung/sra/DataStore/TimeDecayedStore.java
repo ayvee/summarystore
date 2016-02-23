@@ -81,7 +81,7 @@ public class TimeDecayedStore implements DataStore {
      */
     public int getLeftAlignmentPoint(StreamID streamID, int t) throws QueryException, StreamException {
         if (t < 0) {
-            throw new QueryException(t + "is out of range in stream " + streamID);
+            throw new QueryException(t + " is out of range in stream " + streamID);
         }
         final StreamInfo streamInfo;
         synchronized (streamsInfo) {
@@ -102,7 +102,7 @@ public class TimeDecayedStore implements DataStore {
      */
     public int getRightAlignmentPoint(StreamID streamID, int t) throws QueryException, StreamException {
         if (t < 0) {
-            throw new QueryException(t + "is out of range in stream " + streamID);
+            throw new QueryException(t + " is out of range in stream " + streamID);
         }
         final StreamInfo streamInfo;
         synchronized (streamsInfo) {
@@ -143,12 +143,19 @@ public class TimeDecayedStore implements DataStore {
             }
             // Query on all buckets with l <= startN < r.  FIXME: this overapproximates in some cases with landmarks
             SortedMap<Integer, BucketID> spanningBucketsIDs = index.subMap(l, true, r, false);
-            List<Bucket> spanningBuckets = new ArrayList<Bucket>();
+            Bucket first = null;
+            List<Bucket> rest = new ArrayList<Bucket>();
             // TODO: RocksDB multiget
             for (BucketID bucketID: spanningBucketsIDs.values()) {
-                spanningBuckets.add(rocksGet(streamID, bucketID));
+                Bucket bucket = rocksGet(streamID, bucketID);
+                if (first == null) {
+                    first = bucket;
+                } else {
+                    rest.add(bucket);
+                }
             }
-            return Bucket.multiBucketQuery(spanningBuckets, queryType, t0, t1);
+            assert first != null;
+            return first.query(rest, queryType, t0, t1);
         }
     }
 
@@ -230,8 +237,8 @@ public class TimeDecayedStore implements DataStore {
         Map<BucketID, TreeMap<Integer, Object>> pendingInserts = new HashMap<BucketID, TreeMap<Integer, Object>>();
         BucketID activeLandmarkBucket = streamInfo.activeLandmarkBucket;
         BucketID nextBucketID = lastBucketID != null ? lastBucketID.nextBucketID() : new BucketID(0);
-            /* We always create a new base bucket of size 1 for every inserted element. As with any other
-             base bucket, it can be empty if the value at that position goes into a landmark bucket instead */
+        /* We always create a new base bucket of size 1 for every inserted element. As with any other
+        base bucket, it can be empty if the value at that position goes into a landmark bucket instead */
         BucketID newBaseBucket = nextBucketID;
         baseBuckets.put(newBaseBucket, new BucketInfo(newBaseBucket, N0, N0, false));
         nextBucketID = nextBucketID.nextBucketID();
@@ -261,8 +268,8 @@ public class TimeDecayedStore implements DataStore {
             pendingInserts.get(newBaseBucket).put(N0, value);
         }
         if (landmarkEndsHere) {
-                /* Close the landmark bucket. Right now we don't track open/closed in the bucket explicitly,
-                so all we need to do is unmark activeLandmarkBucket */
+            /* Close the landmark bucket. Right now we don't track open/closed in the bucket explicitly,
+            so all we need to do is unmark activeLandmarkBucket */
             if (activeLandmarkBucket == null) {
                 throw new LandmarkEventException();
             }
@@ -547,7 +554,7 @@ public class TimeDecayedStore implements DataStore {
             // FIXME: add a deleteStream/resetDatabase operation
             Runtime.getRuntime().exec(new String[]{"rm", "-rf", storeLoc}).waitFor();
             //store = new TimeDecayedStore(storeLoc, new WBMHBucketMerger(3));
-            store = new TimeDecayedStore(storeLoc, new FixedSizeBucketMerger(3));
+            store = new TimeDecayedStore(storeLoc, new LinearBucketMerger(3));
             StreamID streamID = new StreamID(0);
             store.registerStream(streamID);
             for (int i = 0; i < 10; ++i) {

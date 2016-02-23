@@ -5,7 +5,7 @@ cut -f1,6 varyN.tsv > varyN_inflation-count.tsv
 cut -f1,8,9 varyN.tsv > varyN_latency-query.tsv
 gnuplot varyN.gp
 
-svals=$(cut -f1 varyQueries.tsv|grep -v '#'|uniq|paste -sd ' ' -)
+#svals=$(cut -f1 varyQueries.tsv|grep -v '#'|uniq|paste -sd' ' -)
 svals="1.0E-6 1.0"
 sed "s/SED_SVALS_SED/$svals/g" varyQueries.gp > filled-varyQueries.gp
 for s in $svals
