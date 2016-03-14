@@ -8,7 +8,10 @@ done
 
 #java -cp $cp com.samsung.sra.DataStoreExperiments.VaryN | tee varyN.tsv
 #java -cp $cp com.samsung.sra.DataStoreExperiments.VaryQueries | tee varyQueries.tsv
-java -cp $cp com.samsung.sra.DataStoreExperiments.AgeLengthEffect > age-length-matrix.tsv 2> age-length-scatter.tsv
+#java -cp $cp com.samsung.sra.DataStoreExperiments.AgeLengthEffect > age-length-matrix.tsv 2> age-length-scatter.tsv
+#java -cp $cp com.samsung.sra.WindowingOptimizer.UpperBoundOptimizer 2> opt.log | tee opt.tsv
+java -cp $cp com.samsung.sra.WindowingOptimizer.StorageVsAccuracy
 
 #./plot.sh
-gnuplot age-length.gp
+#gnuplot age-length.gp
+#gnuplot opt.gp
