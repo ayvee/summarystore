@@ -3,6 +3,10 @@ package com.samsung.sra.DataStoreExperiments;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.DecimalFormat;
 
 public class Statistics {
@@ -81,15 +85,16 @@ public class Statistics {
         }
     }
 
-    // FIXME: do something more systematic than stderr
-    public synchronized void printCDF() {
+    public synchronized void writeCDF(String filename) throws IOException {
         if (dstats == null) {
             throw new IllegalStateException();
         }
-        System.err.println("#" + getErrorbars());
-        System.err.println(dstats.getMin() + "\t0");
-        for (int i = 1; i <= 100; ++i) {
-            System.err.println(dstats.getPercentile(i) + "\t" + (i / 100d));
+        try (BufferedWriter br = Files.newBufferedWriter(Paths.get(filename))) {
+            br.write("#" + getErrorbars() + "\n");
+            br.write(dstats.getMin() + "\t0" + "\n");
+            for (int i = 1; i <= 100; ++i) {
+                br.write(dstats.getPercentile(i) + "\t" + (i / 100d) + "\n");
+            }
         }
     }
 }
