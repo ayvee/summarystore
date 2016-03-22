@@ -1,8 +1,5 @@
 package com.samsung.sra.WindowingOptimizer;
 
-import javafx.util.converter.LocalDateTimeStringConverter;
-
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -17,11 +14,21 @@ public class ValueAwareOptimizer {
     private final TMeasure P;
     private final long[] counts;
 
+    private double[][] Ml, Mr, Mvals;
+    private long[][] trueCounts;
+
     public ValueAwareOptimizer(int N, TMeasure P, long[] counts) {
         assert counts.length == N;
         this.N = N;
         this.P = P;
         this.counts = counts;
+
+        Ml = new double[N][N]; Mr = new double[N][N]; Mvals = new double[N][N];
+        trueCounts = new long[N][N];
+        compute_Ml(Ml);
+        compute_Mr(Mr);
+        compute_Mvals(Mvals);
+        compute_trueCounts(trueCounts);
     }
 
     private void compute_Ml(double[][] Ml) {
@@ -78,11 +85,12 @@ public class ValueAwareOptimizer {
 
     private static double getError(long trueval, long estimate) {
         // https://en.wikipedia.org/wiki/Symmetric_mean_absolute_percentage_error
-        long nr = estimate - trueval, dr = estimate + trueval;
-        return dr > 0 ? nr / (double)dr : 0;
+        //long nr = estimate - trueval, dr = estimate + trueval;
+        //return dr > 0 ? nr / (double)dr : 0;
+        return estimate - trueval;
     }
 
-    private void compute_E(double[][] E, double[][] Ml, double[][] Mr, double[][] Mvals, long[][] trueCounts) {
+    private void compute_E(double[][] E) {
         for (int l = 0; l < N; ++l) {
             //System.err.println("[" + LocalDateTime.now() + "] Computing E for l = " + l);
             //System.err.flush();
@@ -109,18 +117,22 @@ public class ValueAwareOptimizer {
     private double[][] compute_E() {
         if (E == null) {
             E = new double[N][N];
-            double[][] Ml = new double[N][N], Mr = new double[N][N], Mvals = new double[N][N];
-            long[][] trueCounts = new long[N][N];
-            compute_Ml(Ml);
-            compute_Mr(Mr);
-            compute_Mvals(Mvals);
-            compute_trueCounts(trueCounts);
-            compute_E(E, Ml, Mr, Mvals, trueCounts);
+            compute_E(E);
         }
         return E;
     }
 
-    public double optimize(int W) {
+    void print_E() {
+        double[][] E = compute_E();
+        for (int i = 0; i < N; ++i) {
+            for (int j = 0; j < N; ++j) {
+                System.err.print("\t" + E[i][j]);
+            }
+            System.err.println();
+        }
+    }
+
+    public List<Integer> optimize(int W) {
         double[][] E = compute_E();
         double[][] C = new double[N+1][W+1];
         // right_endpoints[i][B] = j such that [i, j] is the first interval in an optimal B-byte windowing of [i, N-1]
@@ -143,25 +155,26 @@ public class ValueAwareOptimizer {
                 }
             }
         }
-        /*List<Integer> lengths = new ArrayList<Integer>();
+        List<Integer> lengths = new ArrayList<Integer>();
         int i = 0;
         for (int B = W; B >= 1; --B) {
             int j = right_endpoints[i][B];
             lengths.add(j - i + 1);
             i = j + 1;
         }
-        assert Math.abs(C[0][W] - getCost(lengths)) < 1e-5;
-        //return lengths;*/
-        return C[0][W];
-    }
-
-    public double getCost(Integer[] windowLengths) {
-        return getCost(Arrays.asList(windowLengths));
+        //assert Math.abs(C[0][W] - getCost(lengths)) < 1e-5;
+        return lengths;
     }
 
     public double getCost(List<Integer> windowLengths) {
-        double[][] E = compute_E();
         double cost = 0;
+        for (int l = 0; l < N; ++l) {
+            for (int r = l; r < N; ++r) {
+                cost += Mvals[l][r] * getQueryCostLR(windowLengths, l, r);
+            }
+        }
+        return cost;
+        /*double[][] E = compute_E();
         int i = 0;
         for (int l: windowLengths) {
             int j = i + l - 1;
@@ -171,6 +184,28 @@ public class ValueAwareOptimizer {
         if (i != N) {
             throw new IllegalArgumentException("window lengths must sum to N = " + N);
         }
-        return cost;
+        return cost;*/
+    }
+
+    public double getQueryCostLR(List<Integer> windowLengths, int l, int r) {
+        assert 0 <= l && l <= r && r < N;
+        long tc = trueCounts[l][r];
+        long ec = 0;
+        int i = 0;
+        for (Integer length: windowLengths) {
+            int j = i + length - 1;
+            if (l <= j && r >= i) {
+                ec += trueCounts[i][j];
+            }
+            i = j + 1;
+        }
+        assert i == N;
+        assert ec >= tc;
+        //return getError(tc, ec);
+        return tc > 0 ? (ec - tc) / (double)(ec + tc) : 0;
+    }
+
+    public double getQueryCostAL(List<Integer> windowLengths, int a, int l) {
+        return getQueryCostLR(windowLengths, N - l - a, N - 1 - a);
     }
 }

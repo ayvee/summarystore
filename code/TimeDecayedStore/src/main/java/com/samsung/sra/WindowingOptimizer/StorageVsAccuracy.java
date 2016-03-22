@@ -26,8 +26,8 @@ public class StorageVsAccuracy {
             System.err.println("[" + LocalDateTime.now() + "] trial " + trial + ":");
             for (int sri = 0; sri < storageRatios.length; ++sri) {
                 int W = (int)Math.ceil(T / storageRatios[sri]);
-                double bestWindowingError = optimizer.optimize(W);
-                System.err.println("[" + LocalDateTime.now() + "] error(W = " + W + ") = " + bestWindowingError);
+                double bestWindowingError = optimizer.getCost(optimizer.optimize(W));
+                System.err.println("[" + LocalDateTime.now() + "] error(" + storageRatios[sri] + ") = " + bestWindowingError);
                 results[sri].addObservation(bestWindowingError);
             }
         }
@@ -48,7 +48,7 @@ public class StorageVsAccuracy {
                 2, 3, 4, 5, 6, 7, 8, 9,
                 10, 20, 30, 40, 50, 60, 70, 80, 90,
                 100, 200, 300, 400, 500, 600, 700, 800, 900};
-        int nTrialsPerRatio = 5;
+        int nTrialsPerRatio = 1;
 
         for (double arrivalRate: arrivalRates) {
             for (double queriesZipfS: queriesZipfSs) {
