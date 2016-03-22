@@ -174,7 +174,7 @@ public class TimeDecayedStore implements DataStore {
             /* All writes will be serialized at this point. Reads are still allowed. We will lock
              the reader object below once we've done the bucket merge math and are ready to start
              modifying the data structure */
-            int N0 = streamInfo.numElements, N = N0 + 1;
+            int N0 = streamInfo.numElements;
             // id of last bucket currently present in RocksDB
             BucketID lastBucketID = null;
             if (streamInfo.numElements > 0) {
@@ -201,16 +201,16 @@ public class TimeDecayedStore implements DataStore {
                             N0, streamInfo, baseBuckets, landmarkBuckets, lastBucketID);
 
             // figure out which base buckets need to be merged
-            assert mergeInputIsSane(baseBuckets, N0, N);
+            assert mergeInputIsSane(baseBuckets, N0, N0 + 1);
             List<List<BucketID>> pendingMerges;
             {
                 LinkedHashMap<BucketID, BucketInfo> baseBucketsCopy = new LinkedHashMap<BucketID, BucketInfo>();
                 for (Map.Entry<BucketID, BucketInfo> entry: baseBuckets.entrySet()) {
                     baseBucketsCopy.put(entry.getKey(), new BucketInfo(entry.getValue()));
                 }
-                pendingMerges = merger.merge(baseBucketsCopy, N0, N);
+                pendingMerges = merger.merge(baseBucketsCopy, N0);
             }
-            assert mergeOutputIsSane(pendingMerges, baseBuckets, N);
+            assert mergeOutputIsSane(pendingMerges, baseBuckets, N0 + 1);
 
             // compile pendingInserts and pendingMerges into a list of actions on each bucket
             TreeMap<BucketID, BucketModification> pendingModifications =
@@ -553,7 +553,7 @@ public class TimeDecayedStore implements DataStore {
             String storeLoc = "/tmp/tdstore";
             // FIXME: add a deleteStream/resetDatabase operation
             Runtime.getRuntime().exec(new String[]{"rm", "-rf", storeLoc}).waitFor();
-            //store = new TimeDecayedStore(storeLoc, new WBMHBucketMerger(3));
+            //store = new TimeDecayedStore(storeLoc, new ExponentialWBMHBucketMerger(3));
             store = new TimeDecayedStore(storeLoc, new LinearBucketMerger(3));
             StreamID streamID = new StreamID(0);
             store.registerStream(streamID);

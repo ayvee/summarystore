@@ -1,7 +1,6 @@
 package com.samsung.sra.WindowingOptimizer;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**

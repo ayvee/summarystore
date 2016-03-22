@@ -6,10 +6,10 @@ import java.util.*;
  * Implements WBMH with pow(base) exponential window sizes.
  * Created by a.vulimiri on 1/20/16.
  */
-public class WBMHBucketMerger implements BucketMerger {
+public class ExponentialWBMHBucketMerger implements BucketMerger {
     private final int base;
 
-    public WBMHBucketMerger(int base) {
+    public ExponentialWBMHBucketMerger(int base) {
         this.base = base;
     }
 
@@ -48,28 +48,24 @@ public class WBMHBucketMerger implements BucketMerger {
         isn't yielding the same merge sequence (e.g. at n = 100k), possibly because of floating point issues. */
     }
 
-    public List<List<BucketID>> merge(LinkedHashMap<BucketID, BucketInfo> baseBuckets, int N0, int N) {
+    public List<List<BucketID>> merge(LinkedHashMap<BucketID, BucketInfo> baseBuckets, int N0) {
         Map<BucketID, TreeSet<BucketID>> merges = new HashMap<BucketID, TreeSet<BucketID>>();
-        /* We process batch appends by adding elements one at a time and seeing which buckets
-        would be merged at each point. Have not found a more elegant solution. */
-        for (int n = N0 + 1; n <= N; ++n) {
-            // consider buckets two at a time, checking if prevBucket and currBucket are in the same window
-            // (recall that WBMH = merge any consecutive buckets that are in the same window)
-            BucketInfo prevBucket = null;
-            for (Iterator<Map.Entry<BucketID, BucketInfo>> iter = baseBuckets.entrySet().iterator(); iter.hasNext(); ) {
-                BucketInfo currBucket = iter.next().getValue();
-                if (prevBucket == null) {
-                    prevBucket = currBucket;
-                    continue;
-                }
-                if (checkIfSameWindow(prevBucket.startN, currBucket.endN, n)) {
-                    // merge bucket into previous bucket
-                    addMerge(merges, prevBucket.bucketID, currBucket.bucketID);
-                    prevBucket.endN = currBucket.endN;
-                    iter.remove();
-                } else {
-                    prevBucket = currBucket;
-                }
+        // consider buckets two at a time, checking if prevBucket and currBucket are in the same window
+        // (recall that WBMH = merge any consecutive buckets that are in the same window)
+        BucketInfo prevBucket = null;
+        for (Iterator<Map.Entry<BucketID, BucketInfo>> iter = baseBuckets.entrySet().iterator(); iter.hasNext(); ) {
+            BucketInfo currBucket = iter.next().getValue();
+            if (prevBucket == null) {
+                prevBucket = currBucket;
+                continue;
+            }
+            if (checkIfSameWindow(prevBucket.startN, currBucket.endN, N0 + 1)) {
+                // merge bucket into previous bucket
+                addMerge(merges, prevBucket.bucketID, currBucket.bucketID);
+                prevBucket.endN = currBucket.endN;
+                iter.remove();
+            } else {
+                prevBucket = currBucket;
             }
         }
         List<List<BucketID>> ret = new ArrayList<List<BucketID>>();

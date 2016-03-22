@@ -2,7 +2,9 @@ package com.samsung.sra.DataStoreExperiments;
 
 import com.samsung.sra.DataStore.*;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Random;
 
 public class AgeLengthEffect {
     private static final StreamID sid = new StreamID(0);
@@ -28,7 +30,7 @@ public class AgeLengthEffect {
             runtime.exec(new String[]{"sh", "-c", "rm -rf " + prefix + "*"}).waitFor();
             LinkedHashMap<String, DataStore> datastores = new LinkedHashMap<String, DataStore>();
             datastores.put("enumeration", new EnumeratedStore(prefix + "enumeration"));
-            datastores.put("summarystore", new TimeDecayedStore(prefix + "summarystore", new WBMHBucketMerger(2)));
+            datastores.put("summarystore", new TimeDecayedStore(prefix + "summarystore", new ExponentialWBMHBucketMerger(2)));
             datastores.put("linearstore", new TimeDecayedStore(prefix + "linearstore", new LinearBucketMerger(4546)));
 
             for (DataStore ds: datastores.values()) {

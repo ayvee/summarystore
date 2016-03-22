@@ -6,7 +6,10 @@ import org.apache.commons.math3.distribution.ZipfDistribution;
 import java.io.BufferedWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Random;
 
 public class VaryQueries {
     private static final StreamID sid = new StreamID(0);
@@ -31,7 +34,7 @@ public class VaryQueries {
                     datastores.put(name, new EnumeratedStore(prefix + name));
                 } else if (B == 0) {
                     String name = "summarystore";
-                    datastores.put(name, new TimeDecayedStore(prefix + name, new WBMHBucketMerger(2)));
+                    datastores.put(name, new TimeDecayedStore(prefix + name, new ExponentialWBMHBucketMerger(2)));
                 } else {
                     String name = "linearstore(" + B + ")";
                     datastores.put(name, new TimeDecayedStore(prefix + name, new LinearBucketMerger(B)));

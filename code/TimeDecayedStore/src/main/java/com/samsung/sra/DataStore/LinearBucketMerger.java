@@ -1,6 +1,9 @@
 package com.samsung.sra.DataStore;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
 
 public class LinearBucketMerger implements BucketMerger {
     private final int B;
@@ -13,7 +16,7 @@ public class LinearBucketMerger implements BucketMerger {
         return bucketInfo.endN - bucketInfo.startN + 1;
     }
 
-    public List<List<BucketID>> merge(LinkedHashMap<BucketID, BucketInfo> baseBuckets, int N0, int N) {
+    public List<List<BucketID>> merge(LinkedHashMap<BucketID, BucketInfo> baseBuckets, int N0) {
         List<List<BucketID>> ret = new ArrayList<List<BucketID>>();
         List<BucketID> mergeList = null;
         BucketInfo prevBucketInfo = null;

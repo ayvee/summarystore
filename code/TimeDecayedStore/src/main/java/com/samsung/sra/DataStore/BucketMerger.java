@@ -9,7 +9,8 @@ import java.util.List;
  */
 interface BucketMerger {
     /**
-     * Given a list of base buckets spanning the time range [0, N), sorted by age oldest bucket first,
+     * Figure out what buckets need to be merged after a new element has been inserted.  Specifically,
+     * given a list of base buckets spanning the time range [0, N0 + 1), sorted by age oldest bucket first,
      * such that the prefix of buckets spanning [0, N0) were the output of a previous merge operation,
      * return a list of buckets to be merged. Each element in the return list must be a contiguous list
      * of base buckets (sorted oldest first) to be merged. The output must be a chunking of the input
@@ -19,5 +20,5 @@ interface BucketMerger {
      *
      * The baseBuckets argument can be consumed destructively.
      */
-    List<List<BucketID>> merge(LinkedHashMap<BucketID, BucketInfo> baseBuckets, int N0, int N);
+    List<List<BucketID>> merge(LinkedHashMap<BucketID, BucketInfo> baseBuckets, int N0);
 }

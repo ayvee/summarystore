@@ -4,7 +4,8 @@ import com.samsung.sra.DataStore.*;
 import org.rocksdb.RocksDBException;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Random;
+import java.util.Scanner;
 
 public class VaryN {
     private static final StreamID sid = new StreamID(0);
@@ -28,7 +29,7 @@ public class VaryN {
 
     private static String doExperiment(int N) throws InterruptedException, IOException, RocksDBException, StreamException, LandmarkEventException, QueryException {
         runtime.exec(new String[]{"rm", "-rf", tdLoc, eLoc}).waitFor();
-        TimeDecayedStore tdStore = new TimeDecayedStore(tdLoc, new WBMHBucketMerger(2));
+        TimeDecayedStore tdStore = new TimeDecayedStore(tdLoc, new ExponentialWBMHBucketMerger(2));
         EnumeratedStore eStore = new EnumeratedStore(eLoc);
 
         Statistics tdAppendTime = new Statistics(false), eAppendTime = new Statistics(false);
