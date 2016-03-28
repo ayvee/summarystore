@@ -7,11 +7,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class StorageVsAccuracy {
     private static void oneExperiment(int T, double arrivalRate, double queriesZipfS,
                                       double[] storageRatios, int nTrialsPerRatio) throws IOException {
-        String filename = String.format("bound-sa_T%d_l%.1f_z%.1f.tsv", T, arrivalRate, (queriesZipfS < 1e-4 ? 0: queriesZipfS));
+        String filename = String.format("bound-sa_T%d_l%.0f_z%.0f-mean.tsv", T, arrivalRate, (queriesZipfS < 1e-4 ? 0: queriesZipfS));
         System.err.println("=====> " + filename + " <=====");
 
         InterarrivalTimes interarrivals = new ExponentialInterarrivals(arrivalRate);
@@ -26,7 +27,10 @@ public class StorageVsAccuracy {
             System.err.println("[" + LocalDateTime.now() + "] trial " + trial + ":");
             for (int sri = 0; sri < storageRatios.length; ++sri) {
                 int W = (int)Math.ceil(T / storageRatios[sri]);
-                double bestWindowingError = optimizer.getCost(optimizer.optimize(W));
+                List<Integer> bestWindowing = optimizer.optimize(W);
+                double bestWindowingError = optimizer.getWAPE(bestWindowing);
+                //double bestWindowingError = optimizer.getMeanRelativeError(bestWindowing);
+                //double bestWindowingError = optimizer.getMeanMAPE(bestWindowing);
                 System.err.println("[" + LocalDateTime.now() + "] error(" + storageRatios[sri] + ") = " + bestWindowingError);
                 results[sri].addObservation(bestWindowingError);
             }
@@ -40,9 +44,9 @@ public class StorageVsAccuracy {
     }
 
     public static void main(String[] args) throws IOException {
-        int T = 600;
-        double[] arrivalRates = {1, 1000};
-        double[] queriesZipfSs = {1, 1e-5, 0.5, 1.5, 2};
+        int T = 1000;
+        double[] arrivalRates = {1000};
+        double[] queriesZipfSs = {1e-5, 1, 2};
         double[] storageRatios = {1,
                 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9,
                 2, 3, 4, 5, 6, 7, 8, 9,

@@ -35,9 +35,10 @@ public class AgeLengthVsAccuracy {
         outWriter.write("; expected error = " + optimizer.getCost(optimalWindowing) + "\n");
         for (int a = 0; a < T; ++a) {
             for (int l = 1; a + l - 1 < T; ++l) {
-                double err = optimizer.getQueryCostAL(optimalWindowing, a, l);
+                double err = optimizer.getQueryRelativeErrorAL(optimalWindowing, a, l);
+                double queryProbability = tMeasure.M_a_l(a, l);
                 cdf.addObservation(err);
-                outWriter.write((a+1) + "\t" + l + "\t" + err + "\n");
+                outWriter.write((a+1) + "\t" + l + "\t" + err + "\t" + queryProbability + "\n");
             }
         }
         outWriter.close();
@@ -48,7 +49,7 @@ public class AgeLengthVsAccuracy {
         int T = 1000;
         double arrivalRate = 1000;
         double[] queriesZipfSs = {1e-5, 1, 2};
-        double[] storageRatios = {10, 100};
+        double[] storageRatios = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100};
 
         for (double queriesZipfS: queriesZipfSs) {
             for (double storageRatio: storageRatios) {

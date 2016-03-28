@@ -4,9 +4,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Implements the dynamic programming algo from
- * https://confluence.sisa.samsung.com:8443/display/summarystore/Time-decayed+aggregation
- * (see the page for documentation)
+ * Variant of the UpperBoundOptimizer (which implements
+ * https://confluence.sisa.samsung.com:8443/display/summarystore/Time-decayed+aggregation)
+ * that optimizes based on the actual observed error for the given time series,
+ * as opposed to the worst-case upper bound on the error estimate that UpperBoundOptimizer
+ * uses. Running time is O(N^4) vs UpperBoundOptimizer's O(N^3)
  */
 public class ValueAwareOptimizer {
     private final int N;
@@ -83,9 +85,12 @@ public class ValueAwareOptimizer {
     }
 
     private static double getError(long trueval, long estimate) {
-        // https://en.wikipedia.org/wiki/Symmetric_mean_absolute_percentage_error
+        /*// https://en.wikipedia.org/wiki/Symmetric_mean_absolute_percentage_error
         //long nr = estimate - trueval, dr = estimate + trueval;
-        //return dr > 0 ? nr / (double)dr : 0;
+        //return dr > 0 ? nr / (double)dr : 0;*/
+        // above doesn't work: SMAPE isn't additive over intervals. Optimizing
+        // absolute error instead
+        assert estimate >= trueval;
         return estimate - trueval;
     }
 
@@ -165,30 +170,8 @@ public class ValueAwareOptimizer {
         return lengths;
     }
 
-    public double getCost(List<Integer> windowLengths) {
-        double cost = 0;
-        for (int l = 0; l < N; ++l) {
-            for (int r = l; r < N; ++r) {
-                cost += Mvals[l][r] * getQueryCostLR(windowLengths, l, r);
-            }
-        }
-        return cost;
-        /*double[][] E = compute_E();
-        int i = 0;
-        for (int l: windowLengths) {
-            int j = i + l - 1;
-            cost += E[i][j];
-            i = j + 1;
-        }
-        if (i != N) {
-            throw new IllegalArgumentException("window lengths must sum to N = " + N);
-        }
-        return cost;*/
-    }
-
-    public double getQueryCostLR(List<Integer> windowLengths, int l, int r) {
+    public long getQueryEstimateLR(List<Integer> windowLengths, int l, int r) {
         assert 0 <= l && l <= r && r < N;
-        long tc = trueCounts[l][r];
         long ec = 0;
         int i = 0;
         for (Integer length: windowLengths) {
@@ -199,12 +182,69 @@ public class ValueAwareOptimizer {
             i = j + 1;
         }
         assert i == N;
-        assert ec >= tc;
-        //return getError(tc, ec);
-        return tc > 0 ? (ec - tc) / (double)(ec + tc) : 0;
+        return ec;
     }
 
-    public double getQueryCostAL(List<Integer> windowLengths, int a, int l) {
-        return getQueryCostLR(windowLengths, N - l - a, N - 1 - a);
+    public long getQueryTruevalLR(int l, int r) {
+        return trueCounts[l][r];
+    }
+
+    public double getQueryRelativeErrorLR(List<Integer> windowLengths, int l, int r) {
+        long estimate = getQueryEstimateLR(windowLengths, l, r);
+        long trueval = getQueryTruevalLR(l, r);
+        return trueval > 0 ? (estimate - trueval) / (double)(trueval) : 0;
+    }
+
+    public double getQueryRelativeErrorAL(List<Integer> windowLengths, int a, int l) {
+        return getQueryRelativeErrorLR(windowLengths, N - l - a, N - 1 - a);
+    }
+
+    public double getQueryMAPELR(List<Integer> windowLengths, int l, int r) {
+        long estimate = getQueryEstimateLR(windowLengths, l, r);
+        long trueval = getQueryTruevalLR(l, r);
+        return estimate > 0 ? (estimate - trueval) / (double)(estimate + trueval) : 0;
+    }
+
+    public double getWAPE(List<Integer> windowLengths) {
+        /* Return weighted absolute % error: weighted_sum(est - true) / weighted_sum(true).
+        Why WAPE:
+            http://www.webmeets.com/files/papers/ISF/2012/182/Martin_RollingDice.pdf
+            https://en.wikipedia.org/wiki/Calculating_demand_forecast_accuracy
+         */
+        double avg_est = 0, avg_true = 0;
+        for (int l = 0; l < N; ++l) {
+            for (int r = l; r < N; ++r) {
+                long estimate = getQueryEstimateLR(windowLengths, l, r);
+                long trueval = getQueryTruevalLR(l, r);
+                assert estimate >= trueval;
+                avg_est += Mvals[l][r] * estimate;
+                avg_true += Mvals[l][r] * trueval;
+            }
+        }
+        return (avg_est - avg_true) / avg_true;
+    }
+
+    public double getMeanRelativeError(List<Integer> windowLengths) {
+        double mean = 0;
+        for (int l = 0; l < N; ++l) {
+            for (int r = l; r < N; ++r) {
+                mean += Mvals[l][r] * getQueryRelativeErrorLR(windowLengths, l, r);
+            }
+        }
+        return mean;
+    }
+
+    public double getMeanMAPE(List<Integer> windowLengths) {
+        double mean = 0;
+        for (int l = 0; l < N; ++l) {
+            for (int r = l; r < N; ++r) {
+                mean += Mvals[l][r] * getQueryMAPELR(windowLengths, l, r);
+            }
+        }
+        return mean;
+    }
+
+    public double getCost(List<Integer> windowLengths) {
+        return getWAPE(windowLengths);
     }
 }
