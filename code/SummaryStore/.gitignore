@@ -1,0 +1,13 @@
+.idea
+*.iml
+
+target
+
+*.cdf
+*.csv
+*.dat
+*.log
+*.tsv
+
+*.pdf
+*.png
