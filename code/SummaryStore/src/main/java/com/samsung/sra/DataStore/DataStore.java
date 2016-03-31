@@ -18,4 +18,13 @@ public interface DataStore {
     void close();
 
     long getStoreSizeInBytes();
+
+    /** desired functions
+     *
+     *
+     * long getStreamAgeInSeconds(StreamID streamID);
+     *
+     * long getStreamLength(StreamID streamID);
+     *
+     */
 }
