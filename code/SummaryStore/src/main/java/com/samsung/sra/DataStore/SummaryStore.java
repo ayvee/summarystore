@@ -19,7 +19,7 @@ import java.util.logging.Logger;
  *    query(streamID, t1, t2, aggregateFunction)
  */
 public class SummaryStore implements DataStore {
-    private static final Level logLevel = Level.ALL;
+    private static final Level logLevel = Level.INFO;
     private static final Logger logger = Logger.getLogger(SummaryStore.class.getName());
     private WindowingMechanism windowingMechanism;
     private RocksDB rocksDB = null;
@@ -129,7 +129,7 @@ public class SummaryStore implements DataStore {
             TreeMap<Timestamp, BucketID> index = streamInfo.timeIndex;
             Timestamp l = index.floorKey(t0); // first bucket with tStart <= t0
             Timestamp r = index.higherKey(t1); // first bucket with tStart > t1
-            logger.log(Level.FINE, "Overapproximated time range = [" + l + ", " + r + ")");
+            logger.log(Level.FINEST, "Overapproximated time range = [" + l + ", " + r + ")");
             if (r == null) {
                 r = index.lastKey();
             }
