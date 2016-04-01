@@ -5,6 +5,7 @@ import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.logging.Level;
@@ -26,6 +27,38 @@ public class SummaryStore implements DataStore {
      * The buckets proper are stored in RocksDB. We maintain additional in-memory indexes and
      * metadata in StreamInfo to help reads and writes. The append operation keeps StreamInfo
      * consistent with the base data on RocksDB. */
+    private static class StreamInfo implements Serializable {
+        final StreamID streamID;
+        // Object that readers and writers respectively will use "synchronized" with (acts as a mutex)
+        final Object readerSyncObj = new Object(), writerSyncObj = new Object();
+        // How many values have we inserted so far?
+        int numValues = 0;
+        // What was the timestamp of the latest value appended?
+        Timestamp lastValueTimestamp = null;
+        // FIXME: Implicit assumption here that time starts at 0 in every stream; we can discuss if that should change
+
+        // TODO: register an object to track what data structure we will use for each bucket
+
+        /** All buckets for this stream */
+        final LinkedHashMap<BucketID, BucketMetadata> buckets = new LinkedHashMap<BucketID, BucketMetadata>();
+        /** If there is an active (unclosed) landmark bucket, its ID */
+        BucketID activeLandmarkBucket = null;
+        /** Index mapping bucket.tStart -> bucketID, used to answer queries */
+        final TreeMap<Timestamp, BucketID> timeIndex = new TreeMap<Timestamp, BucketID>();
+
+        StreamInfo(StreamID streamID) {
+            this.streamID = streamID;
+        }
+
+        void reconstructTimeIndex() {
+            timeIndex.clear();
+            for (BucketMetadata bucketMetadata : buckets.values()) {
+                assert bucketMetadata.tStart != null;
+                timeIndex.put(bucketMetadata.tStart, bucketMetadata.bucketID);
+            }
+        }
+    }
+
     private final HashMap<StreamID, StreamInfo> streamsInfo;
 
     /** We will persist streamsInfo in RocksDB, storing it under this special key. Note that this key is
@@ -183,7 +216,9 @@ public class SummaryStore implements DataStore {
 
             streamInfo.reconstructTimeIndex();
 
-            store.persistStreamsInfo();
+            synchronized (store.streamsInfo) {
+                store.persistStreamsInfo();
+            }
         }
 
         @Override
@@ -212,7 +247,9 @@ public class SummaryStore implements DataStore {
 
             streamInfo.reconstructTimeIndex();
 
-            store.persistStreamsInfo();
+            synchronized (store.streamsInfo) {
+                store.persistStreamsInfo();
+            }
         }
 
         @Override
@@ -306,8 +343,8 @@ public class SummaryStore implements DataStore {
         // TODO: lock all writers
         long ret = 0;
         for (StreamInfo si: streamsInfo.values()) {
-            // timeIndex.size() = # buckets; 16 = 4 ints, viz (streamID, bucketID, count, sum)
-            ret += si.timeIndex.size() * 16;
+            // FIXME: this does not account for the size of the time/count markers tracked by the index
+            ret += si.buckets.size() * (StreamID.byteCount + BucketID.byteCount + Bucket.byteCount);
         }
         return ret;
     }

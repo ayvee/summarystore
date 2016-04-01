@@ -9,6 +9,9 @@ class Bucket implements Serializable {
     private int sum = 0;
     final BucketMetadata metadata;
 
+    /** Size of the bucket itself, not counting metadata */
+    static final int byteCount = 4 + 4;
+
     Bucket(BucketMetadata metadata) { this.metadata = metadata; }
 
     void merge(List<Bucket> buckets) {
