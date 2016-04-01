@@ -170,7 +170,7 @@ public class EnumeratedStore implements DataStore {
         // TODO: synchronize
         long ret = 0;
         for (StreamInfo streamInfo: streamsInfo.values()) {
-            ret += streamInfo.numValues * (StreamID.byteCount + Timestamp.byteCount + 4);
+            ret += streamInfo.numValues * (StreamID.byteCount + Timestamp.byteCount + 8);
         }
         return ret;
     }
