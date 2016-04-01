@@ -16,7 +16,7 @@ class CountBasedWBMH implements WindowingMechanism {
         Integer lastStart = windowStartMarkers.last();
         while (lastStart <= numElements) {
             int length = windowLengths.nextWindowLength();
-            assert length > 0;
+            assert length > 0; // TODO: && length >= maxLengthSoFar
             lastStart += length;
             windowStartMarkers.add(lastStart);
         }
@@ -84,8 +84,9 @@ class CountBasedWBMH implements WindowingMechanism {
         // The last bucket remains unprocessed: the one with newBucketID
         containingWindowID.put(newBucketID, 0);
 
-        // Now group the non-null entries in containingWindowID by value
-        Map<Integer, List<BucketID>> potentialMergeLists = new HashMap<Integer, List<BucketID>>();
+        // Recall that WBMH = merge all buckets that are inside the same window. To determine merges,
+        // we will group containingWindowID by value
+        LinkedHashMap<Integer, List<BucketID>> potentialMergeLists = new LinkedHashMap<Integer, List<BucketID>>();
         for (Map.Entry<BucketID, Integer> entry: containingWindowID.entrySet()) {
             BucketID id = entry.getKey();
             Integer marker = entry.getValue();
@@ -97,7 +98,7 @@ class CountBasedWBMH implements WindowingMechanism {
             }
         }
 
-        // Each entry in the grouped list marks a potential group of buckets to be merged. Process
+        // Now process the merge lists to generate the sequence of bucket modifications needed
         List<SummaryStore.BucketModification> bucketModifications = new ArrayList<SummaryStore.BucketModification>();
         // was the newly created bucket (newBucketID) merged into an existing bucket?
         boolean newBucketWasMerged = false;
