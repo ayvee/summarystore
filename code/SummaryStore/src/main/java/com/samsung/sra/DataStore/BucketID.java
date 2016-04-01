@@ -3,33 +3,33 @@ package com.samsung.sra.DataStore;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 
-public class BucketID implements Comparable<BucketID>, Serializable {
+class BucketID implements Comparable<BucketID>, Serializable {
     private final int id;
 
-    public BucketID(int id) {
+    BucketID(int id) {
         this.id = id;
     }
 
-    public BucketID nextBucketID() {
+    BucketID nextBucketID() {
         return new BucketID(id + 1);
     }
 
     /**
      * How many bytes long is a StreamID?
      */
-    public static final int byteCount = 4;
+    static final int byteCount = 4;
 
     /**
      * put id into buffer. Like all ByteBuffer puts, this advances the buffer position
      */
-    public void writeToByteBuffer(ByteBuffer buffer) {
+    void writeToByteBuffer(ByteBuffer buffer) {
         buffer.putInt(id);
     }
 
     /**
      * get id from buffer. Like all ByteBuffer gets, this advances the buffer position
      */
-    public static BucketID readFromByteBuffer(ByteBuffer buffer) {
+    static BucketID readFromByteBuffer(ByteBuffer buffer) {
         return new BucketID(buffer.getInt());
     }
 
@@ -54,6 +54,7 @@ public class BucketID implements Comparable<BucketID>, Serializable {
         return Integer.toString(id);
     }
 
+    @Override
     public int compareTo(BucketID that) {
         if (that == null) {
             throw new NullPointerException("comparing null BucketID");

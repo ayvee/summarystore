@@ -1,12 +1,13 @@
 package com.samsung.sra.DataStore;
 
 class ExponentialWindowLengths implements WindowLengthsGenerator{
-    int next = 1;
-    final int base;
+    private int next = 1;
+    private final int base;
 
     ExponentialWindowLengths(int base) {
         this.base = base;
     }
+
     @Override
     public int nextWindowLength() {
         int prev = next;

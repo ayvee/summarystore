@@ -7,6 +7,7 @@ import org.rocksdb.RocksDBException;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -14,9 +15,6 @@ import java.util.logging.Logger;
  *    register(streamID, aggregateDataStructure)
  *    append(streamID, value)
  *    query(streamID, t1, t2, aggregateFunction)
- * At this point we make no distinction between time and count, i.e. we assume
- * exactly one element arrives at t = 0, 1, 2, 3, ...
- * Created by a.vulimiri on 1/15/16.
  */
 public class SummaryStore implements DataStore {
     private final Logger logger = Logger.getLogger(SummaryStore.class.getName());
@@ -45,11 +43,9 @@ public class SummaryStore implements DataStore {
         this.windowingMechanism = windowingMechanism;
 
         byte[] streamsInfoBytes = rocksDB.get(streamInfoSpecialKey);
-        if (streamsInfoBytes != null) {
-            streamsInfo = (HashMap<StreamID, StreamInfo>)fstConf.asObject(streamsInfoBytes);
-        } else {
-            streamsInfo = new HashMap<StreamID, StreamInfo>();
-        }
+        streamsInfo = streamsInfoBytes != null ?
+                (HashMap<StreamID, StreamInfo>)fstConf.asObject(streamsInfoBytes) :
+                new HashMap<StreamID, StreamInfo>();
     }
 
     // FST is a fast serialization library, used to quickly convert Buckets to/from RocksDB byte arrays
@@ -74,7 +70,7 @@ public class SummaryStore implements DataStore {
         }
     }
 
-    public Object query(StreamID streamID, Timestamp t0, Timestamp t1, Bucket.QueryType queryType, Object[] queryParams) throws StreamException, QueryException, RocksDBException {
+    public Object query(StreamID streamID, Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams) throws StreamException, QueryException, RocksDBException {
         if (t0.compareTo(t1) > 0 || t0.compareTo(new Timestamp(0)) < 0) {
             throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
         }
@@ -130,7 +126,9 @@ public class SummaryStore implements DataStore {
              the reader object below once we've done the bucket merge math and are ready to start
              modifying the data structure */
             boolean isLandmarkValue = streamInfo.activeLandmarkBucket != null || landmarkStartsHere;
-            assert !(streamInfo.activeLandmarkBucket != null && landmarkStartsHere);
+            if (streamInfo.activeLandmarkBucket != null && landmarkStartsHere) {
+                throw new LandmarkEventException();
+            }
 
             // ask windowing mechanism which existing buckets to merge and/or which new buckets
             // to create, in response to adding this value
@@ -142,7 +140,7 @@ public class SummaryStore implements DataStore {
             synchronized (streamInfo.readerSyncObj) {
                 // 1. Update set of buckets
                 for (BucketModification mod : bucketMods) {
-                    //System.err.println("Executing bucket modification " + mod);
+                    logger.log(Level.FINEST, "Executing bucket modification " + mod);
                     mod.process(this, streamInfo);
                 }
                 // 2. Insert the new value into the appropriate bucket
@@ -163,7 +161,7 @@ public class SummaryStore implements DataStore {
         private final BucketID mergee;
         private final List<BucketID> merges;
 
-        public BucketMergeModification(BucketID mergee, List<BucketID> merges) {
+        BucketMergeModification(BucketID mergee, List<BucketID> merges) {
             this.mergee = mergee;
             this.merges = merges;
         }
@@ -202,7 +200,7 @@ public class SummaryStore implements DataStore {
     static class BucketCreateModification implements BucketModification {
         private final BucketMetadata metadata;
 
-        public BucketCreateModification(BucketMetadata metadata) {
+        BucketCreateModification(BucketMetadata metadata) {
             this.metadata = metadata;
         }
 
@@ -233,6 +231,7 @@ public class SummaryStore implements DataStore {
                 }
                 assert idOfLastExtantBucket != null;
                 streamInfo.activeLandmarkBucket = idOfLastExtantBucket.nextBucketID();
+                // FIXME: we're supposed to use an enumerating bucket for landmarks
                 Bucket landmarkBucket = new Bucket(new BucketMetadata(
                         streamInfo.activeLandmarkBucket, ts, streamInfo.numValues, true));
                 rocksPut(streamInfo.streamID, streamInfo.activeLandmarkBucket, landmarkBucket);
@@ -250,7 +249,7 @@ public class SummaryStore implements DataStore {
         }
         Bucket bucket = rocksGet(streamInfo.streamID, destinationID);
         bucket.insertValue(ts, value);
-        //System.err.println("Inserted value <" + ts + ", " + value + "> into bucket " + bucket.metadata);
+        logger.log(Level.FINEST, "Inserted value <" + ts + ", " + value + "> into bucket " + bucket.metadata);
         rocksPut(streamInfo.streamID, destinationID, bucket);
         streamInfo.numValues += 1;
         streamInfo.lastValueTimestamp = ts;
@@ -294,57 +293,6 @@ public class SummaryStore implements DataStore {
             System.out.println("\t" + rocksGet(streamID, bucketID));
         }
     }
-//
-//    private boolean mergeInputIsSane(LinkedHashMap<BucketID, BucketMetadata> baseBuckets, int N0, int N) {
-//        if (baseBuckets == null) {
-//            logger.log(Level.SEVERE, "Problem in merge input: null baseBuckets");
-//            return false;
-//        }
-//        if (N0 >= N) {
-//            logger.log(Level.SEVERE, "Problem in merge input: N0 >= N (" + N0 + " >= " + N + ")");
-//            return false;
-//        }
-//        int prevEnd = -1;
-//        for (BucketMetadata bucketMetadata : baseBuckets.values()) {
-//            if (bucketMetadata.startN != prevEnd + 1) {
-//                logger.log(Level.SEVERE, "Problem in merge input: bucket gap, bucket " + bucketMetadata.bucketID
-//                        + " starts at " + bucketMetadata.startN + " but previous bucket ends at " + prevEnd);
-//                return false;
-//            }
-//            prevEnd = bucketMetadata.endN;
-//        }
-//        if (prevEnd != N - 1) {
-//            logger.log(Level.SEVERE, "Problem in merge input: invalid N, last bucket ends at "
-//                    + prevEnd + " but N = " + N);
-//            return false;
-//        }
-//        return true;
-//    }
-//
-//    private boolean mergeOutputIsSane(List<List<BucketID>> pendingMerges, LinkedHashMap<BucketID, BucketMetadata> baseBuckets, int N) {
-//        if (pendingMerges == null) {
-//            logger.log(Level.SEVERE, "Problem in merge output: null pendingMerges");
-//            return false;
-//        }
-//        int prevEnd = -1;
-//        for (List<BucketID> blist: pendingMerges) {
-//            for (BucketID bucketID: blist) {
-//                BucketMetadata bucketMetadata = baseBuckets.get(bucketID);
-//                if (bucketMetadata.startN != prevEnd + 1) {
-//                    logger.log(Level.SEVERE, "Problem in merge output: bucket gap, bucket " + bucketMetadata.bucketID
-//                            + " starts at " + bucketMetadata.startN + " but previous bucket ends at " + prevEnd);
-//                    return false;
-//                }
-//                prevEnd = bucketMetadata.endN;
-//            }
-//        }
-//        if (prevEnd != N - 1) {
-//            logger.log(Level.SEVERE, "Problem in merge output: invalid N, last bucket ends at "
-//                    + prevEnd + " but N = " + N);
-//            return false;
-//        }
-//        return true;
-//    }
 
     public void close() {
         // FIXME: should wait for any processing appends to terminate first
@@ -355,7 +303,7 @@ public class SummaryStore implements DataStore {
     }
 
     public long getStoreSizeInBytes() {
-        // TODO: synchronize
+        // TODO: lock all writers
         long ret = 0;
         for (StreamInfo si: streamsInfo.values()) {
             // timeIndex.size() = # buckets; 16 = 4 ints, viz (streamID, bucketID, count, sum)
@@ -381,10 +329,10 @@ public class SummaryStore implements DataStore {
                 store.append(streamID, new Timestamp(i), i + 1, landmarkStartsHere, landmarkEndsHere);
                 store.printBucketState(streamID);
             }
-            Timestamp t0 = new Timestamp(0), t1 = new Timestamp(9);
+            Timestamp t0 = new Timestamp(0), t1 = new Timestamp(4);
             System.out.println(
-                    "sum[" + t0 + ", " + t1 + "] = " + store.query(streamID, t0, t1, Bucket.QueryType.SUM, null) + "; " +
-                    "count[" + t0 + ", " + t1 + "] = " + store.query(streamID, t0, t1, Bucket.QueryType.COUNT, null));
+                    "sum[" + t0 + ", " + t1 + "] = " + store.query(streamID, t0, t1, QueryType.SUM, null) + "; " +
+                    "count[" + t0 + ", " + t1 + "] = " + store.query(streamID, t0, t1, QueryType.COUNT, null));
         } catch (Exception e) {
             e.printStackTrace();
         } finally {

@@ -12,7 +12,7 @@ public interface DataStore {
     void registerStream(StreamID streamID) throws StreamException, RocksDBException;
 
     Object query(StreamID streamID,
-                 Timestamp t0, Timestamp t1, Bucket.QueryType queryType, Object[] queryParams)
+                 Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams)
             throws StreamException, QueryException, RocksDBException;
 
     void append(StreamID streamID,

@@ -4,19 +4,14 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
 
-public class Bucket implements Serializable {
-    public static enum QueryType {
-        COUNT,
-        SUM,
-        EXISTENCE
-    }
+class Bucket implements Serializable {
     private int count = 0;
     private int sum = 0;
-    public final BucketMetadata metadata;
+    final BucketMetadata metadata;
 
     public Bucket(BucketMetadata metadata) { this.metadata = metadata; }
 
-    public void merge(List<Bucket> buckets) {
+    void merge(List<Bucket> buckets) {
         if (buckets != null) {
             for (Bucket that : buckets) {
                 this.count += that.count;
@@ -26,13 +21,13 @@ public class Bucket implements Serializable {
         }
     }
 
-    public void insertValue(Timestamp ts, Object value) {
+    void insertValue(Timestamp ts, Object value) {
         assert metadata.tStart.compareTo(ts) <= 0;
         count += 1;
         sum += (Integer)value;
     }
 
-    public int query(Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams) throws QueryException {
+    int query(Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams) throws QueryException {
         switch (queryType) {
             case COUNT:
                 return count;
@@ -49,7 +44,7 @@ public class Bucket implements Serializable {
      * The sequence should cover the time range [t0, t1], although we don't sanity check
      * that it does
      */
-    public int multiQuery(Collection<Bucket> rest, Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams) throws QueryException {
+    int multiQuery(Collection<Bucket> rest, Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams) throws QueryException {
         int ret = this.query(t0, t1, queryType, queryParams);
         for (Bucket bucket: rest) {
             ret += bucket.query(t0, t1, queryType, queryParams);

@@ -2,11 +2,11 @@ package com.samsung.sra.DataStore;
 
 import java.util.*;
 
-public class CountBasedWBMH implements WindowingMechanism {
+class CountBasedWBMH implements WindowingMechanism {
     private final WindowLengthsGenerator windowLengths;
     private final TreeSet<Integer> windowStartMarkers;
 
-    public CountBasedWBMH(WindowLengthsGenerator windowLengths) {
+    CountBasedWBMH(WindowLengthsGenerator windowLengths) {
         this.windowLengths = windowLengths;
         windowStartMarkers = new TreeSet<Integer>();
         windowStartMarkers.add(0);
