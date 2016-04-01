@@ -12,6 +12,7 @@ class StreamInfo implements Serializable {
     public int numValues = 0;
     // What was the timestamp of the latest value appended?
     public Timestamp lastValueTimestamp = null;
+    // FIXME: Implicit assumption here that time starts at 0 in every stream; we can discuss if that should change
 
     // TODO: register an object to track what data structure we will use for each bucket
 
