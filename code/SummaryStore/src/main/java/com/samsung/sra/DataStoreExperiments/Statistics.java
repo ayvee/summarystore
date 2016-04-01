@@ -9,8 +9,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 
 public class Statistics {
-    /*private double sum = 0, sqsum = 0, N = 0;
-    private double min = Double.MAX_VALUE, max = Double.MIN_VALUE;*/
     private SummaryStatistics sstats = null;
     private DescriptiveStatistics dstats = null;
 
@@ -28,11 +26,6 @@ public class Statistics {
         } else {
             sstats.addValue(obs);
         }
-        /*sum += obs;
-        sqsum += obs * obs;
-        N += 1;
-        min = Math.min(min, obs);
-        max = Math.max(max, obs);*/
     }
 
     public synchronized double getAverage() {
@@ -41,11 +34,6 @@ public class Statistics {
         } else {
             return sstats.getMean();
         }
-        /*if (N > 0) {
-            return sum / N;
-        } else {
-            return Double.NaN;
-        }*/
     }
 
     public synchronized double getStandardDeviation() {
@@ -54,13 +42,6 @@ public class Statistics {
         } else {
             return sstats.getStandardDeviation();
         }
-        /*if (N > 1) {
-            return Math.sqrt(sqsum / (N - 1) - (sum * sum) / (N * (N-1)));
-        } else if (N == 1) {
-            return 0;
-        } else {
-            return Double.NaN;
-        }*/
     }
 
     // forces Java to not use scientific notation

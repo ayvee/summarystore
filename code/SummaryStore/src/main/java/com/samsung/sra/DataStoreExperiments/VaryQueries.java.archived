@@ -34,10 +34,10 @@ public class VaryQueries {
                     datastores.put(name, new EnumeratedStore(prefix + name));
                 } else if (B == 0) {
                     String name = "summarystore";
-                    datastores.put(name, new SummaryStore(prefix + name, new ExponentialWBMHBucketMerger(2)));
+                    datastores.put(name, new SummaryStore(prefix + name, new ExponentialWBMHWindowingMechanism(2)));
                 } else {
                     String name = "linearstore(" + B + ")";
-                    datastores.put(name, new SummaryStore(prefix + name, new LinearBucketMerger(B)));
+                    datastores.put(name, new SummaryStore(prefix + name, new LinearWindowingMechanism(B)));
                 }
             }
 

@@ -30,8 +30,8 @@ public class AgeLengthEffect {
             runtime.exec(new String[]{"sh", "-c", "rm -rf " + prefix + "*"}).waitFor();
             LinkedHashMap<String, DataStore> datastores = new LinkedHashMap<String, DataStore>();
             datastores.put("enumeration", new EnumeratedStore(prefix + "enumeration"));
-            datastores.put("summarystore", new SummaryStore(prefix + "summarystore", new ExponentialWBMHBucketMerger(2)));
-            datastores.put("linearstore", new SummaryStore(prefix + "linearstore", new LinearBucketMerger(4546)));
+            datastores.put("summarystore", new SummaryStore(prefix + "summarystore", new ExponentialWBMHWindowingMechanism(2)));
+            datastores.put("linearstore", new SummaryStore(prefix + "linearstore", new LinearWindowingMechanism(4546)));
 
             for (DataStore ds: datastores.values()) {
                 ds.registerStream(sid);

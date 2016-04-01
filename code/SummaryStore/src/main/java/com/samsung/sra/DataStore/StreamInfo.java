@@ -6,19 +6,21 @@ import java.util.TreeMap;
 
 class StreamInfo implements Serializable {
     public final StreamID streamID;
-    // Object that readers and writers respectively will use "synchronized" with
+    // Object that readers and writers respectively will use "synchronized" with (acts as a mutex)
     public final Object readerSyncObj = new Object(), writerSyncObj = new Object();
-    // How many objects have we inserted so far?
-    public int numElements = 0;
+    // How many values have we inserted so far?
+    public int numValues = 0;
+    // What was the timestamp of the latest value appended?
+    public Timestamp lastValueTimestamp = null;
 
     // TODO: register an object to track what data structure we will use for each bucket
 
     /** All buckets for this stream */
-    public final LinkedHashMap<BucketID, BucketInfo> buckets = new LinkedHashMap<BucketID, BucketInfo>();
+    public final LinkedHashMap<BucketID, BucketMetadata> buckets = new LinkedHashMap<BucketID, BucketMetadata>();
     /** If there is an active (unclosed) landmark bucket, its ID */
     public BucketID activeLandmarkBucket = null;
-    /** Index mapping bucket.startN -> bucketID, used to answer queries */
-    public final TreeMap<Integer, BucketID> timeIndex = new TreeMap<Integer, BucketID>();
+    /** Index mapping bucket.tStart -> bucketID, used to answer queries */
+    public final TreeMap<Timestamp, BucketID> timeIndex = new TreeMap<Timestamp, BucketID>();
 
     StreamInfo(StreamID streamID) {
         this.streamID = streamID;
@@ -26,9 +28,9 @@ class StreamInfo implements Serializable {
 
     public void reconstructTimeIndex() {
         timeIndex.clear();
-        for (BucketInfo bucketInfo: buckets.values()) {
-            assert bucketInfo.startN >= 0;
-            timeIndex.put(bucketInfo.startN, bucketInfo.bucketID);
+        for (BucketMetadata bucketMetadata : buckets.values()) {
+            assert bucketMetadata.tStart != null;
+            timeIndex.put(bucketMetadata.tStart, bucketMetadata.bucketID);
         }
     }
 

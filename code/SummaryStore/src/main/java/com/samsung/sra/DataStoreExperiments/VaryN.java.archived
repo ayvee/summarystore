@@ -29,7 +29,7 @@ public class VaryN {
 
     private static String doExperiment(int N) throws InterruptedException, IOException, RocksDBException, StreamException, LandmarkEventException, QueryException {
         runtime.exec(new String[]{"rm", "-rf", tdLoc, eLoc}).waitFor();
-        SummaryStore tdStore = new SummaryStore(tdLoc, new ExponentialWBMHBucketMerger(2));
+        SummaryStore tdStore = new SummaryStore(tdLoc, new ExponentialWBMHWindowingMechanism(2));
         EnumeratedStore eStore = new EnumeratedStore(eLoc);
 
         Statistics tdAppendTime = new Statistics(false), eAppendTime = new Statistics(false);

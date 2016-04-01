@@ -11,9 +11,12 @@ public interface DataStore {
     // TODO: allow configuring the choice of bucket data structure for each stream (set at registration time)
     void registerStream(StreamID streamID) throws StreamException, RocksDBException;
 
-    Object query(StreamID streamID, int queryType, int t0, int t1) throws StreamException, QueryException, RocksDBException;
+    Object query(StreamID streamID,
+                 Timestamp t0, Timestamp t1, Bucket.QueryType queryType, Object[] queryParams)
+            throws StreamException, QueryException, RocksDBException;
 
-    void append(StreamID streamID, Object value, boolean landmarkStartsHere, boolean landmarkEndsHere) throws StreamException, LandmarkEventException, RocksDBException;
+    void append(StreamID streamID,
+                Timestamp ts, Object value, boolean landmarkStartsHere, boolean landmarkEndsHere) throws StreamException, LandmarkEventException, RocksDBException;
 
     void close();
 

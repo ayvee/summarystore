@@ -3,58 +3,69 @@ package com.samsung.sra.DataStore;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 
 public class Bucket implements Serializable {
-    public static final int QUERY_COUNT = 0, QUERY_SUM = 1;
+    public static enum QueryType {
+        COUNT,
+        SUM,
+        EXISTENCE
+    }
     private int count = 0;
     private int sum = 0;
-    public final BucketInfo info;
+    public final BucketMetadata metadata;
 
-    public Bucket(BucketInfo info) { this.info = info; }
+    public Bucket(BucketMetadata metadata) { this.metadata = metadata; }
 
-    public void merge(List<Bucket> buckets, TreeMap<Integer, Object> values, int finalEndN) {
+    public void merge(List<Bucket> buckets) {
         if (buckets != null) {
-            for (Bucket that: buckets) {
+            for (Bucket that : buckets) {
                 this.count += that.count;
                 this.sum += that.sum;
-                assert this.info.endN + 1 == that.info.startN;
-                this.info.endN = that.info.endN;
+                assert this.metadata.cStart < that.metadata.cStart && this.metadata.tStart.compareTo(that.metadata.tStart) < 0;
             }
         }
-        if (values != null) {
-            for (Map.Entry<Integer, Object> entry: values.entrySet()) {
-                Integer n = entry.getKey();
-                Integer v = (Integer)entry.getValue();
-                count += 1;
-                sum += v;
-                if (n > info.endN) {
-                    info.endN = n;
-                }
-            }
-        }
-        // finalEndN can be strictly larger if this bucket is "empty" at the end because of a landmark overlap
-        assert info.endN <= finalEndN;
-        info.endN = finalEndN;
     }
 
-    private int queryOne(int queryType, int t0, int t1) throws QueryException {
+    public void insertValue(Timestamp ts, Object value) {
+        assert metadata.tStart.compareTo(ts) <= 0;
+        count += 1;
+        sum += (Integer)value;
+    }
+
+    public int query(Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams) throws QueryException {
         switch (queryType) {
-            case QUERY_COUNT:
+            case COUNT:
                 return count;
-            case QUERY_SUM:
+            case SUM:
                 return sum;
-            default:
-                throw new QueryException("Invalid query type " + queryType + " in bucket " + info);
+            case EXISTENCE:
+                throw new UnsupportedOperationException("not yet implemented");
         }
+        throw new IllegalStateException("hit unreachable code");
     }
 
-    public int query(Collection<Bucket> buckets, int queryType, int t0, int t1) throws QueryException {
-        int ret = this.queryOne(queryType, t0, t1);
-        for (Bucket bucket: buckets) {
-            ret += bucket.queryOne(queryType, t0, t1);
+    /**
+     * Query a sequence of successive buckets. Sequence = (this bucket) :: rest.
+     * The sequence should cover the time range [t0, t1], although we don't sanity check
+     * that it does
+     */
+    public int multiQuery(Collection<Bucket> rest, Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams) throws QueryException {
+        int ret = this.query(t0, t1, queryType, queryParams);
+        for (Bucket bucket: rest) {
+            ret += bucket.query(t0, t1, queryType, queryParams);
         }
+        return ret;
+    }
+
+    @Override
+    public String toString() {
+        String ret = "<bucket " + metadata.bucketID;
+        ret += ", " + (metadata.isLandmark ? "landmark" : "non-landmark");
+        ret += ", tStart " + metadata.tStart;
+        ret += ", cStart " + metadata.cStart;
+        ret += ", count " + count;
+        ret += ", sum " + sum;
+        ret += ">";
         return ret;
     }
 }
