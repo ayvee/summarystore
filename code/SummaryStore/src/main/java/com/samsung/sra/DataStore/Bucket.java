@@ -9,7 +9,7 @@ class Bucket implements Serializable {
     private int sum = 0;
     final BucketMetadata metadata;
 
-    public Bucket(BucketMetadata metadata) { this.metadata = metadata; }
+    Bucket(BucketMetadata metadata) { this.metadata = metadata; }
 
     void merge(List<Bucket> buckets) {
         if (buckets != null) {
