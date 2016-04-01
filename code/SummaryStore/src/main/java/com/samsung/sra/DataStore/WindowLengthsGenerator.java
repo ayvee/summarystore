@@ -5,10 +5,10 @@ package com.samsung.sra.DataStore;
  * E.g. 1, 2, 4, 8, 16, ...
  */
 interface WindowLengthsGenerator {
-    int nextWindowLength();
+    long nextWindowLength();
 
     /**
      * How many windows would be needed to span [1, rangeSize]?
      */
-    int howManyWindowsToCover(long rangeSize);
+    long howManyWindowsToCover(long rangeSize);
 }

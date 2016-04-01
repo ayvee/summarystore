@@ -24,6 +24,6 @@ interface WindowingMechanism {
      */
     List<SummaryStore.BucketModification> computeModifications(
             LinkedHashMap<BucketID, BucketMetadata> existingBuckets,
-            int numValuesSoFar, Timestamp lastInsertedTimestamp,
+            long numValuesSoFar, Timestamp lastInsertedTimestamp,
             Timestamp newValueTimestamp, Object newValue, boolean isLandmarkValue);
 }

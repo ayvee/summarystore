@@ -5,12 +5,12 @@ import java.util.Collection;
 import java.util.List;
 
 class Bucket implements Serializable {
-    private int count = 0;
-    private int sum = 0;
+    private long count = 0;
+    private long sum = 0;
     final BucketMetadata metadata;
 
     /** Size of the bucket itself, not counting metadata */
-    static final int byteCount = 4 + 4;
+    static final int byteCount = 8 + 8;
 
     Bucket(BucketMetadata metadata) { this.metadata = metadata; }
 
@@ -27,10 +27,10 @@ class Bucket implements Serializable {
     void insertValue(Timestamp ts, Object value) {
         assert metadata.tStart.compareTo(ts) <= 0;
         count += 1;
-        sum += (Integer)value;
+        sum += (Long)value;
     }
 
-    int query(Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams) throws QueryException {
+    long query(Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams) throws QueryException {
         switch (queryType) {
             case COUNT:
                 return count;
@@ -47,8 +47,8 @@ class Bucket implements Serializable {
      * The sequence should cover the time range [t0, t1], although we don't sanity check
      * that it does
      */
-    int multiQuery(Collection<Bucket> rest, Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams) throws QueryException {
-        int ret = this.query(t0, t1, queryType, queryParams);
+    long multiQuery(Collection<Bucket> rest, Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams) throws QueryException {
+        long ret = this.query(t0, t1, queryType, queryParams);
         for (Bucket bucket: rest) {
             ret += bucket.query(t0, t1, queryType, queryParams);
         }

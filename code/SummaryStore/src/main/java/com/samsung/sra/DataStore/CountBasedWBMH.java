@@ -4,18 +4,18 @@ import java.util.*;
 
 class CountBasedWBMH implements WindowingMechanism {
     private final WindowLengthsGenerator windowLengths;
-    private final TreeSet<Integer> windowStartMarkers;
+    private final TreeSet<Long> windowStartMarkers;
 
     CountBasedWBMH(WindowLengthsGenerator windowLengths) {
         this.windowLengths = windowLengths;
-        windowStartMarkers = new TreeSet<Integer>();
-        windowStartMarkers.add(0);
+        windowStartMarkers = new TreeSet<Long>();
+        windowStartMarkers.add(0L);
     }
 
-    private void insertEnoughMarkersToCover(int numElements) {
-        Integer lastStart = windowStartMarkers.last();
+    private void insertEnoughMarkersToCover(long numElements) {
+        Long lastStart = windowStartMarkers.last();
         while (lastStart <= numElements) {
-            int length = windowLengths.nextWindowLength();
+            long length = windowLengths.nextWindowLength();
             assert length > 0; // TODO: && length >= maxLengthSoFar
             lastStart += length;
             windowStartMarkers.add(lastStart);
@@ -29,10 +29,10 @@ class CountBasedWBMH implements WindowingMechanism {
      *
      * We use the window's start marker as our unique ID
      */
-    private Integer idOfContainingWindow(int cStart, int cEnd, int N) {
+    private Long idOfContainingWindow(long cStart, long cEnd, long N) {
         assert 0 <= cStart && cStart <= cEnd && cEnd < N;
-        int lAge = N-1 - cEnd, rAge = N-1 - cStart;
-        Integer lMarker = windowStartMarkers.floor(lAge), rMarker = windowStartMarkers.floor(rAge);
+        long lAge = N-1 - cEnd, rAge = N-1 - cStart;
+        Long lMarker = windowStartMarkers.floor(lAge), rMarker = windowStartMarkers.floor(rAge);
         assert lMarker != null && rMarker != null;
         return lMarker.equals(rMarker) ? lMarker : null;
         //System.out.println("window_containing([" + cStart + ", " + cEnd + "], N = " + N + ") is " + ret);
@@ -41,7 +41,7 @@ class CountBasedWBMH implements WindowingMechanism {
     @Override
     public List<SummaryStore.BucketModification> computeModifications(
             LinkedHashMap<BucketID, BucketMetadata> existingBuckets,
-            int numValuesSoFar, Timestamp lastInsertedTimestamp,
+            long numValuesSoFar, Timestamp lastInsertedTimestamp,
             Timestamp newValueTimestamp, Object newValue, boolean isLandmarkValue) {
         if (lastInsertedTimestamp == null) assert numValuesSoFar == 0;
         if (existingBuckets.isEmpty()) assert lastInsertedTimestamp == null;
@@ -52,7 +52,7 @@ class CountBasedWBMH implements WindowingMechanism {
         LinkedHashMap<BucketID, BucketMetadata> baseBuckets = new LinkedHashMap<BucketID, BucketMetadata>();
         if (existingBuckets.isEmpty()) {
             newBucketID = new BucketID(0);
-            baseBuckets.put(newBucketID, new BucketMetadata(newBucketID, new Timestamp(0), 0, false));
+            baseBuckets.put(newBucketID, new BucketMetadata(newBucketID, new Timestamp(0), 0L, false));
         } else {
             newBucketID = null;
             for (BucketMetadata md: existingBuckets.values()) {
@@ -69,27 +69,27 @@ class CountBasedWBMH implements WindowingMechanism {
         // For each base bucket:
         //   if the bucket is completely contained inside a window, map it to that window's ID,
         //   else map it to null
-        LinkedHashMap<BucketID, Integer> containingWindowID = new LinkedHashMap<BucketID, Integer>();
-        BucketID prevID = null; Integer prevCStart = null;
+        LinkedHashMap<BucketID, Long> containingWindowID = new LinkedHashMap<BucketID, Long>();
+        BucketID prevID = null; Long prevCStart = null;
         for (Map.Entry<BucketID, BucketMetadata> entry: baseBuckets.entrySet()) {
             BucketID currID = entry.getKey();
             BucketMetadata currMD = entry.getValue();
             if (prevID != null) {
-                Integer prevCEnd = currMD.cStart - 1;
+                Long prevCEnd = currMD.cStart - 1;
                 containingWindowID.put(prevID, idOfContainingWindow(prevCStart, prevCEnd, numValuesSoFar + 1));
             }
             prevID = currID;
             prevCStart = currMD.cStart;
         }
         // The last bucket remains unprocessed: the one with newBucketID
-        containingWindowID.put(newBucketID, 0);
+        containingWindowID.put(newBucketID, 0L);
 
         // Recall that WBMH = merge all buckets that are inside the same window. To determine merges,
         // we will group containingWindowID by value
-        LinkedHashMap<Integer, List<BucketID>> potentialMergeLists = new LinkedHashMap<Integer, List<BucketID>>();
-        for (Map.Entry<BucketID, Integer> entry: containingWindowID.entrySet()) {
+        LinkedHashMap<Long, List<BucketID>> potentialMergeLists = new LinkedHashMap<Long, List<BucketID>>();
+        for (Map.Entry<BucketID, Long> entry: containingWindowID.entrySet()) {
             BucketID id = entry.getKey();
-            Integer marker = entry.getValue();
+            Long marker = entry.getValue();
             if (marker != null) {
                 if (!potentialMergeLists.containsKey(marker)) {
                     potentialMergeLists.put(marker, new ArrayList<BucketID>());

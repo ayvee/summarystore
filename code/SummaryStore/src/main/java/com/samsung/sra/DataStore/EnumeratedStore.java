@@ -81,16 +81,16 @@ public class EnumeratedStore implements DataStore {
         return Timestamp.readFromByteBuffer(bytebuf);
     }
 
-    private int parseRocksValue(byte[] bytes) throws RocksDBException {
-        ByteBuffer bytebuf = ByteBuffer.allocate(4);
+    private long parseRocksValue(byte[] bytes) throws RocksDBException {
+        ByteBuffer bytebuf = ByteBuffer.allocate(8);
         bytebuf.put(bytes);
         bytebuf.flip();
-        return bytebuf.getInt();
+        return bytebuf.getLong();
     }
 
-    private void rocksPut(StreamID streamID, Timestamp t, int value) throws RocksDBException {
-        ByteBuffer bytebuf = ByteBuffer.allocate(4);
-        bytebuf.putInt(value);
+    private void rocksPut(StreamID streamID, Timestamp t, long value) throws RocksDBException {
+        ByteBuffer bytebuf = ByteBuffer.allocate(8);
+        bytebuf.putLong(value);
         bytebuf.flip();
         rocksDB.put(getRocksKey(streamID, t), bytebuf.array());
     }
@@ -108,7 +108,7 @@ public class EnumeratedStore implements DataStore {
                 throw new StreamException("querying invalid stream " + streamID);
             }
         }
-        int ret = 0;
+        long ret = 0;
         synchronized (streamInfo.syncObj) {
             RocksIterator iter = null;
             try {
@@ -118,7 +118,7 @@ public class EnumeratedStore implements DataStore {
                     if (t.compareTo(t1) > 0) {
                         break;
                     }
-                    int v = parseRocksValue(iter.value());
+                    long v = parseRocksValue(iter.value());
                     switch (queryType) {
                         case COUNT:
                             ret += 1;
@@ -151,7 +151,7 @@ public class EnumeratedStore implements DataStore {
             assert streamInfo.lastValueTimestamp == null || streamInfo.lastValueTimestamp.compareTo(ts) < 0;
             streamInfo.lastValueTimestamp = ts;
             ++streamInfo.numValues;
-            rocksPut(streamID, ts, (Integer)value);
+            rocksPut(streamID, ts, (Long)value);
         }
         synchronized (streamsInfo) {
             persistStreamsInfo();

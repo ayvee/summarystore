@@ -7,12 +7,12 @@ class BucketMetadata implements Serializable {
     // This Bucket covers elements in the time range [tStart, nextBucket.tStart), with insert
     // counts [cStart, nextBucket.cStart)
     final Timestamp tStart;
-    final int cStart;
+    final long cStart;
     final boolean isLandmark;
 
-    static final int byteCount = BucketID.byteCount + Timestamp.byteCount + 4;
+    static final int byteCount = BucketID.byteCount + Timestamp.byteCount + 8;
 
-    BucketMetadata(BucketID bucketID, Timestamp tStart, int cStart, boolean isLandmark) {
+    BucketMetadata(BucketID bucketID, Timestamp tStart, long cStart, boolean isLandmark) {
         this.bucketID = bucketID;
         this.tStart = tStart;
         this.cStart = cStart;

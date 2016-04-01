@@ -32,7 +32,7 @@ public class SummaryStore implements DataStore {
         // Object that readers and writers respectively will use "synchronized" with (acts as a mutex)
         final Object readerSyncObj = new Object(), writerSyncObj = new Object();
         // How many values have we inserted so far?
-        int numValues = 0;
+        long numValues = 0;
         // What was the timestamp of the latest value appended?
         Timestamp lastValueTimestamp = null;
         // FIXME: Implicit assumption here that time starts at 0 in every stream; we can discuss if that should change
