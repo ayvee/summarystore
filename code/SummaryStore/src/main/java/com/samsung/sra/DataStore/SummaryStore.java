@@ -8,6 +8,7 @@ import org.rocksdb.RocksDBException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -18,7 +19,8 @@ import java.util.logging.Logger;
  *    query(streamID, t1, t2, aggregateFunction)
  */
 public class SummaryStore implements DataStore {
-    private final Logger logger = Logger.getLogger(SummaryStore.class.getName());
+    private static final Level logLevel = Level.ALL;
+    private static final Logger logger = Logger.getLogger(SummaryStore.class.getName());
     private WindowingMechanism windowingMechanism;
     private RocksDB rocksDB = null;
     private Options rocksDBOptions = null;
@@ -84,6 +86,11 @@ public class SummaryStore implements DataStore {
     // FST is a fast serialization library, used to quickly convert Buckets to/from RocksDB byte arrays
     private static final FSTConfiguration fstConf;
     static {
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(logLevel);
+        logger.addHandler(handler);
+        logger.setLevel(logLevel);
+
         fstConf = FSTConfiguration.createDefaultConfiguration();
         fstConf.registerClass(Bucket.class);
         fstConf.registerClass(StreamInfo.class);
@@ -122,6 +129,7 @@ public class SummaryStore implements DataStore {
             TreeMap<Timestamp, BucketID> index = streamInfo.timeIndex;
             Timestamp l = index.floorKey(t0); // first bucket with tStart <= t0
             Timestamp r = index.higherKey(t1); // first bucket with tStart > t1
+            logger.log(Level.FINE, "Overapproximated time range = [" + l + ", " + r + ")");
             if (r == null) {
                 r = index.lastKey();
             }
@@ -178,6 +186,10 @@ public class SummaryStore implements DataStore {
                 }
                 // 2. Insert the new value into the appropriate bucket
                 processInsert(streamInfo, ts, value, isLandmarkValue);
+                // 3. Seal landmark bucket if necessary
+                if (landmarkEndsHere) {
+                    streamInfo.activeLandmarkBucket = null;
+                }
             }
         }
     }
@@ -359,7 +371,7 @@ public class SummaryStore implements DataStore {
             store = new SummaryStore(storeLoc, new CountBasedWBMH(new ExponentialWindowLengths(2)));
             StreamID streamID = new StreamID(0);
             store.registerStream(streamID);
-            for (int i = 0; i < 10; ++i) {
+            for (long i = 0; i < 10; ++i) {
                 boolean landmarkStartsHere = false, landmarkEndsHere = false;
                 if (i == 4) landmarkStartsHere = true;
                 if (i == 6) landmarkEndsHere = true;

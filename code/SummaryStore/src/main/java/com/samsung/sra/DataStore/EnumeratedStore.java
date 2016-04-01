@@ -184,7 +184,7 @@ public class EnumeratedStore implements DataStore {
             store = new EnumeratedStore(storeLoc);
             StreamID streamID = new StreamID(0);
             store.registerStream(streamID);
-            for (int i = 0; i < 10; ++i) {
+            for (long i = 0; i < 10; ++i) {
                 boolean landmarkStartsHere = false, landmarkEndsHere = false;
                 if (i == 4) landmarkStartsHere = true;
                 if (i == 6) landmarkEndsHere = true;
