@@ -88,13 +88,13 @@ class CountBasedWBMH implements WindowingMechanism {
         // we will group containingWindowID by value
         LinkedHashMap<Long, List<BucketID>> potentialMergeLists = new LinkedHashMap<Long, List<BucketID>>();
         for (Map.Entry<BucketID, Long> entry: containingWindowID.entrySet()) {
-            BucketID id = entry.getKey();
-            Long marker = entry.getValue();
-            if (marker != null) {
-                if (!potentialMergeLists.containsKey(marker)) {
-                    potentialMergeLists.put(marker, new ArrayList<BucketID>());
+            BucketID bucketID = entry.getKey();
+            Long windowID = entry.getValue();
+            if (windowID != null) {
+                if (!potentialMergeLists.containsKey(windowID)) {
+                    potentialMergeLists.put(windowID, new ArrayList<BucketID>());
                 }
-                potentialMergeLists.get(marker).add(id);
+                potentialMergeLists.get(windowID).add(bucketID);
             }
         }
 

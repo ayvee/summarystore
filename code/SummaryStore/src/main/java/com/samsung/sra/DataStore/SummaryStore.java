@@ -32,7 +32,7 @@ public class SummaryStore implements DataStore {
     private static class StreamInfo implements Serializable {
         final StreamID streamID;
         // Object that readers and writers respectively will use "synchronized" with (acts as a mutex)
-        final Object readerSyncObj = new Object(), writerSyncObj = new Object();
+        final Object readLock = new Object(), writeLock = new Object();
         // How many values have we inserted so far?
         long numValues = 0;
         // What was the timestamp of the latest value appended?
@@ -122,7 +122,7 @@ public class SummaryStore implements DataStore {
                 streamInfo = streamsInfo.get(streamID);
             }
         }
-        synchronized (streamInfo.readerSyncObj) {
+        synchronized (streamInfo.readLock) {
             if (t1.compareTo(streamInfo.lastValueTimestamp) > 0) {
                 throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
             }
@@ -162,10 +162,10 @@ public class SummaryStore implements DataStore {
             }
         }
 
-        synchronized (streamInfo.writerSyncObj) {
+        synchronized (streamInfo.writeLock) {
             /* All writes will be serialized at this point. Reads are still allowed. We will lock
-             the reader object below once we've done the bucket merge math and are ready to start
-             modifying the data structure */
+             readers below once we've done the bucket merge math and are ready to start modifying
+             the data structure */
             boolean isLandmarkValue = streamInfo.activeLandmarkBucket != null || landmarkStartsHere;
             if (streamInfo.activeLandmarkBucket != null && landmarkStartsHere) {
                 throw new LandmarkEventException();
@@ -178,7 +178,7 @@ public class SummaryStore implements DataStore {
                     ts, value, isLandmarkValue);
 
             // we've done the bucket modification math: now lock all readers and process bucket changes
-            synchronized (streamInfo.readerSyncObj) {
+            synchronized (streamInfo.readLock) {
                 // 1. Update set of buckets
                 for (BucketModification mod : bucketMods) {
                     logger.log(Level.FINEST, "Executing bucket modification " + mod);
@@ -189,6 +189,9 @@ public class SummaryStore implements DataStore {
                 // 3. Seal landmark bucket if necessary
                 if (landmarkEndsHere) {
                     streamInfo.activeLandmarkBucket = null;
+                    synchronized (streamsInfo) {
+                        persistStreamsInfo();
+                    }
                 }
             }
         }
@@ -202,6 +205,9 @@ public class SummaryStore implements DataStore {
         void process(SummaryStore store, StreamInfo streamInfo) throws RocksDBException;
     }
 
+    /**
+     * Merge one or more successor buckets into the mergee bucket
+     */
     static class BucketMergeModification implements BucketModification {
         private final BucketID mergee;
         private final List<BucketID> merges;
@@ -244,6 +250,9 @@ public class SummaryStore implements DataStore {
         }
     }
 
+    /**
+     * Create an empty bucket with the specified metadata
+     */
     static class BucketCreateModification implements BucketModification {
         private final BucketMetadata metadata;
 
