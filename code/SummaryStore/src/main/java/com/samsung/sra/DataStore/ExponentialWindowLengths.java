@@ -3,11 +3,11 @@ package com.samsung.sra.DataStore;
 import org.apache.commons.math3.analysis.UnivariateFunction;
 import org.apache.commons.math3.analysis.solvers.BrentSolver;
 
-class ExponentialWindowLengths implements WindowLengthSequence {
+public class ExponentialWindowLengths implements WindowLengthSequence {
     private double next = 1;
     private final double base;
 
-    ExponentialWindowLengths(double base) {
+    public ExponentialWindowLengths(double base) {
         this.base = base;
     }
 
@@ -21,7 +21,7 @@ class ExponentialWindowLengths implements WindowLengthSequence {
     /**
      * Return an exponential windowing that will use numWindows windows to cover [0, rangeSize)
      */
-    static ExponentialWindowLengths getWindowingOfSize(final long rangeSize, int numWindows) {
+    public static ExponentialWindowLengths getWindowingOfSize(final long rangeSize, int numWindows) {
         assert numWindows > 0 && rangeSize > 0 && numWindows <= rangeSize;
         double base;
         if (numWindows == 1) {

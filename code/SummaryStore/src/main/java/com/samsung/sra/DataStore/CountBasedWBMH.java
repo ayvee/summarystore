@@ -2,17 +2,17 @@ package com.samsung.sra.DataStore;
 
 import java.util.*;
 
-class CountBasedWBMH implements WindowingMechanism {
+public class CountBasedWBMH implements WindowingMechanism {
     private final WindowLengthSequence windowLengths;
     private final TreeSet<Long> windowStartMarkers;
 
-    CountBasedWBMH(WindowLengthSequence windowLengths) {
+    public CountBasedWBMH(WindowLengthSequence windowLengths) {
         this.windowLengths = windowLengths;
         windowStartMarkers = new TreeSet<>();
         windowStartMarkers.add(0L);
     }
 
-    private void insertEnoughMarkersToCover(long numElements) {
+    private synchronized void insertEnoughMarkersToCover(long numElements) {
         Long lastStart = windowStartMarkers.last();
         while (lastStart <= numElements) {
             long length = windowLengths.nextWindowLength();
@@ -35,12 +35,11 @@ class CountBasedWBMH implements WindowingMechanism {
         Long lMarker = windowStartMarkers.floor(lAge), rMarker = windowStartMarkers.floor(rAge);
         assert lMarker != null && rMarker != null;
         return lMarker.equals(rMarker) ? lMarker : null;
-        //System.out.println("window_containing([" + cStart + ", " + cEnd + "], N = " + N + ") is " + ret);
     }
 
     @Override
     public List<SummaryStore.BucketModification> computeModifications(
-            LinkedHashMap<BucketID, BucketMetadata> existingBuckets,
+            TreeMap<BucketID, BucketMetadata> existingBuckets,
             long numValuesSoFar, Timestamp lastInsertedTimestamp,
             Timestamp newValueTimestamp, Object newValue, boolean isLandmarkValue) {
         if (lastInsertedTimestamp == null) assert numValuesSoFar == 0;
@@ -66,66 +65,49 @@ class CountBasedWBMH implements WindowingMechanism {
             baseBuckets.put(newBucketID, new BucketMetadata(newBucketID, newValueTimestamp, numValuesSoFar, false));
         }
 
-        // For each base bucket:
-        //   if the bucket is completely contained inside a window, map it to that window's ID,
-        //   else map it to null
-        LinkedHashMap<BucketID, Long> containingWindowID = new LinkedHashMap<>();
+        // Recall that WBMH = merge all buckets that are inside the same window. To determine
+        // potential merges, we will now group all buckets by the ID of their containing window
+        LinkedHashMap<Long, List<BucketID>> potentialMergeLists = new LinkedHashMap<>();
         BucketID prevID = null; Long prevCStart = null;
         for (Map.Entry<BucketID, BucketMetadata> entry: baseBuckets.entrySet()) {
             BucketID currID = entry.getKey();
             BucketMetadata currMD = entry.getValue();
             if (prevID != null) {
                 Long prevCEnd = currMD.cStart - 1;
-                containingWindowID.put(prevID, idOfContainingWindow(prevCStart, prevCEnd, numValuesSoFar + 1));
+                Long windowID = idOfContainingWindow(prevCStart, prevCEnd, numValuesSoFar + 1);
+                if (windowID != null) {
+                    List<BucketID> dst = potentialMergeLists.get(windowID);
+                    if (dst == null) {
+                        potentialMergeLists.put(windowID, (dst = new ArrayList<>()));
+                    }
+                    dst.add(prevID);
+                }
+                // else the bucket is not completely contained inside a window
             }
             prevID = currID;
             prevCStart = currMD.cStart;
         }
-        // The last bucket remains unprocessed: the one with newBucketID
-        containingWindowID.put(newBucketID, 0L);
-
-        // Recall that WBMH = merge all buckets that are inside the same window. To determine merges,
-        // we will group containingWindowID by value
-        LinkedHashMap<Long, List<BucketID>> potentialMergeLists = new LinkedHashMap<>();
-        for (Map.Entry<BucketID, Long> entry: containingWindowID.entrySet()) {
-            BucketID bucketID = entry.getKey();
-            Long windowID = entry.getValue();
-            if (windowID != null) {
-                if (!potentialMergeLists.containsKey(windowID)) {
-                    potentialMergeLists.put(windowID, new ArrayList<>());
-                }
-                potentialMergeLists.get(windowID).add(bucketID);
-            }
-        }
+        // At this point the last bucket remains unprocessed: the one with newBucketID. This bucket
+        // will need to be created iff there is no existing base bucket contained inside the newest window
+        boolean createNewBucket = !potentialMergeLists.containsKey(0L);
 
         // Now process the merge lists to generate the sequence of bucket modifications needed
         List<SummaryStore.BucketModification> bucketModifications = new ArrayList<>();
-        // was the newly created bucket (newBucketID) merged into an existing bucket?
-        boolean newBucketWasMerged = false;
         for (List<BucketID> mergeList: potentialMergeLists.values()) {
             assert mergeList != null && !mergeList.isEmpty();
             if (mergeList.size() > 1) {
-                BucketID target = null;
-                List<BucketID> srcs = new ArrayList<>();
+                BucketID target = null; List<BucketID> srcs = new ArrayList<>();
                 for (BucketID id: mergeList) {
-                    if (id == newBucketID) {
-                       if (target != null) {
-                           newBucketWasMerged = true;
-                       }
-                    } else {
-                        if (target == null) {
-                            target = id;
-                        } else {
-                            srcs.add(id);
-                        }
-                    }
+                    assert id != newBucketID;
+                    if (target == null)
+                        target = id;
+                    else
+                        srcs.add(id);
                 }
-                if (target != null && !srcs.isEmpty()) {
-                    bucketModifications.add(new SummaryStore.BucketMergeModification(target, srcs));
-                }
+                bucketModifications.add(new SummaryStore.BucketMergeModification(target, srcs));
             }
         }
-        if (!newBucketWasMerged) { // need to create new base bucket of size 1 holding the latest element
+        if (createNewBucket) {
             bucketModifications.add(new SummaryStore.BucketCreateModification(baseBuckets.get(newBucketID)));
         }
 

@@ -1,5 +1,7 @@
 package com.samsung.sra.WindowingOptimizer;
 
+import com.samsung.sra.DataStoreExperiments.InterarrivalTimes;
+
 public class StreamGenerator {
     public static long[] generateBinnedStream(int T, InterarrivalTimes interarrivals) {
         assert T >= 1;
