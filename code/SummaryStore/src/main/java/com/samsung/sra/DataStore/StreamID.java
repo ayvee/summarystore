@@ -13,19 +13,19 @@ public class StreamID implements Serializable {
     /**
      * How many bytes long is a StreamID?
      */
-    public static final int byteCount = 4;
+    static final int byteCount = 4;
 
     /**
      * put id into buffer. Like all ByteBuffer puts, this advances the buffer position
      */
-    public void writeToByteBuffer(ByteBuffer buffer) {
+    void writeToByteBuffer(ByteBuffer buffer) {
         buffer.putInt(id);
     }
 
     /**
      * get id from buffer. Like all ByteBuffer gets, this advances the buffer position
      */
-    public static StreamID readFromByteBuffer(ByteBuffer buffer) {
+    static StreamID readFromByteBuffer(ByteBuffer buffer) {
         return new StreamID(buffer.getInt());
     }
 

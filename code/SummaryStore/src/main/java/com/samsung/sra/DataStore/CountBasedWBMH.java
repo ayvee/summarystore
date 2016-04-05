@@ -3,12 +3,12 @@ package com.samsung.sra.DataStore;
 import java.util.*;
 
 class CountBasedWBMH implements WindowingMechanism {
-    private final WindowLengthsGenerator windowLengths;
+    private final WindowLengthSequence windowLengths;
     private final TreeSet<Long> windowStartMarkers;
 
-    CountBasedWBMH(WindowLengthsGenerator windowLengths) {
+    CountBasedWBMH(WindowLengthSequence windowLengths) {
         this.windowLengths = windowLengths;
-        windowStartMarkers = new TreeSet<Long>();
+        windowStartMarkers = new TreeSet<>();
         windowStartMarkers.add(0L);
     }
 
@@ -49,7 +49,7 @@ class CountBasedWBMH implements WindowingMechanism {
         insertEnoughMarkersToCover(numValuesSoFar + 1);
 
         BucketID newBucketID; // id of potential new bucket of size 1 holding the new element
-        LinkedHashMap<BucketID, BucketMetadata> baseBuckets = new LinkedHashMap<BucketID, BucketMetadata>();
+        LinkedHashMap<BucketID, BucketMetadata> baseBuckets = new LinkedHashMap<>();
         if (existingBuckets.isEmpty()) {
             newBucketID = new BucketID(0);
             baseBuckets.put(newBucketID, new BucketMetadata(newBucketID, new Timestamp(0), 0L, false));
@@ -69,7 +69,7 @@ class CountBasedWBMH implements WindowingMechanism {
         // For each base bucket:
         //   if the bucket is completely contained inside a window, map it to that window's ID,
         //   else map it to null
-        LinkedHashMap<BucketID, Long> containingWindowID = new LinkedHashMap<BucketID, Long>();
+        LinkedHashMap<BucketID, Long> containingWindowID = new LinkedHashMap<>();
         BucketID prevID = null; Long prevCStart = null;
         for (Map.Entry<BucketID, BucketMetadata> entry: baseBuckets.entrySet()) {
             BucketID currID = entry.getKey();
@@ -86,27 +86,27 @@ class CountBasedWBMH implements WindowingMechanism {
 
         // Recall that WBMH = merge all buckets that are inside the same window. To determine merges,
         // we will group containingWindowID by value
-        LinkedHashMap<Long, List<BucketID>> potentialMergeLists = new LinkedHashMap<Long, List<BucketID>>();
+        LinkedHashMap<Long, List<BucketID>> potentialMergeLists = new LinkedHashMap<>();
         for (Map.Entry<BucketID, Long> entry: containingWindowID.entrySet()) {
             BucketID bucketID = entry.getKey();
             Long windowID = entry.getValue();
             if (windowID != null) {
                 if (!potentialMergeLists.containsKey(windowID)) {
-                    potentialMergeLists.put(windowID, new ArrayList<BucketID>());
+                    potentialMergeLists.put(windowID, new ArrayList<>());
                 }
                 potentialMergeLists.get(windowID).add(bucketID);
             }
         }
 
         // Now process the merge lists to generate the sequence of bucket modifications needed
-        List<SummaryStore.BucketModification> bucketModifications = new ArrayList<SummaryStore.BucketModification>();
+        List<SummaryStore.BucketModification> bucketModifications = new ArrayList<>();
         // was the newly created bucket (newBucketID) merged into an existing bucket?
         boolean newBucketWasMerged = false;
         for (List<BucketID> mergeList: potentialMergeLists.values()) {
             assert mergeList != null && !mergeList.isEmpty();
             if (mergeList.size() > 1) {
                 BucketID target = null;
-                List<BucketID> srcs = new ArrayList<BucketID>();
+                List<BucketID> srcs = new ArrayList<>();
                 for (BucketID id: mergeList) {
                     if (id == newBucketID) {
                        if (target != null) {

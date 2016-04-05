@@ -43,7 +43,7 @@ public class EnumeratedStore implements DataStore {
         byte[] streamCountsBytes = rocksDB.get(streamsInfoSpecialKey);
         streamsInfo = streamCountsBytes != null ?
                 (HashMap<StreamID, StreamInfo>) fstConf.asObject(streamCountsBytes) :
-                new HashMap<StreamID, StreamInfo>();
+                new HashMap<>();
     }
 
     private static final FSTConfiguration fstConf;

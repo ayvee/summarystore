@@ -42,11 +42,11 @@ public class SummaryStore implements DataStore {
         // TODO: register an object to track what data structure we will use for each bucket
 
         /** All buckets for this stream */
-        final LinkedHashMap<BucketID, BucketMetadata> buckets = new LinkedHashMap<BucketID, BucketMetadata>();
+        final LinkedHashMap<BucketID, BucketMetadata> buckets = new LinkedHashMap<>();
         /** If there is an active (unclosed) landmark bucket, its ID */
         BucketID activeLandmarkBucket = null;
         /** Index mapping bucket.tStart -> bucketID, used to answer queries */
-        final TreeMap<Timestamp, BucketID> timeIndex = new TreeMap<Timestamp, BucketID>();
+        final TreeMap<Timestamp, BucketID> timeIndex = new TreeMap<>();
 
         StreamInfo(StreamID streamID) {
             this.streamID = streamID;
@@ -80,7 +80,7 @@ public class SummaryStore implements DataStore {
         byte[] streamsInfoBytes = rocksDB.get(streamInfoSpecialKey);
         streamsInfo = streamsInfoBytes != null ?
                 (HashMap<StreamID, StreamInfo>)fstConf.asObject(streamsInfoBytes) :
-                new HashMap<StreamID, StreamInfo>();
+                new HashMap<>();
     }
 
     // FST is a fast serialization library, used to quickly convert Buckets to/from RocksDB byte arrays
@@ -136,7 +136,7 @@ public class SummaryStore implements DataStore {
             // Query on all buckets with l <= tStart < r.  FIXME: this overapproximates in some cases with landmarks
             SortedMap<Timestamp, BucketID> spanningBucketsIDs = index.subMap(l, true, r, false);
             Bucket first = null;
-            List<Bucket> rest = new ArrayList<Bucket>();
+            List<Bucket> rest = new ArrayList<>();
             // TODO: RocksDB multiget
             for (BucketID bucketID: spanningBucketsIDs.values()) {
                 Bucket bucket = rocksGet(streamID, bucketID);
@@ -223,7 +223,7 @@ public class SummaryStore implements DataStore {
                 return;
             }
             Bucket target = store.rocksGet(streamInfo.streamID, mergee);
-            List<Bucket> sources = new ArrayList<Bucket>();
+            List<Bucket> sources = new ArrayList<>();
             for (BucketID srcID: merges) {
                 sources.add(store.rocksGet(streamInfo.streamID, srcID));
                 streamInfo.buckets.remove(srcID);
@@ -398,5 +398,9 @@ public class SummaryStore implements DataStore {
                 store.close();
             }
         }
+        /*long N = 65536;
+        for (int W = 1; W <= 65536; W *= 2) {
+            ExponentialWindowLengths.getWindowingOfSize(N, W);
+        }*/
     }
 }
