@@ -4,7 +4,7 @@ import org.rocksdb.RocksDBException;
 
 /**
  * We implement two stores with this interface:
- *   SummaryStore: time-decayed storage with landmarks
+ *   SummaryStore: time-decayed storage
  *   EnumeratedStore: stores all values explicitly enumerated
  */
 public interface DataStore {
@@ -15,8 +15,7 @@ public interface DataStore {
                  Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams)
             throws StreamException, QueryException, RocksDBException;
 
-    void append(StreamID streamID,
-                Timestamp ts, Object value, boolean landmarkStartsHere, boolean landmarkEndsHere) throws StreamException, LandmarkEventException, RocksDBException;
+    void append(StreamID streamID, Timestamp ts, Object value) throws StreamException, RocksDBException;
 
     void close();
 

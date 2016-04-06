@@ -58,7 +58,6 @@ class Bucket implements Serializable {
     @Override
     public String toString() {
         String ret = "<bucket " + metadata.bucketID;
-        ret += ", " + (metadata.isLandmark ? "landmark" : "non-landmark");
         ret += ", tStart " + metadata.tStart;
         ret += ", cStart " + metadata.cStart;
         ret += ", count " + count;

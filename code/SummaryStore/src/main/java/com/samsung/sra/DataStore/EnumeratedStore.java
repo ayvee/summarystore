@@ -138,8 +138,7 @@ public class EnumeratedStore implements DataStore {
     }
 
     @Override
-    public void append(StreamID streamID, Timestamp ts, Object value, boolean landmarkStartsHere, boolean landmarkEndsHere)
-            throws StreamException, LandmarkEventException, RocksDBException {
+    public void append(StreamID streamID, Timestamp ts, Object value) throws StreamException, RocksDBException {
         StreamInfo streamInfo;
         synchronized (streamsInfo) {
             streamInfo = streamsInfo.get(streamID);
@@ -185,10 +184,7 @@ public class EnumeratedStore implements DataStore {
             StreamID streamID = new StreamID(0);
             store.registerStream(streamID);
             for (long i = 0; i < 10; ++i) {
-                boolean landmarkStartsHere = false, landmarkEndsHere = false;
-                if (i == 4) landmarkStartsHere = true;
-                if (i == 6) landmarkEndsHere = true;
-                store.append(streamID, new Timestamp(i), i + 1, landmarkStartsHere, landmarkEndsHere);
+                store.append(streamID, new Timestamp(i), i + 1);
             }
             Timestamp t0 = new Timestamp(0), t1 = new Timestamp(3);
             System.out.println(

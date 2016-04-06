@@ -13,12 +13,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Implements the time-decay and landmark parts of SummaryStore. API:
- *    register(streamID, aggregateDataStructure)
- *    append(streamID, value)
- *    query(streamID, t1, t2, aggregateFunction)
- *
- * FIXME: landmarks are currently broken because of efficiency shortcuts in maintaining streamInfo indexes
+ * Time-decayed aggregate storage
  */
 public class SummaryStore implements DataStore {
     private static final Level logLevel = Level.INFO;
@@ -45,8 +40,6 @@ public class SummaryStore implements DataStore {
 
         /** All buckets for this stream */
         final TreeMap<BucketID, BucketMetadata> buckets = new TreeMap<>();
-        /** If there is an active (unclosed) landmark bucket, its ID */
-        BucketID activeLandmarkBucket = null;
         /** Index mapping bucket.tStart -> bucketID, used to answer queries */
         final TreeMap<Timestamp, BucketID> timeIndex = new TreeMap<>();
 
@@ -136,7 +129,7 @@ public class SummaryStore implements DataStore {
             if (r == null) {
                 r = index.lastKey();
             }
-            // Query on all buckets with l <= tStart < r.  FIXME: this overapproximates in some cases with landmarks
+            // Query on all buckets with l <= tStart < r
             SortedMap<Timestamp, BucketID> spanningBucketsIDs = index.subMap(l, true, r, false);
             Bucket first = null;
             List<Bucket> rest = new ArrayList<>();
@@ -154,8 +147,7 @@ public class SummaryStore implements DataStore {
         }
     }
 
-    public void append(StreamID streamID, Timestamp ts, Object value, boolean landmarkStartsHere, boolean landmarkEndsHere)
-            throws StreamException, LandmarkEventException, RocksDBException {
+    public void append(StreamID streamID, Timestamp ts, Object value) throws StreamException, RocksDBException {
         final StreamInfo streamInfo;
         synchronized (streamsInfo) {
             if (!streamsInfo.containsKey(streamID)) {
@@ -169,16 +161,12 @@ public class SummaryStore implements DataStore {
             /* All writes will be serialized at this point. Reads are still allowed. We will lock
              readers below once we've done the bucket merge math and are ready to start modifying
              the data structure */
-            boolean isLandmarkValue = streamInfo.activeLandmarkBucket != null || landmarkStartsHere;
-            if (streamInfo.activeLandmarkBucket != null && landmarkStartsHere) {
-                throw new LandmarkEventException();
-            }
 
             // ask windowing mechanism which existing buckets to merge and/or which new buckets
             // to create, in response to adding this value
             List<BucketModification> bucketMods = windowingMechanism.computeModifications(
                     streamInfo.buckets, streamInfo.numValues, streamInfo.lastValueTimestamp,
-                    ts, value, isLandmarkValue);
+                    ts, value);
 
             // we've done the bucket modification math: now lock all readers and process bucket changes
             synchronized (streamInfo.readLock) {
@@ -188,11 +176,7 @@ public class SummaryStore implements DataStore {
                     mod.process(this, streamInfo);
                 }
                 // 2. Insert the new value into the appropriate bucket
-                processInsert(streamInfo, ts, value, isLandmarkValue);
-                // 3. Seal landmark bucket if necessary
-                if (landmarkEndsHere) {
-                    streamInfo.activeLandmarkBucket = null;
-                }
+                processInsert(streamInfo, ts, value);
 
                 /* FIXME
                 synchronized (streamsInfo) {
@@ -239,8 +223,6 @@ public class SummaryStore implements DataStore {
             target.merge(sources);
             store.rocksPut(streamInfo.streamID, mergee, target);
             streamInfo.buckets.put(mergee, target.metadata);
-
-            //streamInfo.reconstructTimeIndex();
         }
 
         @Override
@@ -271,7 +253,6 @@ public class SummaryStore implements DataStore {
             streamInfo.buckets.put(metadata.bucketID, metadata);
 
             streamInfo.timeIndex.put(metadata.tStart, metadata.bucketID);
-            //streamInfo.reconstructTimeIndex();
         }
 
         @Override
@@ -280,32 +261,9 @@ public class SummaryStore implements DataStore {
         }
     }
 
-    private void processInsert(StreamInfo streamInfo, Timestamp ts, Object value, boolean isLandmarkValue) throws RocksDBException {
-        BucketID destinationID;
-        if (isLandmarkValue) {
-            if (streamInfo.activeLandmarkBucket == null) {
-                BucketID idOfLastExtantBucket = null;
-                for (BucketID id: streamInfo.buckets.keySet()) {
-                    idOfLastExtantBucket = id;
-                }
-                assert idOfLastExtantBucket != null;
-                streamInfo.activeLandmarkBucket = idOfLastExtantBucket.nextBucketID();
-                // FIXME: we're supposed to use an enumerating bucket for landmarks
-                Bucket landmarkBucket = new Bucket(new BucketMetadata(
-                        streamInfo.activeLandmarkBucket, ts, streamInfo.numValues, true));
-                rocksPut(streamInfo.streamID, streamInfo.activeLandmarkBucket, landmarkBucket);
-                streamInfo.buckets.put(streamInfo.activeLandmarkBucket, landmarkBucket.metadata);
-            }
-            destinationID = streamInfo.activeLandmarkBucket;
-        } else {
-            destinationID = null;
-            for (BucketMetadata md: streamInfo.buckets.values()) {
-                if (!md.isLandmark) {
-                    destinationID = md.bucketID;
-                }
-            }
-            assert destinationID != null;
-        }
+    private void processInsert(StreamInfo streamInfo, Timestamp ts, Object value) throws RocksDBException {
+        BucketID destinationID = streamInfo.buckets.lastKey();
+        assert destinationID != null;
         Bucket bucket = rocksGet(streamInfo.streamID, destinationID);
         bucket.insertValue(ts, value);
         logger.log(Level.FINEST, "Inserted value <" + ts + ", " + value + "> into bucket " + bucket.metadata);
@@ -382,10 +340,7 @@ public class SummaryStore implements DataStore {
             StreamID streamID = new StreamID(0);
             store.registerStream(streamID);
             for (long i = 0; i < 10; ++i) {
-                boolean landmarkStartsHere = false, landmarkEndsHere = false;
-                //if (i == 4) landmarkStartsHere = true;
-                //if (i == 6) landmarkEndsHere = true;
-                store.append(streamID, new Timestamp(i), i + 1, landmarkStartsHere, landmarkEndsHere);
+                store.append(streamID, new Timestamp(i), i + 1);
                 store.printBucketState(streamID);
             }
             Timestamp t0 = new Timestamp(0), t1 = new Timestamp(4);
