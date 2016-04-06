@@ -225,7 +225,7 @@ public class AgeLengthClasses {
                                 System.out.println("Word: " + st.sval);
                                 break;
                             case StreamTokenizer.TT_NUMBER:
-                                System.out.println("Number: " + st.nval);
+                                //System.out.println("Number: " + st.nval);
                                 pValues.add(st.nval);
                                 break;
                             default:
