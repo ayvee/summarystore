@@ -4,7 +4,7 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 
 public class Timestamp implements Comparable<Timestamp>, Serializable {
-    public final long value;
+    private final long value;
 
     public Timestamp(long value) {
         this.value = value;
@@ -13,19 +13,19 @@ public class Timestamp implements Comparable<Timestamp>, Serializable {
     /**
      * How many bytes long is a Timestamp?
      */
-    public static final int byteCount = 8;
+    static final int byteCount = 8;
 
     /**
      * put id into buffer. Like all ByteBuffer puts, this advances the buffer position
      */
-    public void writeToByteBuffer(ByteBuffer buffer) {
+    void writeToByteBuffer(ByteBuffer buffer) {
         buffer.putLong(value);
     }
 
     /**
      * get id from buffer. Like all ByteBuffer gets, this advances the buffer position
      */
-    public static Timestamp readFromByteBuffer(ByteBuffer buffer) {
+    static Timestamp readFromByteBuffer(ByteBuffer buffer) {
         return new Timestamp(buffer.getLong());
     }
 

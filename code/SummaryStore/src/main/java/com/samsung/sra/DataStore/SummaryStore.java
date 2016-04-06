@@ -17,6 +17,8 @@ import java.util.logging.Logger;
  *    register(streamID, aggregateDataStructure)
  *    append(streamID, value)
  *    query(streamID, t1, t2, aggregateFunction)
+ *
+ * FIXME: landmarks are currently broken because of efficiency shortcuts in maintaining streamInfo indexes
  */
 public class SummaryStore implements DataStore {
     private static final Level logLevel = Level.INFO;
@@ -42,11 +44,11 @@ public class SummaryStore implements DataStore {
         // TODO: register an object to track what data structure we will use for each bucket
 
         /** All buckets for this stream */
-        final LinkedHashMap<BucketID, BucketMetadata> buckets = new LinkedHashMap<BucketID, BucketMetadata>();
+        final TreeMap<BucketID, BucketMetadata> buckets = new TreeMap<>();
         /** If there is an active (unclosed) landmark bucket, its ID */
         BucketID activeLandmarkBucket = null;
         /** Index mapping bucket.tStart -> bucketID, used to answer queries */
-        final TreeMap<Timestamp, BucketID> timeIndex = new TreeMap<Timestamp, BucketID>();
+        final TreeMap<Timestamp, BucketID> timeIndex = new TreeMap<>();
 
         StreamInfo(StreamID streamID) {
             this.streamID = streamID;
@@ -80,7 +82,7 @@ public class SummaryStore implements DataStore {
         byte[] streamsInfoBytes = rocksDB.get(streamInfoSpecialKey);
         streamsInfo = streamsInfoBytes != null ?
                 (HashMap<StreamID, StreamInfo>)fstConf.asObject(streamsInfoBytes) :
-                new HashMap<StreamID, StreamInfo>();
+                new HashMap<>();
     }
 
     // FST is a fast serialization library, used to quickly convert Buckets to/from RocksDB byte arrays
@@ -93,6 +95,7 @@ public class SummaryStore implements DataStore {
 
         fstConf = FSTConfiguration.createDefaultConfiguration();
         fstConf.registerClass(Bucket.class);
+        fstConf.registerClass(BucketMetadata.class);
         fstConf.registerClass(StreamInfo.class);
 
         RocksDB.loadLibrary();
@@ -136,7 +139,7 @@ public class SummaryStore implements DataStore {
             // Query on all buckets with l <= tStart < r.  FIXME: this overapproximates in some cases with landmarks
             SortedMap<Timestamp, BucketID> spanningBucketsIDs = index.subMap(l, true, r, false);
             Bucket first = null;
-            List<Bucket> rest = new ArrayList<Bucket>();
+            List<Bucket> rest = new ArrayList<>();
             // TODO: RocksDB multiget
             for (BucketID bucketID: spanningBucketsIDs.values()) {
                 Bucket bucket = rocksGet(streamID, bucketID);
@@ -189,10 +192,12 @@ public class SummaryStore implements DataStore {
                 // 3. Seal landmark bucket if necessary
                 if (landmarkEndsHere) {
                     streamInfo.activeLandmarkBucket = null;
-                    synchronized (streamsInfo) {
-                        persistStreamsInfo();
-                    }
                 }
+
+                /* FIXME
+                synchronized (streamsInfo) {
+                    persistStreamsInfo();
+                }*/
             }
         }
     }
@@ -200,7 +205,8 @@ public class SummaryStore implements DataStore {
     interface BucketModification {
         /**
          * Process modifications to the store. This function is responsible for updating
-         * the buckets in RocksDB as well as the indexes in StreamInfo
+         * the buckets in RocksDB as well as the in-memory indexes in StreamInfo (but not
+         * persisting the indexes to disk)
          */
         void process(SummaryStore store, StreamInfo streamInfo) throws RocksDBException;
     }
@@ -223,20 +229,18 @@ public class SummaryStore implements DataStore {
                 return;
             }
             Bucket target = store.rocksGet(streamInfo.streamID, mergee);
-            List<Bucket> sources = new ArrayList<Bucket>();
+            List<Bucket> sources = new ArrayList<>();
             for (BucketID srcID: merges) {
-                sources.add(store.rocksGet(streamInfo.streamID, srcID));
+                Bucket src = store.rocksGet(streamInfo.streamID, srcID);
+                sources.add(src);
                 streamInfo.buckets.remove(srcID);
+                streamInfo.timeIndex.remove(src.metadata.tStart);
             }
             target.merge(sources);
             store.rocksPut(streamInfo.streamID, mergee, target);
             streamInfo.buckets.put(mergee, target.metadata);
 
-            streamInfo.reconstructTimeIndex();
-
-            synchronized (store.streamsInfo) {
-                store.persistStreamsInfo();
-            }
+            //streamInfo.reconstructTimeIndex();
         }
 
         @Override
@@ -266,11 +270,8 @@ public class SummaryStore implements DataStore {
             store.rocksPut(streamInfo.streamID, metadata.bucketID, bucket);
             streamInfo.buckets.put(metadata.bucketID, metadata);
 
-            streamInfo.reconstructTimeIndex();
-
-            synchronized (store.streamsInfo) {
-                store.persistStreamsInfo();
-            }
+            streamInfo.timeIndex.put(metadata.tStart, metadata.bucketID);
+            //streamInfo.reconstructTimeIndex();
         }
 
         @Override
@@ -382,8 +383,8 @@ public class SummaryStore implements DataStore {
             store.registerStream(streamID);
             for (long i = 0; i < 10; ++i) {
                 boolean landmarkStartsHere = false, landmarkEndsHere = false;
-                if (i == 4) landmarkStartsHere = true;
-                if (i == 6) landmarkEndsHere = true;
+                //if (i == 4) landmarkStartsHere = true;
+                //if (i == 6) landmarkEndsHere = true;
                 store.append(streamID, new Timestamp(i), i + 1, landmarkStartsHere, landmarkEndsHere);
                 store.printBucketState(streamID);
             }
@@ -398,5 +399,9 @@ public class SummaryStore implements DataStore {
                 store.close();
             }
         }
+        /*long N = 65536;
+        for (int W = 1; W <= 65536; W *= 2) {
+            ExponentialWindowLengths.getWindowingOfSize(N, W);
+        }*/
     }
 }

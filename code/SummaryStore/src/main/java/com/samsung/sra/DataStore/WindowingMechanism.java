@@ -2,11 +2,12 @@ package com.samsung.sra.DataStore;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.TreeMap;
 
 /**
  * Encapsulates code for EH/WBMH/similar mechanisms
  */
-interface WindowingMechanism {
+public interface WindowingMechanism {
     /**
      * Figure out what bucket modifications need to be performed after a new element is inserted.
      * Each modification will either merge a consecutive sequence of existing base buckets or
@@ -24,7 +25,7 @@ interface WindowingMechanism {
      * to guide their choice of windowing (e.g. to update a burst-detection counter).
      */
     List<SummaryStore.BucketModification> computeModifications(
-            LinkedHashMap<BucketID, BucketMetadata> existingBuckets,
+            TreeMap<BucketID, BucketMetadata> existingBuckets,
             long numValuesSoFar, Timestamp lastInsertedTimestamp,
             Timestamp newValueTimestamp, Object newValue, boolean isLandmarkValue);
 }

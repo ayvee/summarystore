@@ -1,4 +1,4 @@
-package com.samsung.sra.WindowingOptimizer;
+package com.samsung.sra.DataStoreExperiments;
 
 import org.apache.commons.math3.distribution.ExponentialDistribution;
 
