@@ -3,11 +3,11 @@ package com.samsung.sra.DataStore;
 import org.apache.commons.math3.analysis.UnivariateFunction;
 import org.apache.commons.math3.analysis.solvers.BrentSolver;
 
-public class ExponentialWindowLengths implements WindowLengthSequence {
+public class ExponentialWindowLengths extends WindowLengths {
     private double next = 1;
     private final double base;
 
-    public ExponentialWindowLengths(double base) {
+    ExponentialWindowLengths(double base) {
         this.base = base;
     }
 
@@ -16,6 +16,16 @@ public class ExponentialWindowLengths implements WindowLengthSequence {
         double prev = next;
         next *= base;
         return (long)Math.ceil(prev);
+    }
+
+    @Override
+    public long getWindowLengthUpperBound(Long N) {
+        if (N == null) {
+            return Long.MAX_VALUE;
+        } else {
+            // return largest power of base smaller than N
+            return (long)Math.ceil(Math.pow(base, Math.floor(Math.log(N) / Math.log(base))));
+        }
     }
 
     /**
@@ -44,7 +54,6 @@ public class ExponentialWindowLengths implements WindowLengthSequence {
             // solve for f(b) == 0
             base = (new BrentSolver()).solve((int)1e9, f, 1 + 1e-10, rangeSize);
         }
-        System.out.println("optimal base to cover " + rangeSize + " elements with " + numWindows + " windows = " + base);
         return new ExponentialWindowLengths(base);
     }
 }

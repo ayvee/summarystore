@@ -7,6 +7,17 @@
     <groupId>com.samsung.sra</groupId>
     <artifactId>SummaryStore</artifactId>
     <version>1.0-SNAPSHOT</version>
+
+	<!-- http://stackoverflow.com/questions/5692256/maven-best-way-of-linking-custom-external-jar-to-my-project -->
+	<!-- we use this for the Fibonacci heap library used by WBMH, which isn't on Maven and had to be downloaded by hand -->
+	<repositories>
+		<repository>
+			<id>in-project</id>
+			<name>In-project non-maven dependencies</name>
+			<url>file://${project.basedir}/non-mvn-libs</url>
+		</repository>
+	</repositories>
+
     <dependencies>
         <dependency>
             <groupId>org.rocksdb</groupId>
@@ -23,6 +34,12 @@
             <artifactId>stream</artifactId>
             <version>2.9.0</version>
 		</dependency> -->
+		<!-- https://code.google.com/archive/p/java-heaps/ -->
+		<dependency>
+			<groupId>teneighty</groupId>
+			<artifactId>heaps</artifactId>
+			<version>2.0</version>
+		</dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-math3</artifactId>
@@ -41,7 +58,7 @@
                 <artifactId>maven-dependency-plugin</artifactId>
                 <executions>
                     <execution>
-                        <phase>install</phase>
+                        <phase>package</phase>
                         <goals>
                             <goal>copy-dependencies</goal>
                         </goals>

@@ -1,74 +1,119 @@
 package com.samsung.sra.DataStore;
 
+import org.teneighty.heap.FibonacciHeap;
+import org.teneighty.heap.Heap;
+
+import java.io.Serializable;
+import java.time.LocalDateTime;
 import java.util.*;
 
+/**
+ * Newer implementation of WBMH that maintains a priority queue of pending bucket
+ * merge operations. Faster than the old implementation, but potentially uses more
+ * memory, because it can end up building out the windowing very far into the future.
+ * Can be controlled with care, which I've taken some of, but may need more analysis.
+ */
 public class CountBasedWBMH implements WindowingMechanism {
-    private final WindowLengthSequence windowLengths;
-    private final TreeMap<Long, Integer> windowStartMarkers = new TreeMap<>();
-    private final List<Long> windowStartMarkersList = new ArrayList<>();
+    private final WindowLengths windowLengths;
 
-    public CountBasedWBMH(WindowLengthSequence windowLengths) {
-        this.windowLengths = windowLengths;
-        windowStartMarkers.put(0L, 0);
-        windowStartMarkersList.add(0L);
+    private static class BucketInfo implements Serializable {
+        BucketID prev = null, curr, next = null;
+        long Cl, Cr;
+        Heap.Entry<Long, BucketID> heapEntry = null;
+
+        BucketInfo(BucketID prevBucket, BucketID thisBucket, BucketID nextBucket, long Cl, long Cr) {
+            this.prev = prevBucket;
+            this.curr = thisBucket;
+            this.next = nextBucket;
+            this.Cl = Cl;
+            this.Cr = Cr;
+        }
     }
 
-    private synchronized void updateWindowingToCover(long numElements) {
-        Long lastStart = windowStartMarkers.lastKey();
-        while (lastStart <= numElements) {
-            long length = windowLengths.nextWindowLength();
-            assert length > 0; // TODO: && length >= maxLengthSoFar
-            lastStart += length;
-            windowStartMarkers.put(lastStart, windowStartMarkers.size());
-            windowStartMarkersList.add(lastStart);
-        }
+    private final Map<BucketID, BucketInfo> bucketsInfo = new HashMap<>();
+    /* Priority queue, mapping each BucketID b_i to the time at which b_{i+1} will be
+     * merged into it. Using a Fibonacci heap instead of the Java Collections PriorityQueue
+     * because we need an efficient arbitrary-element delete.
+     *
+     * Why this particular Fibonacci heap implementation?
+     * https://gabormakrai.wordpress.com/2015/02/11/experimenting-with-dijkstras-algorithm/
+     */
+    private final FibonacciHeap<Long, BucketID> mergeCounts = new FibonacciHeap<>();
 
-        markerRi = -1; // FIXME
+    public CountBasedWBMH(WindowLengths windowLengths) {
+        this.windowLengths = windowLengths;
+    }
+
+    // maps window length to the start marker of the first window of that length
+    private final TreeMap<Long, Long> firstWindowOfLength = new TreeMap<>();
+    // all window start markers in an ordered set
+    private final TreeSet<Long> windowStartMarkers = new TreeSet<>();
+
+    private long lastWindowStart = 0L, lastLength = 0L;
+
+    private void addWindow(long length) {
+        assert length >= lastLength && length > 0;
+        lastWindowStart += lastLength;
+        if (length > lastLength) firstWindowOfLength.put(length, lastWindowStart);
+        windowStartMarkers.add(lastWindowStart);
+        lastLength = length;
     }
 
     /**
-     * If the interval [cStart, cEnd] is completely contained inside some window after
-     * N values have been inserted, return a unique ID representing that window, else
-     * return null.
-     *
-     * We use the window's start marker as our unique ID
+     * Add windows until we have one with length >= the specified target. Returns false
+     * if the target length isn't achievable
      */
-    /*private Long idOfContainingWindow(long cStart, long cEnd, long N) {
-        assert 0 <= cStart && cStart <= cEnd && cEnd < N;
-        long lAge = N-1 - cEnd, rAge = N-1 - cStart;
-        Long lMarker = windowStartMarkersSet.floor(lAge), rMarker = windowStartMarkersSet.floor(rAge);
-        assert lMarker != null && rMarker != null;
-        return lMarker.equals(rMarker) ? lMarker : null;
-    }*/
-
-    /* FIXME: the way we maintain markerRi only works if we're single-threaded (no multiple streams)
-              To fix, pass markerRi around as a continuation */
-    // Invariant: markerRi == index of first window start marker > r
-    private int markerRi = -1;
-
-    private static Object idOfFirstWindow = 0;
-
-    private Object idOfContainingWindow(long cStart, long cEnd, long N) {
-        assert 0 <= cStart && cStart <= cEnd && cEnd < N;
-        long l = N-1 - cEnd, r = N-1 - cStart;
-        if (markerRi == -1) {
-            markerRi = windowStartMarkers.higherEntry(r).getValue();
+    private boolean addWindowsUntilLength(long targetLength) {
+        if (targetLength <= lastLength) {
+            // already added, nothing to do
+            return true;
         } else {
-            assert markerRi == windowStartMarkers.higherEntry(r).getValue();
+            return windowLengths.addWindowsUntilLength(targetLength, this::addWindow);
         }
-        int markerLi = markerRi - 1;
-        while (windowStartMarkersList.get(markerLi) > l)
-            --markerLi;
-        // now markerLi == index of first window start marker <= l
-        Integer ret = (markerLi == markerRi - 1) ? markerLi : null;
-        // next bucket's r will be l - 1
-        if (l == 0) {
-            markerRi = -1;
-        } else {
-            markerRi = l-1 < windowStartMarkersList.get(markerLi) ? markerLi : markerLi + 1;
-        }
-        return ret;
     }
+
+    /**
+     * Add windows until we have at least one window marker larger than the target
+     */
+    private void addWindowsPastMarker(long targetMarker) {
+        while (lastWindowStart <= targetMarker) {
+            addWindow(windowLengths.nextWindowLength());
+        }
+    }
+
+    /**
+     * Find the smallest N' >= N such that after N elements have been inserted
+     * the interval [Cl, Cr] will be contained inside the same window. Returns
+     * null if no such N' exists
+     */
+    private Long findMergeCount(long N, long Cl, long Cr) {
+        assert 0 <= Cl && Cl <= Cr && Cr < N;
+        long l = N-1 - Cr, r = N-1 - Cl, length = Cr - Cl + 1;
+
+        if (!addWindowsUntilLength(length)) {
+            return null;
+        }
+        long firstMarker = firstWindowOfLength.ceilingEntry(length).getValue();
+        if (firstMarker >= l) {
+            // l' == firstMarker, where l' := N'-1 - Cr
+            return firstMarker + Cr + 1;
+        } else {
+            // we've already hit the target window length, so [l, r] are either
+            // already in the same window or will be once they move into the next window
+            addWindowsPastMarker(l);
+            long currWindowL = windowStartMarkers.floor(l), currWindowR = windowStartMarkers.higher(l) - 1;
+            if (r <= currWindowR) {
+                // already in same window
+                return N;
+            } else {
+                assert currWindowR - currWindowL + 1 >= length;
+                // need to wait until next window, i.e. l' == currWindowR + 1, where l' := N'-1 - Cr
+                return currWindowR + Cr + 2;
+            }
+        }
+    }
+
+    private BucketID lastBucketID = null;
 
     @Override
     public List<SummaryStore.BucketModification> computeModifications(
@@ -76,69 +121,93 @@ public class CountBasedWBMH implements WindowingMechanism {
             long numValuesSoFar, Timestamp lastInsertedTimestamp,
             Timestamp newValueTimestamp, Object newValue) {
         if (lastInsertedTimestamp == null) assert numValuesSoFar == 0;
-        if (existingBuckets.isEmpty()) assert lastInsertedTimestamp == null;
-
-        updateWindowingToCover(numValuesSoFar + 1);
 
         BucketID newBucketID; // id of potential new bucket of size 1 holding the new (t, v) pair
-        BucketMetadata newBucketMetadata;
-        // WARNING: modifying existingBuckets here (we weren't supposed to, per the interface contract).
-        //          Need to undo before returning
-        if (existingBuckets.isEmpty()) {
+        BucketMetadata newBucketMD;
+        if (lastBucketID == null) {
             newBucketID = new BucketID(0);
-            newBucketMetadata = new BucketMetadata(newBucketID, new Timestamp(0), 0L);
+            newBucketMD = new BucketMetadata(newBucketID, new Timestamp(0), 0L);
         } else {
-            newBucketID = existingBuckets.lastKey().nextBucketID();
-            newBucketMetadata = new BucketMetadata(newBucketID, newValueTimestamp, numValuesSoFar);
+            newBucketID = lastBucketID.nextBucketID();
+            newBucketMD = new BucketMetadata(newBucketID, newValueTimestamp, numValuesSoFar);
         }
-        existingBuckets.put(newBucketID, newBucketMetadata);
 
-        // Recall that WBMH = merge all buckets that are inside the same window. To determine
-        // potential merges, we will now group all buckets by the ID of their containing window
-        LinkedHashMap<Object, List<BucketID>> potentialMergeLists = new LinkedHashMap<>();
-        BucketID prevID = null; Long prevCStart = null;
-        for (Map.Entry<BucketID, BucketMetadata> entry: existingBuckets.entrySet()) {
-            BucketID currID = entry.getKey();
-            BucketMetadata currMD = entry.getValue();
-            if (prevID != null) {
-                Long prevCEnd = currMD.cStart - 1;
-                Object windowID = idOfContainingWindow(prevCStart, prevCEnd, numValuesSoFar + 1);
-                if (windowID != null) {
-                    List<BucketID> dst = potentialMergeLists.get(windowID);
-                    if (dst == null)
-                        potentialMergeLists.put(windowID, (dst = new ArrayList<>()));
-                    dst.add(prevID);
-                }
-                // else the bucket is not completely contained inside a window
+
+        long N = numValuesSoFar + 1;
+        Map<BucketID, TreeSet<BucketID>> merges = new HashMap<>();
+        // TODO: handle null findMergeCount
+        while (!mergeCounts.isEmpty() && mergeCounts.getMinimum().getKey() <= N) {
+            Heap.Entry<Long, BucketID> entry = mergeCounts.extractMinimum();
+            BucketInfo b_i = bucketsInfo.get(entry.getValue());
+            BucketInfo b_im1 = bucketsInfo.get(b_i.prev), b_ip1 = bucketsInfo.get(b_i.next);
+
+            addMerge(merges, b_i.curr, b_i.next);
+            // update linked list pointers: b_i's next, b_{i+2}'s prev
+            b_i.next = b_ip1.next;
+            if (b_ip1.next != null) {
+                bucketsInfo.get(b_ip1.next).prev = b_i.curr;
             }
-            prevID = currID;
-            prevCStart = currMD.cStart;
-        }
-        // At this point the last bucket remains unprocessed: the one with newBucketID. This bucket
-        // will need to be created iff there is no existing base bucket contained inside the newest window
-        boolean createNewBucket = !potentialMergeLists.containsKey(idOfFirstWindow);
+            // update b_i's Cr
+            assert b_i.Cr == b_ip1.Cl - 1;
+            b_i.Cr = b_ip1.Cr;
 
-        // Now process the merge lists to generate the sequence of bucket modifications needed
+            // update heap keys: delete b_{i+1}, increase b_{i-1} and b_{i}. also delete b_{i+1} from bucketsInfo and mergeCounts
+            if (b_im1 != null) {
+                mergeCounts.delete(b_im1.heapEntry);
+                b_im1.heapEntry = mergeCounts.insert(findMergeCount(N, b_im1.Cl, b_i.Cr), b_im1.curr);
+            }
+            if (b_ip1.heapEntry != null) {
+                mergeCounts.delete(b_ip1.heapEntry);
+            }
+            bucketsInfo.remove(b_ip1.curr);
+            if (lastBucketID == b_ip1.curr) {
+                lastBucketID = b_i.curr;
+            }
+            b_ip1 = bucketsInfo.getOrDefault(b_i.next, null);
+            if (b_ip1 != null) {
+                b_i.heapEntry = mergeCounts.insert(findMergeCount(N, b_i.Cl, b_ip1.Cr), b_i.curr);
+            }
+        }
+
+        if (N % 100_000 == 0) {
+            System.out.println(
+                    "[" + LocalDateTime.now() + "] N = " + N +
+                    ": mergeCounts.size = " + mergeCounts.getSize() +
+                    ", bucketsInfo.size = " + bucketsInfo.size() +
+                    ", windowMap.size = " + firstWindowOfLength.size() +
+                    ", windowSet.size = " + windowStartMarkers.size());
+        }
+
+        BucketInfo newBucketInfo = new BucketInfo(lastBucketID, newBucketID, null, newBucketMD.cStart, newBucketMD.cStart);
+        // FIXME: assumes first window size is 1
+        if (lastBucketID != null) {
+            BucketInfo b_m1 = bucketsInfo.get(lastBucketID);
+            b_m1.next = newBucketID;
+            b_m1.heapEntry = mergeCounts.insert(findMergeCount(N, b_m1.Cl, newBucketInfo.Cr), lastBucketID);
+        }
+        lastBucketID = newBucketID;
+        bucketsInfo.put(newBucketID, newBucketInfo);
+
         List<SummaryStore.BucketModification> bucketModifications = new ArrayList<>();
-        for (List<BucketID> mergeList: potentialMergeLists.values()) {
-            assert mergeList != null && !mergeList.isEmpty();
-            if (mergeList.size() > 1) {
-                BucketID target = null; List<BucketID> srcs = new ArrayList<>();
-                for (BucketID id: mergeList) {
-                    assert id != newBucketID;
-                    if (target == null)
-                        target = id;
-                    else
-                        srcs.add(id);
-                }
-                bucketModifications.add(new SummaryStore.BucketMergeModification(target, srcs));
-            }
+        for (Map.Entry<BucketID, TreeSet<BucketID>> merge: merges.entrySet()) {
+            bucketModifications.add(new SummaryStore.BucketMergeModification(
+                    merge.getKey(), new ArrayList<>(merge.getValue())));
         }
-        if (createNewBucket) {
-            bucketModifications.add(new SummaryStore.BucketCreateModification(newBucketMetadata));
-        }
-        existingBuckets.remove(newBucketID);
-
+        bucketModifications.add(new SummaryStore.BucketCreateModification(newBucketMD));
         return bucketModifications;
     }
-}
+
+    private void addMerge(Map<BucketID, TreeSet<BucketID>> merges, BucketID dst, BucketID src) {
+        if (!merges.containsKey(dst)) {
+            merges.put(dst, new TreeSet<>());
+        }
+        // src needs to be merged into dst
+        merges.get(dst).add(src);
+        // any buckets that would have been merged into src now need to be merged into dst instead
+        Set<BucketID> recursiveMerges = merges.remove(src);
+        if (recursiveMerges != null) {
+            for (BucketID bucketID: recursiveMerges) {
+                merges.get(dst).add(bucketID);
+            }
+        }
+    }}

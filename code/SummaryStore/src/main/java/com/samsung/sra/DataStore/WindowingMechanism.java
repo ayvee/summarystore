@@ -1,5 +1,6 @@
 package com.samsung.sra.DataStore;
 
+import java.io.Serializable;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.TreeMap;
@@ -7,7 +8,7 @@ import java.util.TreeMap;
 /**
  * Encapsulates code for EH/WBMH/similar mechanisms
  */
-public interface WindowingMechanism {
+public interface WindowingMechanism extends Serializable {
     /**
      * Figure out what bucket modifications need to be performed after a new element is inserted.
      * Each modification will either merge a consecutive sequence of existing base buckets or
