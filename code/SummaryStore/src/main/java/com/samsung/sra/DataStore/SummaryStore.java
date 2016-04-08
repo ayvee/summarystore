@@ -38,21 +38,11 @@ public class SummaryStore implements DataStore {
 
         // TODO: register an object to track what data structure we will use for each bucket
 
-        /** All buckets for this stream */
-        final TreeMap<BucketID, BucketMetadata> buckets = new TreeMap<>();
         /** Index mapping bucket.tStart -> bucketID, used to answer queries */
-        final TreeMap<Timestamp, BucketID> timeIndex = new TreeMap<>();
+        final TreeMap<Timestamp, BucketID> temporalIndex = new TreeMap<>();
 
         StreamInfo(StreamID streamID) {
             this.streamID = streamID;
-        }
-
-        void reconstructTimeIndex() {
-            timeIndex.clear();
-            for (BucketMetadata bucketMetadata : buckets.values()) {
-                assert bucketMetadata.tStart != null;
-                timeIndex.put(bucketMetadata.tStart, bucketMetadata.bucketID);
-            }
         }
     }
 
@@ -88,8 +78,9 @@ public class SummaryStore implements DataStore {
 
         fstConf = FSTConfiguration.createDefaultConfiguration();
         fstConf.registerClass(Bucket.class);
-        fstConf.registerClass(BucketMetadata.class);
         fstConf.registerClass(StreamInfo.class);
+        fstConf.registerClass(CountBasedWBMH.class);
+        fstConf.registerClass(SlowCountBasedWBMH.class);
 
         RocksDB.loadLibrary();
     }
@@ -122,10 +113,10 @@ public class SummaryStore implements DataStore {
             if (t1.compareTo(streamInfo.lastValueTimestamp) > 0) {
                 throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
             }
-            TreeMap<Timestamp, BucketID> index = streamInfo.timeIndex;
+            TreeMap<Timestamp, BucketID> index = streamInfo.temporalIndex;
             Timestamp l = index.floorKey(t0); // first bucket with tStart <= t0
             Timestamp r = index.higherKey(t1); // first bucket with tStart > t1
-            logger.log(Level.FINEST, "Overapproximated time range = [" + l + ", " + r + ")");
+            //logger.log(Level.FINEST, "Overapproximated time range = [" + l + ", " + r + ")");
             if (r == null) {
                 r = index.lastKey();
             }
@@ -164,15 +155,13 @@ public class SummaryStore implements DataStore {
 
             // ask windowing mechanism which existing buckets to merge and/or which new buckets
             // to create, in response to adding this value
-            List<BucketModification> bucketMods = windowingMechanism.computeModifications(
-                    streamInfo.buckets, streamInfo.numValues, streamInfo.lastValueTimestamp,
-                    ts, value);
+            List<BucketModification> bucketMods = windowingMechanism.computeModifications(ts, value);
 
             // we've done the bucket modification math: now lock all readers and process bucket changes
             synchronized (streamInfo.readLock) {
                 // 1. Update set of buckets
                 for (BucketModification mod : bucketMods) {
-                    logger.log(Level.FINEST, "Executing bucket modification " + mod);
+                    //logger.log(Level.FINEST, "Executing bucket modification " + mod);
                     mod.process(this, streamInfo);
                 }
                 // 2. Insert the new value into the appropriate bucket
@@ -217,12 +206,10 @@ public class SummaryStore implements DataStore {
             for (BucketID srcID: merges) {
                 Bucket src = store.rocksGet(streamInfo.streamID, srcID);
                 sources.add(src);
-                streamInfo.buckets.remove(srcID);
-                streamInfo.timeIndex.remove(src.metadata.tStart);
+                streamInfo.temporalIndex.remove(src.tStart);
             }
             target.merge(sources);
             store.rocksPut(streamInfo.streamID, mergee, target);
-            streamInfo.buckets.put(mergee, target.metadata);
         }
 
         @Override
@@ -240,33 +227,36 @@ public class SummaryStore implements DataStore {
      * Create an empty bucket with the specified metadata
      */
     static class BucketCreateModification implements BucketModification {
-        private final BucketMetadata metadata;
+        private final BucketID bucketID;
+        private final Timestamp tStart;
+        private final long cStart;
 
-        BucketCreateModification(BucketMetadata metadata) {
-            this.metadata = metadata;
+        BucketCreateModification(BucketID bucketID, Timestamp bucketTStart, long cStart) {
+            this.bucketID = bucketID;
+            this.tStart = bucketTStart;
+            this.cStart = cStart;
         }
 
         @Override
         public void process(SummaryStore store, StreamInfo streamInfo) throws RocksDBException {
-            Bucket bucket = new Bucket(metadata);
-            store.rocksPut(streamInfo.streamID, metadata.bucketID, bucket);
-            streamInfo.buckets.put(metadata.bucketID, metadata);
+            Bucket bucket = new Bucket(bucketID, tStart, cStart);
+            store.rocksPut(streamInfo.streamID, bucketID, bucket);
 
-            streamInfo.timeIndex.put(metadata.tStart, metadata.bucketID);
+            streamInfo.temporalIndex.put(tStart, bucketID);
         }
 
         @Override
         public String toString() {
-            return "BucketCreate" + metadata;
+            return "Create bucket " + bucketID + " with tStart = " + tStart + ", cStart = " + cStart;
         }
     }
 
     private void processInsert(StreamInfo streamInfo, Timestamp ts, Object value) throws RocksDBException {
-        BucketID destinationID = streamInfo.buckets.lastKey();
+        BucketID destinationID = streamInfo.temporalIndex.floorEntry(ts).getValue();
         assert destinationID != null;
         Bucket bucket = rocksGet(streamInfo.streamID, destinationID);
         bucket.insertValue(ts, value);
-        logger.log(Level.FINEST, "Inserted value <" + ts + ", " + value + "> into bucket " + bucket.metadata);
+        //logger.log(Level.FINEST, "Inserted value <" + ts + ", " + value + "> into bucket " + bucket);
         rocksPut(streamInfo.streamID, destinationID, bucket);
         streamInfo.numValues += 1;
         streamInfo.lastValueTimestamp = ts;
@@ -274,7 +264,7 @@ public class SummaryStore implements DataStore {
 
     /**
      * RocksDB key = <streamID, bucketID>. Since we ensure bucketIDs are assigned in increasing
-     * order of startN, this lays out data in temporal order within streams
+     * order, this lays out data in temporal order within streams
      */
     private byte[] getRocksDBKey(StreamID streamID, BucketID bucketID) {
         ByteBuffer bytebuf = ByteBuffer.allocate(StreamID.byteCount + BucketID.byteCount);
@@ -306,7 +296,7 @@ public class SummaryStore implements DataStore {
     private void printBucketState(StreamID streamID) throws RocksDBException {
         StreamInfo streamInfo = streamsInfo.get(streamID);
         System.out.println("Stream " + streamID + " with " + streamInfo.numValues + " elements:");
-        for (BucketID bucketID: streamInfo.buckets.keySet()) {
+        for (BucketID bucketID: streamInfo.temporalIndex.values()) {
             System.out.println("\t" + rocksGet(streamID, bucketID));
         }
     }
@@ -324,7 +314,7 @@ public class SummaryStore implements DataStore {
         long ret = 0;
         for (StreamInfo si: streamsInfo.values()) {
             // FIXME: this does not account for the size of the time/count markers tracked by the index
-            ret += si.buckets.size() * (StreamID.byteCount + BucketID.byteCount + Bucket.byteCount);
+            ret += si.temporalIndex.size() * (StreamID.byteCount + BucketID.byteCount + Bucket.byteCount);
         }
         return ret;
     }

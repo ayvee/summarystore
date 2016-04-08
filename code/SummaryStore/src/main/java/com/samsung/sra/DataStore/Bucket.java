@@ -5,27 +5,36 @@ import java.util.Collection;
 import java.util.List;
 
 class Bucket implements Serializable {
+    // data
     private long count = 0;
     private long sum = 0;
-    final BucketMetadata metadata;
 
-    /** Size of the bucket itself, not counting metadata */
-    static final int byteCount = 8 + 8;
+    // metadata
+    final BucketID id;
+    final Timestamp tStart;
+    final Long cStart;
 
-    Bucket(BucketMetadata metadata) { this.metadata = metadata; }
+    /** Size of the bucket itself, for count and sum, not counting metadata */
+    static final int byteCount = Long.BYTES + Long.BYTES;
+
+    Bucket(BucketID bucketID, Timestamp tStart, long cStart) {
+        this.id = bucketID;
+        this.tStart = tStart;
+        this.cStart = cStart;
+    }
 
     void merge(List<Bucket> buckets) {
         if (buckets != null) {
             for (Bucket that : buckets) {
+                //TODO: assert this.cEnd == that.cStart - 1;
                 this.count += that.count;
                 this.sum += that.sum;
-                assert this.metadata.cStart < that.metadata.cStart && this.metadata.tStart.compareTo(that.metadata.tStart) < 0;
             }
         }
     }
 
     void insertValue(Timestamp ts, Object value) {
-        assert metadata.tStart.compareTo(ts) <= 0;
+        //TODO: assert tStart.compareTo(ts) <= 0 && (tEnd == null || ts.compareTo(tEnd) <= 0);
         count += 1;
         sum += (Long)value;
     }
@@ -57,9 +66,7 @@ class Bucket implements Serializable {
 
     @Override
     public String toString() {
-        String ret = "<bucket " + metadata.bucketID;
-        ret += ", tStart " + metadata.tStart;
-        ret += ", cStart " + metadata.cStart;
+        String ret = "<bucket " + id;
         ret += ", count " + count;
         ret += ", sum " + sum;
         ret += ">";

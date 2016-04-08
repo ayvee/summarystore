@@ -9,6 +9,22 @@ import java.util.*;
  * precisely the elements which have been inserted.
  */
 public class SlowCountBasedWBMH implements WindowingMechanism {
+    private long N = 0;
+    private BucketID lastBucketID = null;
+
+    private static class BucketInfo {
+        long cStart, cEnd;
+
+        BucketInfo(long cStart, long cEnd) {
+            this.cStart = cStart;
+            this.cEnd = cEnd;
+        }
+    }
+
+    // NOTE: expected to be sorted by BucketID, make sure inserts occur in order.
+    //       Not using TreeMap because it was at least 2x slower in experiments
+    private final LinkedHashMap<BucketID, BucketInfo> bucketsInfo = new LinkedHashMap<>();
+
     private final WindowLengths windowLengths;
     private final TreeMap<Long, Integer> windowStartMarkers = new TreeMap<>();
     private final List<Long> windowStartMarkersList = new ArrayList<>();
@@ -28,8 +44,6 @@ public class SlowCountBasedWBMH implements WindowingMechanism {
             windowStartMarkers.put(lastStart, windowStartMarkers.size());
             windowStartMarkersList.add(lastStart);
         }
-
-        markerRi = -1; // FIXME
     }
 
     /**
@@ -47,12 +61,14 @@ public class SlowCountBasedWBMH implements WindowingMechanism {
         return lMarker.equals(rMarker) ? lMarker : null;
     }*/
 
-    /* FIXME: the way we maintain markerRi only works if we're single-threaded (no multiple streams)
-              To fix, pass markerRi around as a continuation */
     // Invariant: markerRi == index of first window start marker > r
     private int markerRi = -1;
 
     private final Object idOfFirstWindow = 0;
+
+    private void resetIdOfContainingWindowInternalState() {
+        markerRi = -1;
+    }
 
     private Object idOfContainingWindow(long cStart, long cEnd, long N) {
         assert 0 <= cStart && cStart <= cEnd && cEnd < N;
@@ -77,80 +93,79 @@ public class SlowCountBasedWBMH implements WindowingMechanism {
     }
 
     @Override
-    public List<SummaryStore.BucketModification> computeModifications(
-            TreeMap<BucketID, BucketMetadata> existingBuckets,
-            long numValuesSoFar, Timestamp lastInsertedTimestamp,
-            Timestamp newValueTimestamp, Object newValue) {
-        if (lastInsertedTimestamp == null) assert numValuesSoFar == 0;
-        if (existingBuckets.isEmpty()) assert lastInsertedTimestamp == null;
+    public List<SummaryStore.BucketModification> computeModifications(Timestamp newValueTimestamp, Object newValue) {
+        ++N;
+        updateWindowingToCover(N);
+        resetIdOfContainingWindowInternalState();
 
-        updateWindowingToCover(numValuesSoFar + 1);
-
-        BucketID newBucketID; // id of potential new bucket of size 1 holding the new (t, v) pair
-        BucketMetadata newBucketMD;
-        if (existingBuckets.isEmpty()) {
-            newBucketID = new BucketID(0);
-            newBucketMD = new BucketMetadata(newBucketID, new Timestamp(0), 0L);
+        if (lastBucketID != null) {
+            assert N >= 2;
+            bucketsInfo.get(lastBucketID).cEnd = N-2;
         } else {
-            newBucketID = existingBuckets.lastKey().nextBucketID();
-            newBucketMD = new BucketMetadata(newBucketID, newValueTimestamp, numValuesSoFar);
+            assert N == 1;
         }
-        // WARNING: modifying existingBuckets here (we weren't supposed to, per the interface contract).
-        //          Need to undo before returning
-        existingBuckets.put(newBucketID, newBucketMD);
 
         List<SummaryStore.BucketModification> bucketModifications = new ArrayList<>();
 
-        // FIXME: used to be written much more cleanly; turned into a messy multiloop after optimizing
-        BucketID prevBucketID = null; // since we don't maintain end markers, we need
-        Long prevCStart = null;       // to go over buckets two at a time to find them
         // Recall that WBMH = merge all buckets that are inside the same window. To determine
         // potential merges, we will group all buckets by the ID of their containing window
         Object prevWindowID = null;
         BucketID mergee = null;
+        BucketInfo mergeeInfo = null;
         List<BucketID> merged = null;
-        for (Map.Entry<BucketID, BucketMetadata> entry: existingBuckets.entrySet()) {
-            BucketID currBucketID = entry.getKey();
-            BucketMetadata currMD = entry.getValue();
-            if (prevBucketID != null) {
-                Long prevCEnd = currMD.cStart - 1;
-                Object currWindowID = idOfContainingWindow(prevCStart, prevCEnd, numValuesSoFar + 1);
-                if (currWindowID == null) {
-                    // Flush any existing merge into the list of modifications
-                    if (mergee != null && merged != null)
-                        bucketModifications.add(new SummaryStore.BucketMergeModification(mergee, merged));
-                    mergee = null;
+        for (Iterator<Map.Entry<BucketID, BucketInfo>> iter = bucketsInfo.entrySet().iterator(); iter.hasNext(); ) {
+            Map.Entry<BucketID, BucketInfo> entry = iter.next();
+            BucketID bucketID = entry.getKey();
+            BucketInfo bucketInfo = entry.getValue();
+            Object currWindowID = idOfContainingWindow(bucketInfo.cStart, bucketInfo.cEnd, N);
+            if (currWindowID == null) {
+                // Flush any existing merge into the list of modifications
+                processPotentialMerge(bucketModifications, mergee, merged);
+                mergee = null;
+                merged = null;
+            } else {
+                if (!currWindowID.equals(prevWindowID)) {
+                    // 1. Flush any existing merge into the list of modifications
+                    processPotentialMerge(bucketModifications, mergee, merged);
+                    // 2. This bucket (i.e. prevBucketID) is potentially the head of a merge sequence, start tracking
+                    mergee = bucketID;
+                    mergeeInfo = bucketsInfo.get(mergee);
                     merged = null;
                 } else {
-                    if (!currWindowID.equals(prevWindowID)) {
-                        // 1. Flush any existing merge into the list of modifications
-                        if (mergee != null && merged != null)
-                            bucketModifications.add(new SummaryStore.BucketMergeModification(mergee, merged));
-                        // 2. This bucket (i.e. prevBucketID) is potentially the head of a merge sequence, start tracking
-                        mergee = prevBucketID;
-                        merged = null;
-                    } else {
-                        // this should be merged into mergee
-                        if (merged == null) {
-                            merged = new ArrayList<>();
-                        }
-                        merged.add(prevBucketID);
+                    // this should be merged into mergee
+                    if (merged == null) {
+                        merged = new ArrayList<>();
                     }
+                    merged.add(bucketID);
+                    assert mergeeInfo.cEnd == bucketInfo.cStart - 1;
+                    mergeeInfo.cEnd = bucketInfo.cEnd;
+                    iter.remove();
                 }
-                prevWindowID = currWindowID;
             }
-            prevBucketID = currBucketID;
-            prevCStart = currMD.cStart;
+            prevWindowID = currWindowID;
         }
-        if (mergee != null && merged != null)
-            bucketModifications.add(new SummaryStore.BucketMergeModification(mergee, merged));
+        processPotentialMerge(bucketModifications, mergee, merged);
         // At this point the last bucket remains unprocessed: the one with newBucketID. This bucket
         // will need to be created iff there is no existing base bucket contained inside the newest window
-        if (!idOfFirstWindow.equals(prevWindowID))
-            bucketModifications.add(new SummaryStore.BucketCreateModification(newBucketMD));
-
-        existingBuckets.remove(newBucketID);
+        if (!idOfFirstWindow.equals(prevWindowID)) {
+            BucketID newBucketID = lastBucketID != null ? lastBucketID.nextBucketID() : new BucketID(0);
+            // semantics decision: we start streams at T = 0, as opposed to T = timestamp of first ever inserted element
+            Timestamp newBucketTStart = lastBucketID != null ? newValueTimestamp : new Timestamp(0);
+            bucketModifications.add(new SummaryStore.BucketCreateModification(newBucketID, newBucketTStart, N-1));
+            bucketsInfo.put(newBucketID, new BucketInfo(N-1, -1));
+            lastBucketID = newBucketID;
+        } else {
+            // no new bucket, just reset the last bucket's end count to infinity
+            bucketsInfo.get(lastBucketID).cEnd = -1;
+        }
 
         return bucketModifications;
+    }
+
+    private void processPotentialMerge(List<SummaryStore.BucketModification> bucketModifications, BucketID mergee, List<BucketID> merged) {
+        if (mergee == null || merged == null || merged.isEmpty()) {
+            return;
+        }
+        bucketModifications.add(new SummaryStore.BucketMergeModification(mergee, merged));
     }
 }

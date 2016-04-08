@@ -12,19 +12,17 @@ public interface WindowingMechanism extends Serializable {
     /**
      * Figure out what bucket modifications need to be performed after a new element is inserted.
      * Each modification will either merge a consecutive sequence of existing base buckets or
-     * create a new base bucket at the end of the list (after all the existing buckets).
-     * If creating new buckets, use (last bucketID in list).nextBucketID() to assign IDs to them:
-     * this will maintain the invariant that recent buckets always have larger BucketIDs than older
-     * buckets.
+     * create a new base bucket after all the existing buckets. If creating new buckets, use
+     * nextBucketID() to assign IDs to them: this will maintain the invariant that recent buckets
+     * always have larger BucketIDs than older buckets.
      *
-     * The existingBuckets argument is the list of all existing buckets sorted by age oldest first.
-     * It should not be modified. (FIXME? Maybe pass in a copy instead)
+     * The implementor is responsible for maintaining any internal state necessary to figure out
+     * what merges are needed, e.g. start and end timestamps for each existing bucket.
+     * (Code is written this way because different windowing mechanisms can want very different
+     * data structures to maintain this state, e.g. compare CountBasedWBMH and SlowCountBasedWBMH)
      *
-     * (newTimestamp, newValue) will be inserted into the last base bucket in the list after
-     * all the update operations have been processed
+     * SummaryStore will first process all modifications returned by this function, then insert
+     * (newTimestamp, newValue) into the appropriate bucket
      */
-    List<SummaryStore.BucketModification> computeModifications(
-            TreeMap<BucketID, BucketMetadata> existingBuckets,
-            long numValuesSoFar, Timestamp lastInsertedTimestamp,
-            Timestamp newValueTimestamp, Object newValue);
+    List<SummaryStore.BucketModification> computeModifications(Timestamp newValueTimestamp, Object newValue);
 }

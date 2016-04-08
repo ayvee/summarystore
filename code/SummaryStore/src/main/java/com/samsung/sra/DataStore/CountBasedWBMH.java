@@ -6,6 +6,7 @@ import org.teneighty.heap.Heap;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Newer implementation of WBMH that maintains a priority queue of pending bucket
@@ -29,6 +30,9 @@ public class CountBasedWBMH implements WindowingMechanism {
             this.Cr = Cr;
         }
     }
+
+    private BucketID lastBucketID = null;
+    private long N = 0;
 
     private final Map<BucketID, BucketInfo> bucketsInfo = new HashMap<>();
     /* Priority queue, mapping each BucketID b_i to the time at which b_{i+1} will be
@@ -113,27 +117,11 @@ public class CountBasedWBMH implements WindowingMechanism {
         }
     }
 
-    private BucketID lastBucketID = null;
-
     @Override
     public List<SummaryStore.BucketModification> computeModifications(
-            TreeMap<BucketID, BucketMetadata> existingBuckets,
-            long numValuesSoFar, Timestamp lastInsertedTimestamp,
             Timestamp newValueTimestamp, Object newValue) {
-        if (lastInsertedTimestamp == null) assert numValuesSoFar == 0;
+        ++N;
 
-        BucketID newBucketID; // id of potential new bucket of size 1 holding the new (t, v) pair
-        BucketMetadata newBucketMD;
-        if (lastBucketID == null) {
-            newBucketID = new BucketID(0);
-            newBucketMD = new BucketMetadata(newBucketID, new Timestamp(0), 0L);
-        } else {
-            newBucketID = lastBucketID.nextBucketID();
-            newBucketMD = new BucketMetadata(newBucketID, newValueTimestamp, numValuesSoFar);
-        }
-
-
-        long N = numValuesSoFar + 1;
         Map<BucketID, TreeSet<BucketID>> merges = new HashMap<>();
         // TODO: handle null findMergeCount
         while (!mergeCounts.isEmpty() && mergeCounts.getMinimum().getKey() <= N) {
@@ -178,22 +166,33 @@ public class CountBasedWBMH implements WindowingMechanism {
                     ", windowSet.size = " + windowStartMarkers.size());
         }
 
-        BucketInfo newBucketInfo = new BucketInfo(lastBucketID, newBucketID, null, newBucketMD.cStart, newBucketMD.cStart);
-        // FIXME: assumes first window size is 1
+        /*BucketID newBucketID; // id of potential new bucket of size 1 holding the new (t, v) pair
+        BucketMetadata newBucketMD;
+        if (lastBucketID == null) {
+            newBucketID = new BucketID(0);
+            newBucketMD = new BucketMetadata(newBucketID, new Timestamp(0), 0L);
+        } else {
+            newBucketID = lastBucketID.nextBucketID();
+            newBucketMD = new BucketMetadata(newBucketID, newValueTimestamp, N-1);
+        }*/
+
+        //BucketInfo newBucketInfo = new BucketInfo(lastBucketID, newBucketID, null, newBucketMD.cStart, newBucketMD.cStart);
+        // FIXME: assumes first window size is 1, meaning we will always create a new bucket of size 1
+        BucketID newBucketID = lastBucketID != null ? lastBucketID.nextBucketID() : new BucketID(0);
+        // semantics decision: we start streams at T = 0, as opposed to T = timestamp of first ever inserted element
+        Timestamp newBucketTStart = lastBucketID != null ? newValueTimestamp : new Timestamp(0);
+        bucketsInfo.put(newBucketID, new BucketInfo(lastBucketID, newBucketID, null, N-1, N-1));
         if (lastBucketID != null) {
             BucketInfo b_m1 = bucketsInfo.get(lastBucketID);
             b_m1.next = newBucketID;
-            b_m1.heapEntry = mergeCounts.insert(findMergeCount(N, b_m1.Cl, newBucketInfo.Cr), lastBucketID);
+            b_m1.heapEntry = mergeCounts.insert(findMergeCount(N, b_m1.Cl, N-1), lastBucketID);
         }
         lastBucketID = newBucketID;
-        bucketsInfo.put(newBucketID, newBucketInfo);
 
-        List<SummaryStore.BucketModification> bucketModifications = new ArrayList<>();
-        for (Map.Entry<BucketID, TreeSet<BucketID>> merge: merges.entrySet()) {
-            bucketModifications.add(new SummaryStore.BucketMergeModification(
-                    merge.getKey(), new ArrayList<>(merge.getValue())));
-        }
-        bucketModifications.add(new SummaryStore.BucketCreateModification(newBucketMD));
+        List<SummaryStore.BucketModification> bucketModifications = merges.entrySet().stream().map(
+                merge -> new SummaryStore.BucketMergeModification(merge.getKey(), new ArrayList<>(merge.getValue()))).
+                collect(Collectors.toList());
+        bucketModifications.add(new SummaryStore.BucketCreateModification(newBucketID, newBucketTStart, N-1));
         return bucketModifications;
     }
 
