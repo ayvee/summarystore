@@ -141,8 +141,8 @@ public class CountBasedWBMH implements WindowingMechanism {
 
             // update heap keys: delete b_{i+1}, increase b_{i-1} and b_{i}. also delete b_{i+1} from bucketsInfo and mergeCounts
             if (b_im1 != null) {
-                mergeCounts.delete(b_im1.heapEntry);
-                b_im1.heapEntry = mergeCounts.insert(findMergeCount(N, b_im1.Cl, b_i.Cr), b_im1.curr);
+                if (b_im1.heapEntry != null) mergeCounts.delete(b_im1.heapEntry);
+                computeNextMerge(b_im1, b_i);
             }
             if (b_ip1.heapEntry != null) {
                 mergeCounts.delete(b_ip1.heapEntry);
@@ -153,7 +153,7 @@ public class CountBasedWBMH implements WindowingMechanism {
             }
             b_ip1 = bucketsInfo.getOrDefault(b_i.next, null);
             if (b_ip1 != null) {
-                b_i.heapEntry = mergeCounts.insert(findMergeCount(N, b_i.Cl, b_ip1.Cr), b_i.curr);
+                computeNextMerge(b_i, b_ip1);
             }
         }
 
@@ -181,11 +181,12 @@ public class CountBasedWBMH implements WindowingMechanism {
         BucketID newBucketID = lastBucketID != null ? lastBucketID.nextBucketID() : new BucketID(0);
         // semantics decision: we start streams at T = 0, as opposed to T = timestamp of first ever inserted element
         Timestamp newBucketTStart = lastBucketID != null ? newValueTimestamp : new Timestamp(0);
-        bucketsInfo.put(newBucketID, new BucketInfo(lastBucketID, newBucketID, null, N-1, N-1));
+        BucketInfo newBucketInfo = new BucketInfo(lastBucketID, newBucketID, null, N-1, N-1);
+        bucketsInfo.put(newBucketID, newBucketInfo);
         if (lastBucketID != null) {
             BucketInfo b_m1 = bucketsInfo.get(lastBucketID);
             b_m1.next = newBucketID;
-            b_m1.heapEntry = mergeCounts.insert(findMergeCount(N, b_m1.Cl, N-1), lastBucketID);
+            computeNextMerge(b_m1, newBucketInfo);
         }
         lastBucketID = newBucketID;
 
@@ -194,6 +195,15 @@ public class CountBasedWBMH implements WindowingMechanism {
                 collect(Collectors.toList());
         bucketModifications.add(new SummaryStore.BucketCreateModification(newBucketID, newBucketTStart, N-1));
         return bucketModifications;
+    }
+
+    private void computeNextMerge(BucketInfo b_i, BucketInfo b_ip1) {
+        Long mergeAt = findMergeCount(N, b_i.Cl, b_ip1.Cr);
+        if (mergeAt != null) {
+            b_i.heapEntry = mergeCounts.insert(mergeAt, b_i.curr);
+        } else {
+            b_i.heapEntry = null;
+        }
     }
 
     private void addMerge(Map<BucketID, TreeSet<BucketID>> merges, BucketID dst, BucketID src) {

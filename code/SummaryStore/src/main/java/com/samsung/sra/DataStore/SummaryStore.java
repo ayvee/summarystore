@@ -326,7 +326,8 @@ public class SummaryStore implements DataStore {
             // FIXME: add a deleteStream/resetDatabase operation
             Runtime.getRuntime().exec(new String[]{"rm", "-rf", storeLoc}).waitFor();
             //store = new SummaryStore(storeLoc, new ExponentialWBMHWindowingMechanism(3));
-            store = new SummaryStore(storeLoc, new CountBasedWBMH(new ExponentialWindowLengths(2)));
+            //store = new SummaryStore(storeLoc, new CountBasedWBMH(new ExponentialWindowLengths(2)));
+            store = new SummaryStore(storeLoc, new CountBasedWBMH(new PolynomialWindowLengths(4, 0)));
             StreamID streamID = new StreamID(0);
             store.registerStream(streamID);
             for (long i = 0; i < 10; ++i) {
