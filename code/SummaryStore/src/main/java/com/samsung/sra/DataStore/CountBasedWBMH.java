@@ -166,17 +166,6 @@ public class CountBasedWBMH implements WindowingMechanism {
                     ", windowSet.size = " + windowStartMarkers.size());
         }
 
-        /*BucketID newBucketID; // id of potential new bucket of size 1 holding the new (t, v) pair
-        BucketMetadata newBucketMD;
-        if (lastBucketID == null) {
-            newBucketID = new BucketID(0);
-            newBucketMD = new BucketMetadata(newBucketID, new Timestamp(0), 0L);
-        } else {
-            newBucketID = lastBucketID.nextBucketID();
-            newBucketMD = new BucketMetadata(newBucketID, newValueTimestamp, N-1);
-        }*/
-
-        //BucketInfo newBucketInfo = new BucketInfo(lastBucketID, newBucketID, null, newBucketMD.cStart, newBucketMD.cStart);
         // FIXME: assumes first window size is 1, meaning we will always create a new bucket of size 1
         BucketID newBucketID = lastBucketID != null ? lastBucketID.nextBucketID() : new BucketID(0);
         // semantics decision: we start streams at T = 0, as opposed to T = timestamp of first ever inserted element
