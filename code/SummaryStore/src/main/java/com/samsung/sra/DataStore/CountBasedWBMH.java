@@ -33,6 +33,7 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     private BucketID lastBucketID = null;
     private long N = 0;
+    private final long lengthOfFirstWindow;
 
     private final Map<BucketID, BucketInfo> bucketsInfo = new HashMap<>();
     /* Priority queue, mapping each BucketID b_i to the time at which b_{i+1} will be
@@ -46,6 +47,7 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     public CountBasedWBMH(WindowLengths windowLengths) {
         this.windowLengths = windowLengths;
+        addWindow((lengthOfFirstWindow = windowLengths.nextWindowLength()));
     }
 
     // maps window length to the start marker of the first window of that length
@@ -123,7 +125,6 @@ public class CountBasedWBMH implements WindowingMechanism {
         ++N;
 
         Map<BucketID, TreeSet<BucketID>> merges = new HashMap<>();
-        // TODO: handle null findMergeCount
         while (!mergeCounts.isEmpty() && mergeCounts.getMinimum().getKey() <= N) {
             Heap.Entry<Long, BucketID> entry = mergeCounts.extractMinimum();
             BucketInfo b_i = bucketsInfo.get(entry.getValue());
@@ -166,23 +167,36 @@ public class CountBasedWBMH implements WindowingMechanism {
                     ", windowSet.size = " + windowStartMarkers.size());
         }
 
-        // FIXME: assumes first window size is 1, meaning we will always create a new bucket of size 1
-        BucketID newBucketID = lastBucketID != null ? lastBucketID.nextBucketID() : new BucketID(0);
-        // semantics decision: we start streams at T = 0, as opposed to T = timestamp of first ever inserted element
-        Timestamp newBucketTStart = lastBucketID != null ? newValueTimestamp : new Timestamp(0);
-        BucketInfo newBucketInfo = new BucketInfo(lastBucketID, newBucketID, null, N-1, N-1);
-        bucketsInfo.put(newBucketID, newBucketInfo);
+        boolean createNewBucketForLatestElement = true;
+        SummaryStore.BucketModification newBucketCreateOperation = null;
         if (lastBucketID != null) {
             BucketInfo b_m1 = bucketsInfo.get(lastBucketID);
-            b_m1.next = newBucketID;
-            computeNextMerge(b_m1, newBucketInfo);
+            createNewBucketForLatestElement = b_m1.Cr - b_m1.Cl + 1 >= lengthOfFirstWindow;
         }
-        lastBucketID = newBucketID;
+        if (createNewBucketForLatestElement) {
+            BucketID newBucketID = lastBucketID != null ? lastBucketID.nextBucketID() : new BucketID(0);
+            // semantics decision: we start streams at T = 0, as opposed to T = timestamp of first ever inserted element
+            Timestamp newBucketTStart = lastBucketID != null ? newValueTimestamp : new Timestamp(0);
+            BucketInfo newBucketInfo = new BucketInfo(lastBucketID, newBucketID, null, N - 1, N - 1);
+            bucketsInfo.put(newBucketID, newBucketInfo);
+            if (lastBucketID != null) {
+                BucketInfo b_m1 = bucketsInfo.get(lastBucketID);
+                b_m1.next = newBucketID;
+                computeNextMerge(b_m1, newBucketInfo);
+            }
+            newBucketCreateOperation = new SummaryStore.BucketCreateModification(newBucketID, newBucketTStart, N - 1);
+            lastBucketID = newBucketID;
+        } else {
+            assert lastBucketID != null;
+            bucketsInfo.get(lastBucketID).Cr = N-1;
+        }
 
         List<SummaryStore.BucketModification> bucketModifications = merges.entrySet().stream().map(
                 merge -> new SummaryStore.BucketMergeModification(merge.getKey(), new ArrayList<>(merge.getValue()))).
                 collect(Collectors.toList());
-        bucketModifications.add(new SummaryStore.BucketCreateModification(newBucketID, newBucketTStart, N-1));
+        if (createNewBucketForLatestElement) {
+            bucketModifications.add(newBucketCreateOperation);
+        }
         return bucketModifications;
     }
 
