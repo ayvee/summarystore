@@ -16,10 +16,13 @@ public interface WindowingMechanism extends Serializable {
      * nextBucketID() to assign IDs to them: this will maintain the invariant that recent buckets
      * always have larger BucketIDs than older buckets.
      *
-     * The implementor is responsible for maintaining any internal state necessary to figure out
-     * what merges are needed, e.g. start and end timestamps for each existing bucket.
-     * (Code is written this way because different windowing mechanisms can want very different
-     * data structures to maintain this state, e.g. compare CountBasedWBMH and SlowCountBasedWBMH)
+     * Implementors are responsible for maintaining any internal indexes/state necessary to figure
+     * out what merges are needed, e.g. start and end timestamps for each existing bucket. (Code
+     * is written this way because different windowing mechanisms can want very different data
+     * structures to maintain this state, e.g. compare CountBasedWBMH and SlowCountBasedWBMH).
+     *
+     * Implementors do not need to worry about concurrency, all writes will be serialized before
+     * the function is invoked.
      *
      * SummaryStore will first process all modifications returned by this function, then insert
      * (newTimestamp, newValue) into the appropriate bucket

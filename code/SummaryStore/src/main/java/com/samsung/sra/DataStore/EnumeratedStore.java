@@ -55,13 +55,12 @@ public class EnumeratedStore implements DataStore {
         RocksDB.loadLibrary();
     }
 
-    public void registerStream(StreamID streamID) throws StreamException, RocksDBException {
+    public void registerStream(StreamID streamID, WindowingMechanism windowingMechanism) throws StreamException, RocksDBException {
         synchronized (streamsInfo) {
             if (streamsInfo.containsKey(streamID)) {
                 throw new StreamException("attempting to register stream " + streamID + " twice");
             } else {
                 streamsInfo.put(streamID, new StreamInfo(streamID));
-                persistStreamsInfo();
             }
         }
     }
@@ -152,13 +151,11 @@ public class EnumeratedStore implements DataStore {
             ++streamInfo.numValues;
             rocksPut(streamID, ts, (Long)value);
         }
-        synchronized (streamsInfo) {
-            persistStreamsInfo();
-        }
     }
 
-    public void close() {
+    public void close() throws RocksDBException {
         // FIXME: should wait for any processing appends to terminate first
+        persistStreamsInfo();
         if (rocksDB != null) {
             rocksDB.close();
         }
@@ -182,7 +179,7 @@ public class EnumeratedStore implements DataStore {
             Runtime.getRuntime().exec(new String[]{"rm", "-rf", storeLoc}).waitFor();
             store = new EnumeratedStore(storeLoc);
             StreamID streamID = new StreamID(0);
-            store.registerStream(streamID);
+            store.registerStream(streamID, null);
             for (long i = 0; i < 10; ++i) {
                 store.append(streamID, new Timestamp(i), i + 1);
             }
@@ -194,7 +191,11 @@ public class EnumeratedStore implements DataStore {
             e.printStackTrace();
         } finally {
             if (store != null) {
-                store.close();
+                try {
+                    store.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }
     }

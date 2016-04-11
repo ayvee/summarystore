@@ -9,15 +9,14 @@ import org.rocksdb.RocksDBException;
  */
 public interface DataStore {
     // TODO: allow configuring the choice of bucket data structure for each stream (set at registration time)
-    void registerStream(StreamID streamID) throws StreamException, RocksDBException;
+    void registerStream(StreamID streamID, WindowingMechanism windowingMechanism) throws StreamException, RocksDBException;
 
-    Object query(StreamID streamID,
-                 Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams)
+    Object query(StreamID streamID, Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams)
             throws StreamException, QueryException, RocksDBException;
 
     void append(StreamID streamID, Timestamp ts, Object value) throws StreamException, RocksDBException;
 
-    void close();
+    void close() throws RocksDBException;
 
     long getStoreSizeInBytes();
 

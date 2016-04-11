@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 /**
  * Newer implementation of WBMH that maintains a priority queue of pending bucket
  * merge operations. Faster than the old implementation, but potentially uses more
- * memory, because it can end up building out the windowing very far into the future.
+ * memory, because it can end up building the windowing out very far into the future.
  * Can be controlled with care, which I've taken some of, but may need more analysis.
  */
 public class CountBasedWBMH implements WindowingMechanism {
@@ -33,7 +33,7 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     private BucketID lastBucketID = null;
     private long N = 0;
-    private final long lengthOfFirstWindow;
+    private final long firstWindowLength; // length of the first window (the one holding the newest element)
 
     private final Map<BucketID, BucketInfo> bucketsInfo = new HashMap<>();
     /* Priority queue, mapping each BucketID b_i to the time at which b_{i+1} will be
@@ -47,7 +47,7 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     public CountBasedWBMH(WindowLengths windowLengths) {
         this.windowLengths = windowLengths;
-        addWindow((lengthOfFirstWindow = windowLengths.nextWindowLength()));
+        addWindow((firstWindowLength = windowLengths.nextWindowLength()));
     }
 
     // maps window length to the start marker of the first window of that length
@@ -55,14 +55,14 @@ public class CountBasedWBMH implements WindowingMechanism {
     // all window start markers in an ordered set
     private final TreeSet<Long> windowStartMarkers = new TreeSet<>();
 
-    private long lastWindowStart = 0L, lastLength = 0L;
+    private long lastWindowStart = 0L, lastWindowLength = 0L;
 
     private void addWindow(long length) {
-        assert length >= lastLength && length > 0;
-        lastWindowStart += lastLength;
-        if (length > lastLength) firstWindowOfLength.put(length, lastWindowStart);
+        assert length >= lastWindowLength && length > 0;
+        lastWindowStart += lastWindowLength;
+        if (length > lastWindowLength) firstWindowOfLength.put(length, lastWindowStart);
         windowStartMarkers.add(lastWindowStart);
-        lastLength = length;
+        lastWindowLength = length;
     }
 
     /**
@@ -70,7 +70,7 @@ public class CountBasedWBMH implements WindowingMechanism {
      * if the target length isn't achievable
      */
     private boolean addWindowsUntilLength(long targetLength) {
-        if (targetLength <= lastLength) {
+        if (targetLength <= lastWindowLength) {
             // already added, nothing to do
             return true;
         } else {
@@ -104,8 +104,8 @@ public class CountBasedWBMH implements WindowingMechanism {
             // l' == firstMarker, where l' := N'-1 - Cr
             return firstMarker + Cr + 1;
         } else {
-            // we've already hit the target window length, so [l, r] are either
-            // already in the same window or will be once they move into the next window
+            // we've already hit the target window length, so [l, r] is either
+            // already in the same window or will be once we move into the next window
             addWindowsPastMarker(l);
             long currWindowL = windowStartMarkers.floor(l), currWindowR = windowStartMarkers.higher(l) - 1;
             if (r <= currWindowR) {
@@ -119,6 +119,18 @@ public class CountBasedWBMH implements WindowingMechanism {
         }
     }
 
+    /**
+     * Update the priority queue's entry for the merge pair (b_i, b_ip1 = b_{i+1})
+     * */
+    private void updateMergeCountFor(BucketInfo b_i, BucketInfo b_ip1) {
+        Long mergeAt = findMergeCount(N, b_i.Cl, b_ip1.Cr);
+        if (mergeAt != null) {
+            b_i.heapEntry = mergeCounts.insert(mergeAt, b_i.curr);
+        } else {
+            b_i.heapEntry = null;
+        }
+    }
+
     @Override
     public List<SummaryStore.BucketModification> computeModifications(
             Timestamp newValueTimestamp, Object newValue) {
@@ -128,7 +140,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         while (!mergeCounts.isEmpty() && mergeCounts.getMinimum().getKey() <= N) {
             Heap.Entry<Long, BucketID> entry = mergeCounts.extractMinimum();
             BucketInfo b_i = bucketsInfo.get(entry.getValue());
-            BucketInfo b_im1 = bucketsInfo.get(b_i.prev), b_ip1 = bucketsInfo.get(b_i.next);
+            BucketInfo b_im1 = bucketsInfo.getOrDefault(b_i.prev, null), b_ip1 = bucketsInfo.get(b_i.next);
 
             addMerge(merges, b_i.curr, b_i.next);
             // update linked list pointers: b_i's next, b_{i+2}'s prev
@@ -143,7 +155,7 @@ public class CountBasedWBMH implements WindowingMechanism {
             // update heap keys: delete b_{i+1}, increase b_{i-1} and b_{i}. also delete b_{i+1} from bucketsInfo and mergeCounts
             if (b_im1 != null) {
                 if (b_im1.heapEntry != null) mergeCounts.delete(b_im1.heapEntry);
-                computeNextMerge(b_im1, b_i);
+                updateMergeCountFor(b_im1, b_i);
             }
             if (b_ip1.heapEntry != null) {
                 mergeCounts.delete(b_ip1.heapEntry);
@@ -152,9 +164,9 @@ public class CountBasedWBMH implements WindowingMechanism {
             if (lastBucketID == b_ip1.curr) {
                 lastBucketID = b_i.curr;
             }
-            b_ip1 = bucketsInfo.getOrDefault(b_i.next, null);
+            b_ip1 = bucketsInfo.getOrDefault(b_i.next, null); // the bucket formerly known as b_{i+2}
             if (b_ip1 != null) {
-                computeNextMerge(b_i, b_ip1);
+                updateMergeCountFor(b_i, b_ip1);
             }
         }
 
@@ -171,7 +183,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         SummaryStore.BucketModification newBucketCreateOperation = null;
         if (lastBucketID != null) {
             BucketInfo b_m1 = bucketsInfo.get(lastBucketID);
-            createNewBucketForLatestElement = b_m1.Cr - b_m1.Cl + 1 >= lengthOfFirstWindow;
+            createNewBucketForLatestElement = b_m1.Cr - b_m1.Cl + 1 >= firstWindowLength;
         }
         if (createNewBucketForLatestElement) {
             BucketID newBucketID = lastBucketID != null ? lastBucketID.nextBucketID() : new BucketID(0);
@@ -182,7 +194,7 @@ public class CountBasedWBMH implements WindowingMechanism {
             if (lastBucketID != null) {
                 BucketInfo b_m1 = bucketsInfo.get(lastBucketID);
                 b_m1.next = newBucketID;
-                computeNextMerge(b_m1, newBucketInfo);
+                updateMergeCountFor(b_m1, newBucketInfo);
             }
             newBucketCreateOperation = new SummaryStore.BucketCreateModification(newBucketID, newBucketTStart, N - 1);
             lastBucketID = newBucketID;
@@ -200,15 +212,6 @@ public class CountBasedWBMH implements WindowingMechanism {
         return bucketModifications;
     }
 
-    private void computeNextMerge(BucketInfo b_i, BucketInfo b_ip1) {
-        Long mergeAt = findMergeCount(N, b_i.Cl, b_ip1.Cr);
-        if (mergeAt != null) {
-            b_i.heapEntry = mergeCounts.insert(mergeAt, b_i.curr);
-        } else {
-            b_i.heapEntry = null;
-        }
-    }
-
     private void addMerge(Map<BucketID, TreeSet<BucketID>> merges, BucketID dst, BucketID src) {
         if (!merges.containsKey(dst)) {
             merges.put(dst, new TreeSet<>());
@@ -222,4 +225,5 @@ public class CountBasedWBMH implements WindowingMechanism {
                 merges.get(dst).add(bucketID);
             }
         }
-    }}
+    }
+}
