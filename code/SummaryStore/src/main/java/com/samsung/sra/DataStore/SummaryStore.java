@@ -179,7 +179,7 @@ public class SummaryStore implements DataStore {
             Bucket target = store.bucketStore.getBucket(streamInfo.streamID, mergee, false);
             List<Bucket> sources = new ArrayList<>();
             for (BucketID srcID: merges) {
-                Bucket src = store.bucketStore.getBucket(streamInfo.streamID, srcID, false);
+                Bucket src = store.bucketStore.getBucket(streamInfo.streamID, srcID, true);
                 sources.add(src);
                 streamInfo.temporalIndex.remove(src.tStart);
             }

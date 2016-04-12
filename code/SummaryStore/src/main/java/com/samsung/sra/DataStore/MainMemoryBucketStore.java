@@ -10,7 +10,9 @@ public class MainMemoryBucketStore implements BucketStore {
 
     @Override
     public Bucket getBucket(StreamID streamID, BucketID bucketID, boolean delete) throws RocksDBException {
-        return buckets.get(streamID).get(bucketID);
+        return delete ?
+                buckets.get(streamID).remove(bucketID) :
+                buckets.get(streamID).get(bucketID);
     }
 
     @Override

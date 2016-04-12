@@ -212,6 +212,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         return bucketModifications;
     }
 
+    // FIXME: optimize.  Profiling shows this is as expensive as findMergeCount
     private void addMerge(Map<BucketID, TreeSet<BucketID>> merges, BucketID dst, BucketID src) {
         if (!merges.containsKey(dst)) {
             merges.put(dst, new TreeSet<>());

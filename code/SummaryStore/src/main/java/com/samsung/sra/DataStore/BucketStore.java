@@ -2,12 +2,10 @@ package com.samsung.sra.DataStore;
 
 import org.rocksdb.RocksDBException;
 
-import java.util.HashMap;
-
 /**
- * Key-value store holding the buckets as values. Two implementations:
+ * Key-value store holding all the buckets. Two implementations:
  *  RocksDBBucketStore
- *  MainMemoryStore
+ *  MainMemoryBucketStore
  */
 interface BucketStore {
     Bucket getBucket(StreamID streamID, BucketID bucketID, boolean delete) throws RocksDBException;
