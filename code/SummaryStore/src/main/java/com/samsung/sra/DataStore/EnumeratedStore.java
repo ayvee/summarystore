@@ -171,6 +171,30 @@ public class EnumeratedStore implements DataStore {
         return ret;
     }
 
+    @Override
+    public long getStreamAge(StreamID streamID) throws StreamException {
+        StreamInfo streamInfo;
+        synchronized (streamsInfo) {
+            streamInfo = streamsInfo.get(streamID);
+            if (streamInfo == null) {
+                throw new StreamException("attempting to get age of unknown stream " + streamID);
+            }
+        }
+        return streamInfo.lastValueTimestamp.value;
+    }
+
+    @Override
+    public long getStreamLength(StreamID streamID) throws StreamException {
+        StreamInfo streamInfo;
+        synchronized (streamsInfo) {
+            streamInfo = streamsInfo.get(streamID);
+            if (streamInfo == null) {
+                throw new StreamException("attempting to get age of unknown stream " + streamID);
+            }
+        }
+        return streamInfo.numValues;
+    }
+
     public static void main(String[] args) {
         DataStore store = null;
         try {

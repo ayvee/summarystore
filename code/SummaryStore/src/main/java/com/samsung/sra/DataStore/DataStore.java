@@ -7,7 +7,7 @@ import org.rocksdb.RocksDBException;
  *   SummaryStore: time-decayed storage
  *   EnumeratedStore: stores all values explicitly enumerated
  */
-public interface DataStore {
+public interface DataStore extends AutoCloseable {
     // TODO: allow configuring the choice of bucket data structure for each stream (set at registration time)
     void registerStream(StreamID streamID, WindowingMechanism windowingMechanism) throws StreamException, RocksDBException;
 
@@ -16,16 +16,12 @@ public interface DataStore {
 
     void append(StreamID streamID, Timestamp ts, Object value) throws StreamException, RocksDBException;
 
+    @Override
     void close() throws RocksDBException;
 
     long getStoreSizeInBytes();
 
-    /** desired functions
-     *
-     *
-     * long getStreamAgeInSeconds(StreamID streamID);
-     *
-     * long getStreamLength(StreamID streamID);
-     *
-     */
+    long getStreamAge(StreamID streamID) throws StreamException;
+
+    long getStreamLength(StreamID streamID) throws StreamException;
 }

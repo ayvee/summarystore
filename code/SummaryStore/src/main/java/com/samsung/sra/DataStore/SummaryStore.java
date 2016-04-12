@@ -18,9 +18,9 @@ public class SummaryStore implements DataStore {
     private final BucketStore bucketStore;
 
     /**
-     * The buckets proper are stored in RocksDB. We maintain additional in-memory indexes and
+     * The buckets proper are stored in bucketStore. We maintain additional in-memory indexes and
      * metadata in StreamInfo to help reads and writes. The append operation keeps StreamInfo
-     * consistent with the base data on RocksDB. */
+     * consistent with the base data in bucketStore. */
      static class StreamInfo implements Serializable {
         final StreamID streamID;
         // Object that readers and writers respectively will use "synchronized" with (acts as a mutex)
@@ -30,14 +30,14 @@ public class SummaryStore implements DataStore {
         // What was the timestamp of the latest value appended?
         Timestamp lastValueTimestamp = null;
 
+        /* Read index, maps bucket.tStart -> bucketID. Used to answer queries */
+        final TreeMap<Timestamp, BucketID> temporalIndex = new TreeMap<>();
+
         /* WindowingMechanism object. Maintains write indexes internally, which will be serialized
          * along with the rest of StreamInfo when persistStreamsInfo() is called */
         final WindowingMechanism windowingMechanism;
 
         // TODO: register an object to track what data structure we will use for each bucket
-
-        /* Read index, maps bucket.tStart -> bucketID. Used to answer queries */
-        final TreeMap<Timestamp, BucketID> temporalIndex = new TreeMap<>();
 
         StreamInfo(StreamID streamID, WindowingMechanism windowingMechanism) {
             this.streamID = streamID;
@@ -106,7 +106,7 @@ public class SummaryStore implements DataStore {
             List<Bucket> rest = new ArrayList<>();
             // TODO: RocksDB multiget
             for (BucketID bucketID: spanningBucketsIDs.values()) {
-                Bucket bucket = bucketStore.getBucket(streamID, bucketID, false);
+                Bucket bucket = bucketStore.getBucket(streamID, bucketID);
                 if (first == null) {
                     first = bucket;
                 } else {
@@ -176,7 +176,7 @@ public class SummaryStore implements DataStore {
             if (merges == null || merges.isEmpty()) {
                 return;
             }
-            Bucket target = store.bucketStore.getBucket(streamInfo.streamID, mergee, false);
+            Bucket target = store.bucketStore.getBucket(streamInfo.streamID, mergee);
             List<Bucket> sources = new ArrayList<>();
             for (BucketID srcID: merges) {
                 Bucket src = store.bucketStore.getBucket(streamInfo.streamID, srcID, true);
@@ -229,7 +229,7 @@ public class SummaryStore implements DataStore {
     private void processInsert(StreamInfo streamInfo, Timestamp ts, Object value) throws RocksDBException {
         BucketID destinationID = streamInfo.temporalIndex.floorEntry(ts).getValue();
         assert destinationID != null;
-        Bucket bucket = bucketStore.getBucket(streamInfo.streamID, destinationID, false);
+        Bucket bucket = bucketStore.getBucket(streamInfo.streamID, destinationID);
         bucket.insertValue(ts, value);
         //logger.log(Level.FINEST, "Inserted value <" + ts + ", " + value + "> into bucket " + bucket);
         bucketStore.putBucket(streamInfo.streamID, destinationID, bucket);
@@ -241,7 +241,7 @@ public class SummaryStore implements DataStore {
         StreamInfo streamInfo = streamsInfo.get(streamID);
         System.out.println("Stream " + streamID + " with " + streamInfo.numValues + " elements:");
         for (BucketID bucketID: streamInfo.temporalIndex.values()) {
-            System.out.println("\t" + bucketStore.getBucket(streamID, bucketID, false));
+            System.out.println("\t" + bucketStore.getBucket(streamID, bucketID));
         }
     }
 
@@ -260,6 +260,30 @@ public class SummaryStore implements DataStore {
         return ret;
     }
 
+    @Override
+    public long getStreamAge(StreamID streamID) throws StreamException {
+        StreamInfo streamInfo;
+        synchronized (streamsInfo) {
+            streamInfo = streamsInfo.get(streamID);
+            if (streamInfo == null) {
+                throw new StreamException("attempting to get age of unknown stream " + streamID);
+            }
+        }
+        return streamInfo.lastValueTimestamp.value;
+    }
+
+    @Override
+    public long getStreamLength(StreamID streamID) throws StreamException {
+        StreamInfo streamInfo;
+        synchronized (streamsInfo) {
+            streamInfo = streamsInfo.get(streamID);
+            if (streamInfo == null) {
+                throw new StreamException("attempting to get age of unknown stream " + streamID);
+            }
+        }
+        return streamInfo.numValues;
+    }
+
     public static void main(String[] args) {
         SummaryStore store = null;
         try {
@@ -268,8 +292,7 @@ public class SummaryStore implements DataStore {
             Runtime.getRuntime().exec(new String[]{"rm", "-rf", storeLoc}).waitFor();
             //store = new SummaryStore(storeLoc, new ExponentialWBMHWindowingMechanism(3));
             //store = new SummaryStore(storeLoc, new CountBasedWBMH(new ExponentialWindowLengths(2)));
-            //store = new SummaryStore(new RocksDBBucketStore(storeLoc));
-            store = new SummaryStore(new MainMemoryBucketStore());
+            store = new SummaryStore(new RocksDBBucketStore(storeLoc));
             StreamID streamID = new StreamID(0);
             store.registerStream(streamID, new CountBasedWBMH(new PolynomialWindowLengths(4, 0)));
             for (long i = 0; i < 10; ++i) {

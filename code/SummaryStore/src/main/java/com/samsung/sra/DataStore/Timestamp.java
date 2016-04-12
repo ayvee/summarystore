@@ -4,7 +4,7 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 
 public class Timestamp implements Comparable<Timestamp>, Serializable {
-    private final long value;
+    final long value;
 
     public Timestamp(long value) {
         this.value = value;
