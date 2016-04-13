@@ -169,14 +169,14 @@ public class CountBasedWBMH implements WindowingMechanism {
             }
         }
 
-        if (N % 100_000 == 0) {
+        /*if (N % 100_000 == 0) {
             System.out.println(
                     "[" + LocalDateTime.now() + "] N = " + N +
                     ": mergeCounts.size = " + mergeCounts.getSize() +
                     ", bucketsInfo.size = " + bucketsInfo.size() +
                     ", windowMap.size = " + firstWindowOfLength.size() +
                     ", windowSet.size = " + windowStartMarkers.size());
-        }
+        }*/
 
         boolean createNewBucketForLatestElement = true;
         SummaryStore.BucketModification newBucketCreateOperation = null;

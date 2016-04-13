@@ -4,6 +4,8 @@ import org.rocksdb.RocksDBException;
 
 import java.io.Serializable;
 import java.util.*;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -23,12 +25,12 @@ public class SummaryStore implements DataStore {
      * consistent with the base data in bucketStore. */
      static class StreamInfo implements Serializable {
         final StreamID streamID;
-        // Object that readers and writers respectively will use "synchronized" with (acts as a mutex)
-        final Object readLock = new Object(), writeLock = new Object();
         // How many values have we inserted so far?
         long numValues = 0;
         // What was the timestamp of the latest value appended?
         Timestamp lastValueTimestamp = null;
+
+        final ReadWriteLock lock = new ReentrantReadWriteLock();
 
         /* Read index, maps bucket.tStart -> bucketID. Used to answer queries */
         final TreeMap<Timestamp, BucketID> temporalIndex = new TreeMap<>();
@@ -36,8 +38,6 @@ public class SummaryStore implements DataStore {
         /* WindowingMechanism object. Maintains write indexes internally, which will be serialized
          * along with the rest of StreamInfo when persistStreamsInfo() is called */
         final WindowingMechanism windowingMechanism;
-
-        // TODO: register an object to track what data structure we will use for each bucket
 
         StreamInfo(StreamID streamID, WindowingMechanism windowingMechanism) {
             this.streamID = streamID;
@@ -89,7 +89,8 @@ public class SummaryStore implements DataStore {
                 streamInfo = streamsInfo.get(streamID);
             }
         }
-        synchronized (streamInfo.readLock) {
+        streamInfo.lock.readLock().lock();
+        try {
             if (t1.compareTo(streamInfo.lastValueTimestamp) > 0) {
                 throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
             }
@@ -115,6 +116,8 @@ public class SummaryStore implements DataStore {
             }
             assert first != null;
             return first.multiQuery(rest, t0, t1, queryType, queryParams);
+        } finally {
+            streamInfo.lock.readLock().unlock();
         }
     }
 
@@ -128,7 +131,8 @@ public class SummaryStore implements DataStore {
             }
         }
 
-        synchronized (streamInfo.writeLock) {
+        streamInfo.lock.writeLock().lock();
+        try {
             /* All writes will be serialized at this point. Reads are still allowed. We will lock
              readers below once we've done the bucket merge math and are ready to start modifying
              the data structure */
@@ -138,7 +142,8 @@ public class SummaryStore implements DataStore {
             List<BucketModification> bucketMods = streamInfo.windowingMechanism.computeModifications(ts, value);
 
             // we've done the bucket modification math: now lock all readers and process bucket changes
-            synchronized (streamInfo.readLock) {
+            streamInfo.lock.readLock().lock();
+            try {
                 // 1. Update set of buckets
                 for (BucketModification mod : bucketMods) {
                     //logger.log(Level.FINEST, "Executing bucket modification " + mod);
@@ -146,7 +151,11 @@ public class SummaryStore implements DataStore {
                 }
                 // 2. Insert the new value into the appropriate bucket
                 processInsert(streamInfo, ts, value);
+            } finally {
+                streamInfo.lock.readLock().unlock();
             }
+        } finally {
+            streamInfo.lock.writeLock().unlock();
         }
     }
 

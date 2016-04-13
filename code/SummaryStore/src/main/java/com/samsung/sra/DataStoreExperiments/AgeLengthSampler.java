@@ -8,12 +8,9 @@ import java.io.*;
 
 import static org.apache.commons.math3.util.FastMath.*;
 
-/**
- * Created by n.agrawal1 on 3/30/16.
- */
 public class AgeLengthSampler {
-    private static class Range<T> {
-        final T min, max;
+    public static class Range<T> {
+        public final T min, max;
 
         Range(T min, T max) {
             assert min != null && max != null;
@@ -27,20 +24,20 @@ public class AgeLengthSampler {
         }
     }
 
-    private static class AgeLengthClass {
-        final Range<Long> ageRange, lengthRange;
+    public static class AgeLengthClass {
+        public final Range<Long> ageRange, lengthRange;
 
-        AgeLengthClass(Range<Long> ageRange, Range<Long> lengthRange) {
+        public AgeLengthClass(Range<Long> ageRange, Range<Long> lengthRange) {
             assert ageRange != null && lengthRange != null;
             this.ageRange = ageRange;
             this.lengthRange = lengthRange;
         }
 
-        Pair<Double> sample(Random random) {
+        public Pair<Long> sample(Random random) {
             double aRand = random.nextDouble(), lRand = random.nextDouble();
-            return new Pair<Double>(
-                    (1 - aRand) * ageRange.min + aRand * ageRange.max,
-                    (1 - lRand) * lengthRange.min + lRand * lengthRange.max);
+            return new Pair<>(
+                    (long)(ageRange.min + aRand * (ageRange.max - ageRange.min)),
+                    (long)(lengthRange.min + lRand * (lengthRange.max - lengthRange.min)));
         }
 
         @Override
@@ -52,7 +49,7 @@ public class AgeLengthSampler {
     private Random random = new Random();
     private final TreeMap<Double, AgeLengthClass> cdf = new TreeMap<>();
 
-    AgeLengthSampler(List<AgeLengthClass> classes, List<Double> weights) {
+    public AgeLengthSampler(List<AgeLengthClass> classes, List<Double> weights) {
         double normfact = 0d;
         for (Double weight: weights) {
             normfact += weight;
@@ -62,20 +59,23 @@ public class AgeLengthSampler {
             AgeLengthClass cls = classes.get(i);
             double weight = weights.get(i);
             cdf.put(cumsum, cls);
-            System.out.println("icdf(" + cumsum + ") = "+ cls);
             cumsum += weight / normfact;
         }
     }
 
-    AgeLengthSampler(long streamAge, long streamLength, int nAgeClasses, int nLengthClasses, List<Double> weights) throws StreamException {
+    public AgeLengthSampler(long streamAge, long streamLength, int nAgeClasses, int nLengthClasses, List<Double> weights) throws StreamException {
         this(getAgeLengthClasses(streamAge, streamLength, nAgeClasses, nLengthClasses), weights);
     }
 
-    private AgeLengthClass selectRandomAgeLengthClass() {
+    public AgeLengthClass selectRandomAgeLengthClass() {
         return cdf.floorEntry(random.nextDouble()).getValue();
     }
 
-    private static List<AgeLengthClass> getAgeLengthClasses(long streamAge, long streamLength, int nAgeClasses, int nLengthClasses) throws StreamException {
+    public Pair<Long> sample() {
+        return selectRandomAgeLengthClass().sample(random);
+    }
+
+    public static List<AgeLengthClass> getAgeLengthClasses(long streamAge, long streamLength, int nAgeClasses, int nLengthClasses) throws StreamException {
         if (streamAge <= 0 || streamLength <= 0)
             throw new StreamException("Querying non-empty stream");
         assert nAgeClasses > 0 && nLengthClasses > 0;
