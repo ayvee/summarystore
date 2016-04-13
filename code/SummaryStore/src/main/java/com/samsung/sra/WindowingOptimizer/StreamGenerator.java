@@ -1,9 +1,9 @@
 package com.samsung.sra.WindowingOptimizer;
 
-import com.samsung.sra.DataStoreExperiments.InterarrivalTimes;
+import com.samsung.sra.DataStoreExperiments.InterarrivalDistribution;
 
 public class StreamGenerator {
-    public static long[] generateBinnedStream(int T, InterarrivalTimes interarrivals) {
+    public static long[] generateBinnedStream(int T, InterarrivalDistribution interarrivals) {
         assert T >= 1;
         long[] ret = new long[T];
         double t = 0;

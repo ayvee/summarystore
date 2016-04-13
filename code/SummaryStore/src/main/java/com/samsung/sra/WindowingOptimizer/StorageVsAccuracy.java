@@ -1,5 +1,7 @@
 package com.samsung.sra.WindowingOptimizer;
 
+import com.samsung.sra.DataStoreExperiments.ExponentialInterarrivals;
+import com.samsung.sra.DataStoreExperiments.InterarrivalDistribution;
 import com.samsung.sra.DataStoreExperiments.Statistics;
 
 import java.io.BufferedWriter;
@@ -15,7 +17,7 @@ public class StorageVsAccuracy {
         String filename = String.format("bound-sa_T%d_l%.0f_z%.0f-mean.tsv", T, arrivalRate, (queriesZipfS < 1e-4 ? 0: queriesZipfS));
         System.err.println("=====> " + filename + " <=====");
 
-        InterarrivalTimes interarrivals = new ExponentialInterarrivals(arrivalRate);
+        InterarrivalDistribution interarrivals = new ExponentialInterarrivals(arrivalRate);
         TMeasure tMeasure = new ZipfTMeasure(T, queriesZipfS);
         Statistics[] results = new Statistics[storageRatios.length];
         for (int sri = 0; sri < storageRatios.length; ++sri) {

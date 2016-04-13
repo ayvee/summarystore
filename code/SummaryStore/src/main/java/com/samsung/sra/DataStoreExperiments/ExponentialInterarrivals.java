@@ -2,8 +2,8 @@ package com.samsung.sra.DataStoreExperiments;
 
 import org.apache.commons.math3.distribution.ExponentialDistribution;
 
-public class ExponentialInterarrivals implements InterarrivalTimes {
-    public final double lambda;
+public class ExponentialInterarrivals implements InterarrivalDistribution {
+    private final double lambda;
     private ExponentialDistribution distr;
 
     public ExponentialInterarrivals(double lambda) {
@@ -11,7 +11,7 @@ public class ExponentialInterarrivals implements InterarrivalTimes {
         distr = new ExponentialDistribution(1 / lambda);
     }
 
-    public double getNextInterarrival() {
-        return distr.sample();
+    public long getNextInterarrival() {
+        return Math.max((long)distr.sample(), 1);
     }
 }
