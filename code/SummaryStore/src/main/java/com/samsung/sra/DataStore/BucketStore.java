@@ -7,7 +7,7 @@ import org.rocksdb.RocksDBException;
  *      RocksDBBucketStore
  *      MainMemoryBucketStore
  */
-interface BucketStore {
+interface BucketStore extends AutoCloseable {
     Bucket getBucket(StreamID streamID, BucketID bucketID, boolean delete) throws RocksDBException;
 
     default Bucket getBucket(StreamID streamID, BucketID bucketID) throws RocksDBException {
@@ -20,5 +20,6 @@ interface BucketStore {
 
     void putIndexes(Object indexes) throws RocksDBException;
 
+    @Override
     void close() throws RocksDBException;
 }

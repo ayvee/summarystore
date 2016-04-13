@@ -4,9 +4,9 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 
 class BucketID implements Comparable<BucketID>, Serializable {
-    private final int id;
+    final long id;
 
-    BucketID(int id) {
+    BucketID(long id) {
         this.id = id;
     }
 
@@ -17,20 +17,20 @@ class BucketID implements Comparable<BucketID>, Serializable {
     /**
      * How many bytes long is a StreamID?
      */
-    static final int byteCount = 4;
+    static final int byteCount = 8;
 
     /**
      * put id into buffer. Like all ByteBuffer puts, this advances the buffer position
      */
     void writeToByteBuffer(ByteBuffer buffer) {
-        buffer.putInt(id);
+        buffer.putLong(id);
     }
 
     /**
      * get id from buffer. Like all ByteBuffer gets, this advances the buffer position
      */
     static BucketID readFromByteBuffer(ByteBuffer buffer) {
-        return new BucketID(buffer.getInt());
+        return new BucketID(buffer.getLong());
     }
 
     @Override
@@ -46,12 +46,12 @@ class BucketID implements Comparable<BucketID>, Serializable {
 
     @Override
     public int hashCode() {
-        return id;
+        return Long.hashCode(id);
     }
 
     @Override
     public String toString() {
-        return Integer.toString(id);
+        return Long.toString(id);
     }
 
     @Override
@@ -59,6 +59,6 @@ class BucketID implements Comparable<BucketID>, Serializable {
         if (that == null) {
             throw new NullPointerException("comparing null BucketID");
         }
-        return this.id - that.id;
+        return Long.compare(this.id, that.id);
     }
 }

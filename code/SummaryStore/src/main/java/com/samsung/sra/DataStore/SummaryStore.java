@@ -248,6 +248,7 @@ public class SummaryStore implements DataStore {
     public void close() throws RocksDBException {
         // FIXME: should wait for any processing appends to terminate first
         persistStreamsInfo();
+        bucketStore.close();
     }
 
     public long getStoreSizeInBytes() {

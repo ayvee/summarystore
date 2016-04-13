@@ -132,8 +132,7 @@ public class CountBasedWBMH implements WindowingMechanism {
     }
 
     @Override
-    public List<SummaryStore.BucketModification> computeModifications(
-            Timestamp newValueTimestamp, Object newValue) {
+    public List<SummaryStore.BucketModification> computeModifications(Timestamp newValueTimestamp, Object newValue) {
         ++N;
 
         Map<BucketID, TreeSet<BucketID>> merges = new HashMap<>();
