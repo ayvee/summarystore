@@ -28,7 +28,7 @@ public class Statistics {
         }
     }
 
-    public synchronized double getAverage() {
+    public synchronized double getMean() {
         if (dstats != null) {
             return dstats.getMean();
         } else {
@@ -44,6 +44,11 @@ public class Statistics {
         }
     }
 
+    public synchronized double getICDF(double P) {
+        assert dstats != null;
+        return dstats.getPercentile(P / 100);
+    }
+
     // forces Java to not use scientific notation
     /*private static DecimalFormat doubleFormat = new DecimalFormat("#");
     static {
@@ -51,7 +56,8 @@ public class Statistics {
     }*/
     private String format(double d) {
         //return Double.isNaN(d) ? "NaN" : doubleFormat.format(d);
-        return Double.toString(d);
+        //return Double.toString(d);
+        return String.format("%.5f", d);
     }
 
     public synchronized String getErrorbars() {
@@ -66,9 +72,7 @@ public class Statistics {
     }
 
     public synchronized void writeCDF(String filename) throws IOException {
-        if (dstats == null) {
-            throw new IllegalStateException();
-        }
+        assert dstats != null;
         try (BufferedWriter br = Files.newBufferedWriter(Paths.get(filename))) {
             br.write("#" + getErrorbars() + "\n");
             br.write(dstats.getMin() + "\t0" + "\n");

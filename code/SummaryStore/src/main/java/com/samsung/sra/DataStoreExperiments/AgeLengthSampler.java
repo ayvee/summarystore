@@ -25,9 +25,13 @@ public class AgeLengthSampler {
     }
 
     public static class AgeLengthClass {
+        public final int ageClassNum, lengthClassNum;
         public final Range<Long> ageRange, lengthRange;
 
-        public AgeLengthClass(Range<Long> ageRange, Range<Long> lengthRange) {
+        public AgeLengthClass(int ageClassNum, Range<Long> ageRange,
+                              int lengthClassNum, Range<Long> lengthRange) {
+            this.ageClassNum = ageClassNum;
+            this.lengthClassNum = lengthClassNum;
             assert ageRange != null && lengthRange != null;
             this.ageRange = ageRange;
             this.lengthRange = lengthRange;
@@ -42,7 +46,8 @@ public class AgeLengthSampler {
 
         @Override
         public String toString() {
-            return "<age " + ageRange + ", length " + lengthRange + ">";
+            return ageClassNum + "\t" + lengthClassNum;
+            //return "<age " + ageRange + ", length " + lengthRange + ">";
         }
     }
 
@@ -67,6 +72,10 @@ public class AgeLengthSampler {
         this(getAgeLengthClasses(streamAge, streamLength, nAgeClasses, nLengthClasses), weights);
     }
 
+    public Collection<AgeLengthClass> getAllClasses() {
+        return cdf.values();
+    }
+
     public AgeLengthClass selectRandomAgeLengthClass() {
         return cdf.floorEntry(random.nextDouble()).getValue();
     }
@@ -88,10 +97,10 @@ public class AgeLengthSampler {
             ageMarkers[i] = (long)ceil(pow(2, ageBSize * i));
         }
         ageMarkers[nAgeClasses] = streamAge + 1;
-        System.out.print("Age markers = {1");
+        System.err.print("Age markers = {1");
         for (int i = 1; i <= nAgeClasses; ++i)
-            System.out.print(", " + ageMarkers[i]);
-        System.out.println("}");
+            System.err.print(", " + ageMarkers[i]);
+        System.err.println("}");
 
         /** Query length can be much smaller than the stream length
          * 0.1% for 1M stream = 1000, 10% = 100K
@@ -108,17 +117,17 @@ public class AgeLengthSampler {
             lengthMarkers[i] = (long)ceil(pow(2, pow(2, lengthBSize * i)));
         }
         lengthMarkers[nLengthClasses] = streamLength + 1;
-        System.out.print("Length markers = {1");
+        System.err.print("Length markers = {1");
         for (int i = 1; i <= nLengthClasses; ++i)
-            System.out.print(", " + lengthMarkers[i]);
-        System.out.println("}");
+            System.err.print(", " + lengthMarkers[i]);
+        System.err.println("}");
 
         List<AgeLengthClass> ret = new ArrayList<>();
         for (int a = 0; a < nAgeClasses; ++a) {
             Range<Long> ageRange = new Range<>(ageMarkers[a], ageMarkers[a+1] - 1);
             for (int l = 0; l < nLengthClasses; ++l) {
                 Range<Long> lengthRange = new Range<>(lengthMarkers[l], lengthMarkers[l+1] - 1);
-                ret.add(new AgeLengthClass(ageRange, lengthRange));
+                ret.add(new AgeLengthClass(a, ageRange, l, lengthRange));
             }
         }
         return ret;

@@ -46,13 +46,6 @@ public class SlowCountBasedWBMH implements WindowingMechanism {
         }
     }
 
-    /**
-     * If the interval [cStart, cEnd] is completely contained inside some window after
-     * N values have been inserted, return a unique ID representing that window, else
-     * return null.
-     *
-     * We use the window's start marker as our unique ID
-     */
     /*private Long idOfContainingWindow(long cStart, long cEnd, long N) {
         assert 0 <= cStart && cStart <= cEnd && cEnd < N;
         long lAge = N-1 - cEnd, rAge = N-1 - cStart;
@@ -61,15 +54,22 @@ public class SlowCountBasedWBMH implements WindowingMechanism {
         return lMarker.equals(rMarker) ? lMarker : null;
     }*/
 
+    private final Object idOfFirstWindow = 0;
+
     // Invariant: markerRi == index of first window start marker > r
     private int markerRi = -1;
-
-    private final Object idOfFirstWindow = 0;
 
     private void resetIdOfContainingWindowInternalState() {
         markerRi = -1;
     }
 
+    /**
+     * If the interval [cStart, cEnd] is completely contained inside some window after
+     * N values have been inserted, return a unique ID representing that window, else
+     * return null.
+     *
+     * We use the window's start marker as our unique ID
+     */
     private Object idOfContainingWindow(long cStart, long cEnd, long N) {
         assert 0 <= cStart && cStart <= cEnd && cEnd < N;
         long l = N-1 - cEnd, r = N-1 - cStart;
@@ -163,9 +163,8 @@ public class SlowCountBasedWBMH implements WindowingMechanism {
     }
 
     private void processPotentialMerge(List<SummaryStore.BucketModification> bucketModifications, BucketID mergee, List<BucketID> merged) {
-        if (mergee == null || merged == null || merged.isEmpty()) {
-            return;
+        if (mergee != null && merged != null && !merged.isEmpty()) {
+            bucketModifications.add(new SummaryStore.BucketMergeModification(mergee, merged));
         }
-        bucketModifications.add(new SummaryStore.BucketMergeModification(mergee, merged));
     }
 }
