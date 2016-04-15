@@ -258,17 +258,29 @@ public class SummaryStore implements DataStore {
     }
 
     public void close() throws RocksDBException {
-        // FIXME: should wait for any processing appends to terminate first
-        persistStreamsInfo();
-        bucketStore.close();
+        synchronized (streamsInfo) {
+            // wait for all in-process writes and reads to finish
+            for (StreamInfo streamInfo: streamsInfo.values()) {
+                streamInfo.writeLock.lock();
+                streamInfo.readLock.writeLock().lock();
+            }
+            // at this point all operations on existing streams will be blocked
+            // TODO: lock out creating new streams
+            persistStreamsInfo();
+            bucketStore.close();
+        }
     }
 
     public long getStoreSizeInBytes() {
-        // TODO: lock all writers
         long ret = 0;
         for (StreamInfo si: streamsInfo.values()) {
-            // FIXME: this does not account for the size of the time/count markers tracked by the index
-            ret += si.temporalIndex.size() * (StreamID.byteCount + BucketID.byteCount + Bucket.byteCount);
+            si.readLock.readLock().lock();
+            try {
+                // FIXME: this does not account for the size of the time/count markers tracked by the index
+                ret += si.temporalIndex.size() * (StreamID.byteCount + BucketID.byteCount + Bucket.byteCount);
+            } finally {
+                si.readLock.readLock().unlock();
+            }
         }
         return ret;
     }
@@ -282,7 +294,12 @@ public class SummaryStore implements DataStore {
                 throw new StreamException("attempting to get age of unknown stream " + streamID);
             }
         }
-        return streamInfo.lastValueTimestamp.value;
+        streamInfo.readLock.readLock().lock();
+        try {
+            return streamInfo.lastValueTimestamp.value;
+        } finally {
+            streamInfo.readLock.readLock().unlock();
+        }
     }
 
     @Override
@@ -294,7 +311,12 @@ public class SummaryStore implements DataStore {
                 throw new StreamException("attempting to get age of unknown stream " + streamID);
             }
         }
-        return streamInfo.numValues;
+        streamInfo.readLock.readLock().lock();
+        try {
+            return streamInfo.numValues;
+        } finally {
+            streamInfo.readLock.readLock().unlock();
+        }
     }
 
     public static void main(String[] args) {
