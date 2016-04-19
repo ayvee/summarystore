@@ -5,10 +5,11 @@ import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
-public class Statistics {
+public class Statistics implements Serializable {
     private SummaryStatistics sstats = null;
     private DescriptiveStatistics dstats = null;
 

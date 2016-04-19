@@ -3,8 +3,6 @@ package com.samsung.sra.DataStoreExperiments;
 import com.samsung.sra.DataStore.*;
 import org.rocksdb.RocksDBException;
 
-import java.text.DateFormat;
-import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -29,6 +27,7 @@ class WriteLoadGenerator {
     }
 
     void generateUntil(long Tmax) throws StreamException, RocksDBException {
+        // TODO: parallelize appends to one thread per store
         for (; T <= Tmax; T += interarrivalDistribution.getNextInterarrival()) {
             Timestamp ts = new Timestamp(T);
             long value = valueDistribution.getNextValue();

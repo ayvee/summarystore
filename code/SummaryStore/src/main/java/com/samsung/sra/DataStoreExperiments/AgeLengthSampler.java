@@ -9,48 +9,6 @@ import java.io.*;
 import static org.apache.commons.math3.util.FastMath.*;
 
 public class AgeLengthSampler {
-    public static class Range<T> {
-        public final T min, max;
-
-        Range(T min, T max) {
-            assert min != null && max != null;
-            this.min = min;
-            this.max = max;
-        }
-
-        @Override
-        public String toString() {
-            return "[" + min + ", " + max + "]";
-        }
-    }
-
-    public static class AgeLengthClass {
-        public final int ageClassNum, lengthClassNum;
-        public final Range<Long> ageRange, lengthRange;
-
-        public AgeLengthClass(int ageClassNum, Range<Long> ageRange,
-                              int lengthClassNum, Range<Long> lengthRange) {
-            this.ageClassNum = ageClassNum;
-            this.lengthClassNum = lengthClassNum;
-            assert ageRange != null && lengthRange != null;
-            this.ageRange = ageRange;
-            this.lengthRange = lengthRange;
-        }
-
-        public Pair<Long> sample(Random random) {
-            double aRand = random.nextDouble(), lRand = random.nextDouble();
-            return new Pair<>(
-                    (long)(ageRange.min + aRand * (ageRange.max - ageRange.min)),
-                    (long)(lengthRange.min + lRand * (lengthRange.max - lengthRange.min)));
-        }
-
-        @Override
-        public String toString() {
-            return ageClassNum + "\t" + lengthClassNum;
-            //return "<age " + ageRange + ", length " + lengthRange + ">";
-        }
-    }
-
     private Random random = new Random();
     private final TreeMap<Double, AgeLengthClass> cdf = new TreeMap<>();
 
@@ -124,9 +82,9 @@ public class AgeLengthSampler {
 
         List<AgeLengthClass> ret = new ArrayList<>();
         for (int a = 0; a < nAgeClasses; ++a) {
-            Range<Long> ageRange = new Range<>(ageMarkers[a], ageMarkers[a+1] - 1);
+            AgeLengthClass.Range<Long> ageRange = new AgeLengthClass.Range<>(ageMarkers[a], ageMarkers[a+1] - 1);
             for (int l = 0; l < nLengthClasses; ++l) {
-                Range<Long> lengthRange = new Range<>(lengthMarkers[l], lengthMarkers[l+1] - 1);
+                AgeLengthClass.Range<Long> lengthRange = new AgeLengthClass.Range<>(lengthMarkers[l], lengthMarkers[l+1] - 1);
                 ret.add(new AgeLengthClass(a, ageRange, l, lengthRange));
             }
         }

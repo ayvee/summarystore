@@ -1,44 +1,78 @@
 package com.samsung.sra.DataStoreExperiments;
 
 import com.samsung.sra.DataStore.*;
+import org.nustaq.serialization.FSTConfiguration;
 import org.rocksdb.RocksDBException;
 
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
+import java.util.function.ToDoubleFunction;
 import java.util.stream.IntStream;
 
 class CompareWindowingSchemes {
     private static String loc_prefix = "/tmp/tdstore_";
     private static final StreamID streamID = new StreamID(0);
+    private static final FSTConfiguration fstConf;
 
-    public static void main(String[] args) throws Exception {
+    static {
+        fstConf = FSTConfiguration.createDefaultConfiguration();
+        fstConf.registerClass(Statistics.class);
+    }
+
+    /**
+     * Compute stats for each (decay function, age length class) pair. Results will be memoized to
+     * memoFile if it is not a null argument
+     */
+    static LinkedHashMap<String, LinkedHashMap<AgeLengthClass, Statistics>> runExperiment(String memoFile) throws Exception {
         long T = 1_000_000;
-        int W = 50_000;
+        int W = (int)(T / 100 / 2);
         int QperClass = 10_000;
+
+        LinkedHashMap<String, LinkedHashMap<AgeLengthClass, Statistics>> results;
+        if (memoFile != null) {
+            try {
+                byte[] serialized = Files.readAllBytes(Paths.get(memoFile));
+                return (LinkedHashMap<String, LinkedHashMap<AgeLengthClass, Statistics>>)fstConf.asObject(serialized);
+            } catch (IOException | ClassCastException e) {
+                System.out.println("WARNING: " + e);
+            }
+        }
+        results = new LinkedHashMap<>();
 
         Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + loc_prefix + "*"}).waitFor();
         LinkedHashMap<String, SummaryStore> stores = new LinkedHashMap<>();
         registerStore(stores, "exponential", new CountBasedWBMH(ExponentialWindowLengths.getWindowingOfSize(T, W)));
-        registerStore(stores, "linear", new CountBasedWBMH(PolynomialWindowLengths.getWindowingOfSize(1, T, W)));
-        registerStore(stores, "constant", new CountBasedWBMH(PolynomialWindowLengths.getWindowingOfSize(0, T, W)));
+        for (int d = 0; d < 10; ++d) {
+            registerStore(stores, "polynomial(" + d + ")", new CountBasedWBMH(PolynomialWindowLengths.getWindowingOfSize(d, T, W)));
+        }
 
         InterarrivalDistribution interarrivals = new FixedInterarrival(1);
         ValueDistribution values = new UniformValues(0, 100);
         WriteLoadGenerator generator = new WriteLoadGenerator(interarrivals, values, streamID, stores.values());
         generator.generateUntil(T);
 
+        stores.forEach((name, store) -> {
+            System.out.println(name + " = " + store.getStoreSizeInBytes() + " bytes");
+            /*try {
+                store.printBucketState(streamID);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }*/
+        });
+
         int C = 8;
         Double[] weights = new Double[C * C];
         Arrays.fill(weights, 1d);
         AgeLengthSampler querySampler = new AgeLengthSampler(T, T, C, C, Arrays.asList(weights));
 
-        LinkedHashMap<String, Integer> winCounts = new LinkedHashMap<>();
-        stores.keySet().forEach(name -> winCounts.put(name, 0));
-
-        System.out.println("#class\tdecay function\tmean\t50th\t95th\t99th");
+        stores.keySet().forEach(name -> results.put(name, new LinkedHashMap<>()));
         Random random = new Random();
         querySampler.getAllClasses().forEach(alClass -> {
-            Map<String, Statistics> inflations = new LinkedHashMap<>();
-            stores.keySet().forEach(name -> inflations.put(name, new Statistics(true)));
+            System.out.println("Processing age length class " + alClass);
+            stores.keySet().forEach(name -> results.get(name).put(alClass, new Statistics(true)));
             IntStream.range(0, QperClass).parallel().forEach(q -> {
                 Pair<Long> ageLength = alClass.sample(random);
                 long age = ageLength.first(), length = ageLength.second();
@@ -49,32 +83,25 @@ class CompareWindowingSchemes {
                 stores.forEach((name, store) -> {
                     try {
                         double estCount = (long)store.query(streamID, lt, rt, QueryType.COUNT, null);
-                        inflations.get(name).addObservation(estCount / trueCount - 1);
+                        results.get(name).get(alClass).addObservation(estCount / trueCount - 1);
                     } catch (Exception e) { // java streams don't like exceptions, apparently
                         e.printStackTrace();
                     }
                 });
             });
-            inflations.forEach((storeName, stats) ->
-                System.out.println(alClass + "\t" + storeName + "\t" +
-                        stats.getErrorbars()));
-                        /*format(stats.getMean()) + "\t" +
-                        format(stats.getICDF(0.5)) + "\t" +
-                        format(stats.getICDF(0.95)) + "\t" +
-                        format(stats.getICDF(0.99)));*/
-            String winner = inflations.entrySet().stream().
-                    min(Comparator.comparing(e -> e.getValue().getMean())).get().getKey();
-            winCounts.put(winner, winCounts.get(winner) + 1);
         });
 
-        System.out.println("winCounts");
-        winCounts.forEach((name, count) -> System.out.println(name + "\t" + count));
-
         // FIXME: close() stores when done
-    }
 
-    private static String format(double d) {
-        return String.format("%f", d);
+        if (memoFile != null) {
+            try (FileOutputStream fos = new FileOutputStream(memoFile)) {
+                fos.write(fstConf.asByteArray(results));
+            } catch (IOException e) {
+                System.out.println("WARNING: " + e);
+            }
+        }
+
+        return results;
     }
 
     private static void registerStore(Map<String, SummaryStore> stores, String name, WindowingMechanism windowingMechanism) throws RocksDBException, StreamException {
@@ -82,5 +109,25 @@ class CompareWindowingSchemes {
         SummaryStore store = new SummaryStore(new MainMemoryBucketStore());
         store.registerStream(streamID, windowingMechanism);
         stores.put(name, store);
+    }
+
+    public static void main(String[] args) throws Exception {
+        ToDoubleFunction<Statistics> metric = stats -> stats.getMean();
+        ToDoubleFunction<AgeLengthClass> weightFunction = alClass -> 1d / Math.pow(alClass.ageClassNum + alClass.lengthClassNum + 1, 0.01);
+
+        LinkedHashMap<String, LinkedHashMap<AgeLengthClass, Statistics>> results = runExperiment("compare-windowing.results");
+        LinkedHashMap<String, Double> decayFunctionCosts = new LinkedHashMap<>(); // compute cost of each decay function
+        results.forEach((decayFunction, perClassResults) -> {
+            // cost of each decay function = weighted sum of value of metric in each class
+            double cost = perClassResults.entrySet().stream().mapToDouble(entry -> {
+                AgeLengthClass alClass = entry.getKey();
+                Statistics stats = entry.getValue();
+                return metric.applyAsDouble(stats) * weightFunction.applyAsDouble(alClass);
+            }).sum();
+            decayFunctionCosts.put(decayFunction, cost);
+            System.out.println("Cost of " + decayFunction + " = " + cost);
+        });
+        String bestDecay = decayFunctionCosts.entrySet().stream().min(Comparator.comparing(Map.Entry::getValue)).get().getKey();
+        System.out.println("Best decay = " + bestDecay);
     }
 }
