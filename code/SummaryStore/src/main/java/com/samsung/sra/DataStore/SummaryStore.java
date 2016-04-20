@@ -1,6 +1,7 @@
 package com.samsung.sra.DataStore;
 
 import org.rocksdb.RocksDBException;
+import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.*;
@@ -8,16 +9,12 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.logging.ConsoleHandler;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Time-decayed aggregate storage
  */
 public class SummaryStore implements DataStore {
-    private static final Level logLevel = Level.INFO;
-    private static final Logger logger = Logger.getLogger(SummaryStore.class.getName());
+    private static final org.slf4j.Logger logger = LoggerFactory.getLogger(SummaryStore.class);
 
     private final BucketStore bucketStore;
 
@@ -62,13 +59,6 @@ public class SummaryStore implements DataStore {
                 new HashMap<>();
     }
 
-    static {
-        ConsoleHandler handler = new ConsoleHandler();
-        handler.setLevel(logLevel);
-        logger.addHandler(handler);
-        logger.setLevel(logLevel);
-    }
-
     public void registerStream(final StreamID streamID, WindowingMechanism windowingMechanism) throws StreamException, RocksDBException {
         // TODO: also register what data structure we will use for each bucket
         synchronized (streamsInfo) {
@@ -100,7 +90,7 @@ public class SummaryStore implements DataStore {
             TreeMap<Timestamp, BucketID> index = streamInfo.temporalIndex;
             Timestamp l = index.floorKey(t0); // first bucket with tStart <= t0
             Timestamp r = index.higherKey(t1); // first bucket with tStart > t1
-            //logger.log(Level.FINEST, "Overapproximated time range = [" + l + ", " + r + ")");
+            logger.trace("Overapproximated time range = [{}, {}]", l, r);
             if (r == null) {
                 r = index.lastKey();
             }
@@ -149,7 +139,7 @@ public class SummaryStore implements DataStore {
             try {
                 // 1. Update set of buckets
                 for (BucketModification mod : bucketMods) {
-                    //logger.log(Level.FINEST, "Executing bucket modification " + mod);
+                    logger.trace("Executing bucket modification {}", mod);
                     mod.process(this, streamInfo);
                 }
                 // 2. Insert the new value into the appropriate bucket
@@ -243,7 +233,7 @@ public class SummaryStore implements DataStore {
         assert destinationID != null;
         Bucket bucket = bucketStore.getBucket(streamInfo.streamID, destinationID);
         bucket.insertValue(ts, value);
-        //logger.log(Level.FINEST, "Inserted value <" + ts + ", " + value + "> into bucket " + bucket);
+        logger.trace("Inserted value <{}, {}> into bucket {}", ts, value, bucket);
         bucketStore.putBucket(streamInfo.streamID, destinationID, bucket);
         streamInfo.numValues += 1;
         streamInfo.lastValueTimestamp = ts;

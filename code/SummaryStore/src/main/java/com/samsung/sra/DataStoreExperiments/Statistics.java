@@ -1,5 +1,6 @@
 package com.samsung.sra.DataStoreExperiments;
 
+import org.apache.commons.math3.analysis.solvers.BrentSolver;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
@@ -13,8 +14,8 @@ public class Statistics implements Serializable {
     private SummaryStatistics sstats = null;
     private DescriptiveStatistics dstats = null;
 
-    public Statistics(boolean requirePercentile) {
-        if (requirePercentile) {
+    public Statistics(boolean requireCDF) {
+        if (requireCDF) {
             dstats = new DescriptiveStatistics();
         } else {
             sstats = new SummaryStatistics();
@@ -45,9 +46,17 @@ public class Statistics implements Serializable {
         }
     }
 
-    public synchronized double getICDF(double P) {
+    /** Return P(X <= x) */
+    public synchronized double getCDF(double x) {
         assert dstats != null;
-        return dstats.getPercentile(P / 100);
+        // FIXME: hack because Apache commons doesn't have a CDF function
+        return (new BrentSolver()).solve(1000, Q -> getQuantile(Q) - x, 1e-6, 1);
+    }
+
+    /** Quantile/ICDF. Return x such that P(X <= x) = Q */
+    public synchronized Double getQuantile(double Q) {
+        assert dstats != null;
+        return dstats.getPercentile(Q * 100);
     }
 
     // forces Java to not use scientific notation
