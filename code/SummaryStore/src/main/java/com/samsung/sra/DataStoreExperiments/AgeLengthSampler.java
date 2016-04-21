@@ -1,10 +1,12 @@
 package com.samsung.sra.DataStoreExperiments;
 
-import com.samsung.sra.DataStore.*;
+import com.samsung.sra.DataStore.StreamException;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
+import java.io.StreamTokenizer;
 import java.util.*;
-import java.io.*;
 
 import static org.apache.commons.math3.util.FastMath.*;
 
@@ -55,10 +57,6 @@ public class AgeLengthSampler {
             ageMarkers[i] = (long)ceil(pow(2, ageBSize * i));
         }
         ageMarkers[nAgeClasses] = streamAge + 1;
-        System.err.print("Age markers = {1");
-        for (int i = 1; i <= nAgeClasses; ++i)
-            System.err.print(", " + ageMarkers[i]);
-        System.err.println("}");
 
         /** Query length can be much smaller than the stream length
          * 0.1% for 1M stream = 1000, 10% = 100K
@@ -75,10 +73,6 @@ public class AgeLengthSampler {
             lengthMarkers[i] = (long)ceil(pow(2, pow(2, lengthBSize * i)));
         }
         lengthMarkers[nLengthClasses] = streamLength + 1;
-        System.err.print("Length markers = {1");
-        for (int i = 1; i <= nLengthClasses; ++i)
-            System.err.print(", " + lengthMarkers[i]);
-        System.err.println("}");
 
         List<AgeLengthClass> ret = new ArrayList<>();
         for (int a = 0; a < nAgeClasses; ++a) {

@@ -1,62 +1,79 @@
 package com.samsung.sra.DataStoreExperiments;
 
-import org.apache.commons.math3.analysis.solvers.BrentSolver;
-import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
-import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
-
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.Serializable;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.stream.Collectors;
 
 public class Statistics implements Serializable {
-    private SummaryStatistics sstats = null;
-    private DescriptiveStatistics dstats = null;
+    private static final int defaultNCDFBins = 10000;
+    private int N = 0;
+    private double avg = 0, sqsum = 0;
+    private double min = Double.MAX_VALUE, max = Double.MIN_VALUE;
+    private CDF cdf = null;
+
+    public Statistics() {
+        this(false);
+    }
 
     public Statistics(boolean requireCDF) {
+        this(requireCDF, defaultNCDFBins);
+    }
+
+    public Statistics(boolean requireCDF, int nCDFBins) {
         if (requireCDF) {
-            dstats = new DescriptiveStatistics();
-        } else {
-            sstats = new SummaryStatistics();
+            cdf = new CDF(nCDFBins);
+        }
+    }
+
+    /** Weighted mixture statistics */
+    public Statistics(Collection<Statistics> stats, Collection<Double> weights) {
+        assert stats != null && weights != null && !stats.isEmpty() && stats.size() == weights.size();
+        boolean haveCDF = true;
+        double totalWeight = weights.stream().mapToDouble(Double::doubleValue).sum();
+        for (Iterator statsi = stats.iterator(), weighti = weights.iterator(); statsi.hasNext() && weighti.hasNext();) {
+            Statistics stat = (Statistics) statsi.next();
+            double probability = (Double)weighti.next() / totalWeight;
+            N += stat.N;
+            avg += probability * stat.avg;
+            sqsum += probability * stat.sqsum; // FIXME
+            min = Math.min(min, stat.min);
+            max = Math.max(max, stat.max);
+            haveCDF = haveCDF && stat.cdf != null;
+        }
+        if (haveCDF) {
+            cdf = new CDF(defaultNCDFBins, stats.stream().map(s -> s.cdf).collect(Collectors.toList()), weights);
         }
     }
 
     public synchronized void addObservation(double obs) {
-        if (dstats != null) {
-            dstats.addValue(obs);
-        } else {
-            sstats.addValue(obs);
-        }
+        avg = (avg * N + obs) / (N + 1);
+        ++N;
+        sqsum += obs * obs;
+        min = Math.min(min, obs);
+        max = Math.max(max, obs);
+        if (cdf != null) cdf.addValue(obs);
     }
 
     public synchronized double getMean() {
-        if (dstats != null) {
-            return dstats.getMean();
-        } else {
-            return sstats.getMean();
-        }
+        return avg;
     }
 
     public synchronized double getStandardDeviation() {
-        if (dstats != null) {
-            return dstats.getStandardDeviation();
-        } else {
-            return sstats.getStandardDeviation();
-        }
+        return N > 1 ? Math.sqrt((sqsum - avg) / (N-1)) : 0;
     }
 
     /** Return P(X <= x) */
-    public synchronized double getCDF(double x) {
-        assert dstats != null;
-        // FIXME: hack because Apache commons doesn't have a CDF function
-        return (new BrentSolver()).solve(1000, Q -> getQuantile(Q) - x, 1e-6, 1);
+    public synchronized double getCumulativeDensity(double x) {
+        assert cdf != null;
+        return cdf.getCumulativeDensity(x);
     }
 
     /** Quantile/ICDF. Return x such that P(X <= x) = Q */
     public synchronized Double getQuantile(double Q) {
-        assert dstats != null;
-        return dstats.getPercentile(Q * 100);
+        assert cdf != null;
+        return cdf.getQuantile(Q);
     }
 
     // forces Java to not use scientific notation
@@ -71,24 +88,11 @@ public class Statistics implements Serializable {
     }
 
     public synchronized String getErrorbars() {
-        if (dstats != null) {
-            return format(dstats.getMin()) + ":" + format(dstats.getPercentile(25)) + ":" +
-                    format(dstats.getPercentile(50)) + ":" +
-                    format(dstats.getPercentile(75)) + ":" + format(dstats.getMax()) + "_" +
-                    format(dstats.getMean()) + ":" + format(dstats.getStandardDeviation());
-        } else {
-            return sstats.getMean() + ":" + sstats.getStandardDeviation();
-        }
+        return getMean() + ":" + getStandardDeviation();
     }
 
     public synchronized void writeCDF(String filename) throws IOException {
-        assert dstats != null;
-        try (BufferedWriter br = Files.newBufferedWriter(Paths.get(filename))) {
-            br.write("#" + getErrorbars() + "\n");
-            br.write(dstats.getMin() + "\t0" + "\n");
-            for (int i = 1; i <= 100; ++i) {
-                br.write(dstats.getPercentile(i) + "\t" + (i / 100d) + "\n");
-            }
-        }
+        assert cdf != null;
+        cdf.writeCDF(filename);
     }
 }

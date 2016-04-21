@@ -1,5 +1,5 @@
 #!/bin/bash
-cp=target/SummaryStore-1.0-SNAPSHOT.jar
+cp=".:target/SummaryStore-1.0-SNAPSHOT.jar"
 for jar in target/lib/*
 do
 	cp="$cp:$jar"

@@ -13,6 +13,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.ToDoubleFunction;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 class CompareWindowingSchemes {
@@ -23,7 +24,7 @@ class CompareWindowingSchemes {
     // BEGIN CONFIG. If these parameters are changed, it may be necessary to delete memoized
     // results (see runExperiment()) to rerun the experiment
     private static long T = 1_000_000;
-    private static int storageSavingsFactor = 100;
+    private static int storageSavingsFactor = 2;
     // # of windows. Divide by 2 because we maintain 2 aggregates per window, sum and count
     private static int W = (int)(T / storageSavingsFactor / 2);
 
@@ -66,11 +67,11 @@ class CompareWindowingSchemes {
         if (memoize) {
             try {
                 byte[] serialized = Files.readAllBytes(Paths.get(memoFile));
-                return (LinkedHashMap<String, LinkedHashMap<AgeLengthClass, Statistics>>) fstConf.asObject(serialized);
+                return (LinkedHashMap<String, LinkedHashMap<AgeLengthClass, Statistics>>)fstConf.asObject(serialized);
             } catch (NoSuchFileException e) {
                 logger.info("memoized results not found, running experiment");
             } catch (IOException | ClassCastException e) {
-                logger.warn("{}", e);
+                logger.warn("failed to deserialize memoized results", e);
             }
         }
         results = new LinkedHashMap<>();
@@ -78,9 +79,7 @@ class CompareWindowingSchemes {
         WriteLoadGenerator generator = new WriteLoadGenerator(interarrivals, values, streamID, stores.values());
         generator.generateUntil(T);
 
-        stores.forEach((name, store) -> {
-            System.out.println(name + " = " + store.getStoreSizeInBytes() + " bytes");
-        });
+        //stores.forEach((name, store) -> System.out.println(name + " = " + store.getStoreSizeInBytes() + " bytes"));
 
         //Double[] weights = new Double[numAgeLengthClasses * numAgeLengthClasses];
         //Arrays.fill(weights, 1d);
@@ -90,7 +89,7 @@ class CompareWindowingSchemes {
         stores.keySet().forEach(name -> results.put(name, new LinkedHashMap<>()));
         Random random = new Random();
         alClasses.forEach(alClass -> {
-            System.out.println("Processing age length class " + alClass);
+            logger.info("Processing age length class {}", alClass);
             stores.keySet().forEach(name -> results.get(name).put(alClass, new Statistics(true)));
             IntStream.range(0, numRandomQueriesPerClass).parallel().forEach(q -> {
                 Pair<Long> ageLength = alClass.sample(random);
@@ -116,7 +115,7 @@ class CompareWindowingSchemes {
             try (FileOutputStream fos = new FileOutputStream(memoFile)) {
                 fos.write(fstConf.asByteArray(results));
             } catch (IOException e) {
-                logger.warn("{}", e);
+                logger.warn("failed to serialize results to memo file", e);
             }
         }
 
@@ -131,24 +130,31 @@ class CompareWindowingSchemes {
     }
 
     public static void main(String[] args) throws Exception {
-        ToDoubleFunction<Statistics> metric = stats -> stats.getMean(); //stats.getCDF(1.5 * stats.getMean());
-        ToDoubleFunction<AgeLengthClass> weightFunction = alClass -> 1d / Math.pow(alClass.ageClassNum + alClass.lengthClassNum + 1, 1);
+        ToDoubleFunction<Statistics> metric = stats -> stats.getQuantile(0.999);//stats.getMean();
+        ToDoubleFunction<AgeLengthClass> weightFunction = alClass ->
+                Math.pow(alClass.lengthClassNum + 1, 1) / Math.pow(alClass.ageClassNum + 1, 1);
 
         LinkedHashMap<String, LinkedHashMap<AgeLengthClass, Statistics>> results = runExperiment(true);
         LinkedHashMap<String, Double> decayFunctionCosts = new LinkedHashMap<>(); // compute cost of each decay function
         results.forEach((decayFunction, perClassResults) -> {
-            // normalize so that sum of all classes' weights = 1
+            Statistics mixtureStats = new Statistics(
+                    perClassResults.values(),
+                    perClassResults.keySet().stream().mapToDouble(weightFunction).boxed().collect(Collectors.toList()));
+            double cost = metric.applyAsDouble(mixtureStats);
+            /*// normalize so that sum of all classes' weights = 1
             final double weightNormFact = perClassResults.keySet().stream().mapToDouble(weightFunction).sum();
             // cost of each decay function = weighted sum of value of metric in each class (e.g. weighted mean or weighted median)
             double cost = perClassResults.entrySet().stream().mapToDouble(entry -> {
                 AgeLengthClass alClass = entry.getKey();
                 Statistics stats = entry.getValue();
                 return metric.applyAsDouble(stats) * weightFunction.applyAsDouble(alClass) / weightNormFact;
-            }).sum();
+            }).sum();*/
             decayFunctionCosts.put(decayFunction, cost);
             System.out.println("cost of " + decayFunction + " = " + cost);
         });
-        String bestDecay = decayFunctionCosts.entrySet().stream().min(Comparator.comparing(Map.Entry::getValue)).get().getKey();
+        String bestDecay = decayFunctionCosts.entrySet().stream().
+                min(Comparator.comparing(Map.Entry::getValue)).
+                get().getKey();
         System.out.println("Best decay = " + bestDecay);
     }
 }
