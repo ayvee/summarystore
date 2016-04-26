@@ -6,7 +6,7 @@ package com.samsung.sra.DataStore;
 public class PolynomialWindowLengths extends WindowLengths {
     private final double scale;
     private final int degree;
-    private int n = 0;
+    private long n = 0;
 
     public PolynomialWindowLengths(double scale, int degree) {
         this.scale = scale;
@@ -29,10 +29,10 @@ public class PolynomialWindowLengths extends WindowLengths {
     /** Returns a polynomial sequence of specified degree scaled so that numWindows windows will
      * be needed to cover [0, rangeSize)
      */
-    public static WindowLengths getWindowingOfSize(int degree, long rangeSize, int numWindows) {
+    public static WindowLengths getWindowingOfSize(int degree, long rangeSize, long numWindows) {
         assert rangeSize > 0 && numWindows > 0 && numWindows <= rangeSize;
         double unscaled = 0;
-        for (int n = 1; n <= numWindows; ++n) {
+        for (long n = 1; n <= numWindows; ++n) {
             unscaled += Math.pow(n, degree);
         }
         double scale = rangeSize / unscaled;

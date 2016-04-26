@@ -31,7 +31,7 @@ public class ExponentialWindowLengths extends WindowLengths {
     /**
      * Return an exponential windowing that will use numWindows windows to cover [0, rangeSize)
      */
-    public static ExponentialWindowLengths getWindowingOfSize(final long rangeSize, int numWindows) {
+    public static ExponentialWindowLengths getWindowingOfSize(final long rangeSize, long numWindows) {
         assert numWindows > 0 && rangeSize > 0 && numWindows <= rangeSize;
         double base;
         if (numWindows == 1) {
@@ -41,7 +41,7 @@ public class ExponentialWindowLengths extends WindowLengths {
         } else {
             // f(b) = (# of windows that exp(b) would use to cover rangeSize) - numWindows
             UnivariateFunction f = (double b) -> {
-                int W = 0;
+                long W = 0;
                 long N = rangeSize;
                 double size = 1;
                 while (N > 0) {
