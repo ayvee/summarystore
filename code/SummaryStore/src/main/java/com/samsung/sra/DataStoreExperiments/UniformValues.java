@@ -2,11 +2,11 @@ package com.samsung.sra.DataStoreExperiments;
 
 import org.apache.commons.math3.distribution.UniformRealDistribution;
 
-class UniformValues implements ValueDistribution {
+public class UniformValues implements ValueDistribution {
     private final long l, r;
     private final UniformRealDistribution distribution;
 
-    UniformValues(long l, long r) {
+    public UniformValues(long l, long r) {
         this.l = l;
         this.r = r;
         distribution = new UniformRealDistribution(l, r);

@@ -87,7 +87,7 @@ public class CountBasedWBMH implements WindowingMechanism {
     }
 
     /**
-     * Find the smallest N' >= N such that after N elements have been inserted
+     * Find the smallest N' >= N such that after N' elements have been inserted
      * the interval [Cl, Cr] will be contained inside the same window. Returns
      * null if no such N' exists
      */

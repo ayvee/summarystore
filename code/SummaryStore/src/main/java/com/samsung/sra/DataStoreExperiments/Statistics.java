@@ -33,7 +33,7 @@ public class Statistics implements Serializable {
         boolean haveCDF = true;
         double totalWeight = weights.stream().mapToDouble(Double::doubleValue).sum();
         for (Iterator statsi = stats.iterator(), weighti = weights.iterator(); statsi.hasNext() && weighti.hasNext();) {
-            Statistics stat = (Statistics) statsi.next();
+            Statistics stat = (Statistics)statsi.next();
             double probability = (Double)weighti.next() / totalWeight;
             N += stat.N;
             avg += probability * stat.avg;

@@ -3,7 +3,7 @@ package com.samsung.sra.DataStoreExperiments;
 public class FixedInterarrival implements InterarrivalDistribution {
     private final long interarrival;
 
-    FixedInterarrival(long interarrival) {
+    public FixedInterarrival(long interarrival) {
         this.interarrival = interarrival;
     }
 

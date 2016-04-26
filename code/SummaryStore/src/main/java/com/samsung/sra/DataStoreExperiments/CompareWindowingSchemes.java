@@ -24,7 +24,7 @@ class CompareWindowingSchemes {
     // BEGIN CONFIG. If these parameters are changed, it may be necessary to delete memoized
     // results (see runExperiment()) to rerun the experiment
     private static long T = 1_000_000;
-    private static int storageSavingsFactor = 2;
+    private static int storageSavingsFactor = 100;
     // # of windows. Divide by 2 because we maintain 2 aggregates per window, sum and count
     private static int W = (int)(T / storageSavingsFactor / 2);
 
@@ -63,7 +63,7 @@ class CompareWindowingSchemes {
      */
     private static LinkedHashMap<String, LinkedHashMap<AgeLengthClass, Statistics>> runExperiment(boolean memoize) throws Exception {
         LinkedHashMap<String, LinkedHashMap<AgeLengthClass, Statistics>> results;
-        String memoFile = memoize ? String.format("compare-windowing.T%d.W%d.results", T, W) : null;
+        String memoFile = memoize ? String.format("compare-windowing.T%d.W%d.dat", T, W) : null;
         if (memoize) {
             try {
                 byte[] serialized = Files.readAllBytes(Paths.get(memoFile));
@@ -122,24 +122,30 @@ class CompareWindowingSchemes {
         return results;
     }
 
-    private static void registerStore(Map<String, SummaryStore> stores, String name, WindowingMechanism windowingMechanism) throws RocksDBException, StreamException {
-        //SummaryStore store = new SummaryStore(new RocksDBBucketStore(loc_prefix + name));
+    private static void registerStore(Map<String, SummaryStore> stores, String storeName, WindowingMechanism windowingMechanism) throws RocksDBException, StreamException {
+        //SummaryStore store = new SummaryStore(new RocksDBBucketStore(loc_prefix + storeName));
         SummaryStore store = new SummaryStore(new MainMemoryBucketStore());
         store.registerStream(streamID, windowingMechanism);
-        stores.put(name, store);
+        stores.put(storeName, store);
     }
 
     public static void main(String[] args) throws Exception {
-        ToDoubleFunction<Statistics> metric = stats -> stats.getQuantile(0.999);//stats.getMean();
+        ToDoubleFunction<Statistics> metric = stats -> stats.getQuantile(0.95);
         ToDoubleFunction<AgeLengthClass> weightFunction = alClass ->
-                Math.pow(alClass.lengthClassNum + 1, 1) / Math.pow(alClass.ageClassNum + 1, 1);
+                //1;
+                Math.pow(alClass.lengthClassNum + 1, 0) / Math.pow(alClass.ageClassNum + 1, 2);
 
         LinkedHashMap<String, LinkedHashMap<AgeLengthClass, Statistics>> results = runExperiment(true);
+
+        System.out.println("cost of");
         LinkedHashMap<String, Double> decayFunctionCosts = new LinkedHashMap<>(); // compute cost of each decay function
         results.forEach((decayFunction, perClassResults) -> {
-            Statistics mixtureStats = new Statistics(
-                    perClassResults.values(),
-                    perClassResults.keySet().stream().mapToDouble(weightFunction).boxed().collect(Collectors.toList()));
+            Collection<Statistics> eachClassStatistics = perClassResults.values();
+            Collection<Double> eachClassWeight = perClassResults.keySet().stream().
+                    mapToDouble(weightFunction).
+                    boxed().collect(Collectors.toList());
+            // construct the aggregate weighted mixture distribution over all the classes
+            Statistics mixtureStats = new Statistics(eachClassStatistics, eachClassWeight);
             double cost = metric.applyAsDouble(mixtureStats);
             /*// normalize so that sum of all classes' weights = 1
             final double weightNormFact = perClassResults.keySet().stream().mapToDouble(weightFunction).sum();
@@ -150,8 +156,9 @@ class CompareWindowingSchemes {
                 return metric.applyAsDouble(stats) * weightFunction.applyAsDouble(alClass) / weightNormFact;
             }).sum();*/
             decayFunctionCosts.put(decayFunction, cost);
-            System.out.println("cost of " + decayFunction + " = " + cost);
+            System.out.println("\t" + decayFunction + " = " + cost);
         });
+
         String bestDecay = decayFunctionCosts.entrySet().stream().
                 min(Comparator.comparing(Map.Entry::getValue)).
                 get().getKey();
