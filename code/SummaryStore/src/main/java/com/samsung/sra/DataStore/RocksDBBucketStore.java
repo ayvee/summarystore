@@ -24,7 +24,6 @@ public class RocksDBBucketStore implements BucketStore {
         fstConf.registerClass(Bucket.class);
         fstConf.registerClass(SummaryStore.StreamInfo.class);
         fstConf.registerClass(CountBasedWBMH.class);
-        fstConf.registerClass(SlowCountBasedWBMH.class);
 
         RocksDB.loadLibrary();
     }

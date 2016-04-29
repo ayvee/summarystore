@@ -41,9 +41,9 @@ class CompareWindowingSchemes {
     static {
         //Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + loc_prefix + "*"}).waitFor();
         try {
-            registerStore(stores, "exponential", new CountBasedWBMH(ExponentialWindowLengths.getWindowingOfSize(T, W)));
+            registerStore(stores, "exponential", new CountBasedWBMH(streamID, ExponentialWindowLengths.getWindowingOfSize(T, W)));
             for (int d = 0; d < 10; ++d) {
-                registerStore(stores, "polynomial(" + d + ")", new CountBasedWBMH(PolynomialWindowLengths.getWindowingOfSize(d, T, W)));
+                registerStore(stores, "polynomial(" + d + ")", new CountBasedWBMH(streamID, PolynomialWindowLengths.getWindowingOfSize(d, T, W)));
             }
         } catch (Exception e) {
             e.printStackTrace();

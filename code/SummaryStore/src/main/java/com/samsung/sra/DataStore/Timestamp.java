@@ -52,7 +52,7 @@ public class Timestamp implements Comparable<Timestamp>, Serializable {
 
     public int compareTo(Timestamp that) {
         if (that == null) {
-            throw new NullPointerException("comparing null BucketID");
+            throw new NullPointerException("comparing null timestamp");
         }
         return (int)(this.value - that.value);
     }

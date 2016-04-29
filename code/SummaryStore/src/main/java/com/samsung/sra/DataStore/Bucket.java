@@ -10,31 +10,42 @@ class Bucket implements Serializable {
     private long sum = 0;
 
     // metadata
-    final BucketID id;
-    final Timestamp tStart;
-    final Long cStart;
+    BucketID prev, curr, next;
+    Timestamp tStart, tEnd;
+    long cStart, cEnd;
 
     /** Size of the bucket itself, for count and sum, not counting metadata */
     static final int byteCount = Long.BYTES + Long.BYTES;
 
-    Bucket(BucketID bucketID, Timestamp tStart, long cStart) {
-        this.id = bucketID;
+    Bucket(BucketID prev, BucketID curr, BucketID next,
+           Timestamp tStart, Timestamp tEnd, long cStart, long cEnd) {
+        this.prev = prev;
+        this.curr = curr;
+        this.next = next;
         this.tStart = tStart;
+        this.tEnd = tEnd;
         this.cStart = cStart;
+        this.cEnd = cEnd;
+    }
+
+    void merge(Bucket... buckets) {
+        for (Bucket that: buckets) {
+            assert this.cEnd == that.cStart - 1;
+            this.count += that.count;
+            this.sum += that.sum;
+            this.cEnd = that.cEnd;
+            this.tEnd = that.tEnd;
+        }
     }
 
     void merge(List<Bucket> buckets) {
         if (buckets != null) {
-            for (Bucket that : buckets) {
-                //TODO: assert this.cEnd == that.cStart - 1;
-                this.count += that.count;
-                this.sum += that.sum;
-            }
+            merge(buckets.toArray(new Bucket[buckets.size()]));
         }
     }
 
     void insertValue(Timestamp ts, Object value) {
-        //TODO: assert tStart.compareTo(ts) <= 0 && (tEnd == null || ts.compareTo(tEnd) <= 0);
+        assert tStart.compareTo(ts) <= 0 && (tEnd == null || ts.compareTo(tEnd) <= 0);
         count += 1;
         sum += (Long)value;
     }
@@ -66,7 +77,9 @@ class Bucket implements Serializable {
 
     @Override
     public String toString() {
-        String ret = "<bucket " + id;
+        String ret = "<bucket " + curr;
+        ret += ", time range [" + tStart + ":" + tEnd + "]";
+        ret += ", count range [" + cStart + ":" + cEnd + "]";
         ret += ", count " + count;
         ret += ", sum " + sum;
         ret += ">";

@@ -5,9 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.*;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
@@ -29,8 +27,7 @@ public class SummaryStore implements DataStore {
         // What was the timestamp of the latest value appended?
         Timestamp lastValueTimestamp = null;
 
-        final ReadWriteLock readLock = new ReentrantReadWriteLock();
-        final Lock writeLock = new ReentrantLock();
+        final ReadWriteLock lock = new ReentrantReadWriteLock();
 
         /* Read index, maps bucket.tStart -> bucketID. Used to answer queries */
         final TreeMap<Timestamp, BucketID> temporalIndex = new TreeMap<>();
@@ -82,7 +79,7 @@ public class SummaryStore implements DataStore {
                 streamInfo = streamsInfo.get(streamID);
             }
         }
-        streamInfo.readLock.readLock().lock();
+        streamInfo.lock.readLock().lock();
         try {
             if (t1.compareTo(streamInfo.lastValueTimestamp) > 0) {
                 throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
@@ -110,7 +107,7 @@ public class SummaryStore implements DataStore {
             assert first != null;
             return first.multiQuery(rest, t0, t1, queryType, queryParams);
         } finally {
-            streamInfo.readLock.readLock().unlock();
+            streamInfo.lock.readLock().unlock();
         }
     }
 
@@ -124,119 +121,38 @@ public class SummaryStore implements DataStore {
             }
         }
 
-        streamInfo.writeLock.lock();
+        streamInfo.lock.writeLock().lock();
         try {
-            /* All writes will be serialized at this point. Reads are still allowed. We will lock
-               readers below once we've done the bucket merge math and are ready to start modifying
-               the data structure */
-
-            // ask windowing mechanism which existing buckets to merge and/or which new buckets
-            // to create, in response to adding this value
-            List<BucketModification> bucketMods = streamInfo.windowingMechanism.computeModifications(ts, value);
-
-            // we've done the bucket modification math: now lock all readers and process bucket changes
-            streamInfo.readLock.writeLock().lock();
-            try {
-                // 1. Update set of buckets
-                for (BucketModification mod : bucketMods) {
-                    logger.trace("Executing bucket modification {}", mod);
-                    mod.process(this, streamInfo);
-                }
-                // 2. Insert the new value into the appropriate bucket
-                processInsert(streamInfo, ts, value);
-            } finally {
-                streamInfo.readLock.writeLock().unlock();
+            if (logger.isDebugEnabled() && streamInfo.numValues % 1000000 == 0) {
+                logger.debug("size of temporal index = {}", streamInfo.temporalIndex.size());
             }
+            streamInfo.windowingMechanism.append(this, ts, value);
+            ++streamInfo.numValues;
+            streamInfo.lastValueTimestamp = ts;
         } finally {
-            streamInfo.writeLock.unlock();
+            streamInfo.lock.writeLock().unlock();
         }
     }
 
-    interface BucketModification {
-        /**
-         * Process modifications to the store. This function is responsible for updating
-         * the buckets in RocksDB as well as the in-memory indexes in StreamInfo (but not
-         * persisting the indexes to disk)
-         */
-        void process(SummaryStore store, StreamInfo streamInfo) throws RocksDBException;
+    /* getBucket and putBucket are for use by WindowingMechanism objects. They update both the underlying
+       bucketStore and the temporal index we maintain. The stream-write lock should be acquired before
+       calling these functions */
+
+    Bucket getBucket(StreamID streamID, BucketID bucketID, boolean delete) throws RocksDBException {
+        Bucket bucket = bucketStore.getBucket(streamID, bucketID, delete);
+        if (delete) {
+            streamsInfo.get(streamID).temporalIndex.remove(bucket.tStart);
+        }
+        return bucket;
     }
 
-    /**
-     * Merge one or more successor buckets into the mergee bucket
-     */
-    static class BucketMergeModification implements BucketModification {
-        private final BucketID mergee;
-        private final List<BucketID> merges;
-
-        BucketMergeModification(BucketID mergee, List<BucketID> merges) {
-            this.mergee = mergee;
-            this.merges = merges;
-        }
-
-        @Override
-        public void process(SummaryStore store, StreamInfo streamInfo) throws RocksDBException {
-            if (merges == null || merges.isEmpty()) {
-                return;
-            }
-            Bucket target = store.bucketStore.getBucket(streamInfo.streamID, mergee);
-            List<Bucket> sources = new ArrayList<>();
-            for (BucketID srcID: merges) {
-                Bucket src = store.bucketStore.getBucket(streamInfo.streamID, srcID, true);
-                sources.add(src);
-                streamInfo.temporalIndex.remove(src.tStart);
-            }
-            target.merge(sources);
-            store.bucketStore.putBucket(streamInfo.streamID, mergee, target);
-        }
-
-        @Override
-        public String toString() {
-            String ret = "BucketMerge<" + mergee;
-            for (BucketID merged: merges) {
-                ret += ", " + merged;
-            }
-            ret += ">";
-            return ret;
-        }
+    Bucket getBucket(StreamID streamID, BucketID bucketID) throws RocksDBException {
+        return getBucket(streamID, bucketID, false);
     }
 
-    /**
-     * Create an empty bucket with the specified metadata
-     */
-    static class BucketCreateModification implements BucketModification {
-        private final BucketID bucketID;
-        private final Timestamp tStart;
-        private final long cStart;
-
-        BucketCreateModification(BucketID bucketID, Timestamp bucketTStart, long cStart) {
-            this.bucketID = bucketID;
-            this.tStart = bucketTStart;
-            this.cStart = cStart;
-        }
-
-        @Override
-        public void process(SummaryStore store, StreamInfo streamInfo) throws RocksDBException {
-            Bucket bucket = new Bucket(bucketID, tStart, cStart);
-            store.bucketStore.putBucket(streamInfo.streamID, bucketID, bucket);
-
-            streamInfo.temporalIndex.put(tStart, bucketID);
-        }
-
-        @Override
-        public String toString() {
-            return "Create bucket " + bucketID + " with tStart = " + tStart + ", cStart = " + cStart;
-        }
-    }
-
-    private void processInsert(StreamInfo streamInfo, Timestamp ts, Object value) throws RocksDBException {
-        BucketID destinationID = streamInfo.temporalIndex.floorEntry(ts).getValue();
-        assert destinationID != null;
-        Bucket bucket = bucketStore.getBucket(streamInfo.streamID, destinationID);
-        bucket.insertValue(ts, value);
-        logger.trace("Inserted value <{}, {}> into bucket {}", ts, value, bucket);
-        bucketStore.putBucket(streamInfo.streamID, destinationID, bucket);
-        streamInfo.numValues += 1;
-        streamInfo.lastValueTimestamp = ts;
+    void putBucket(StreamID streamID, BucketID bucketID, Bucket bucket) throws RocksDBException {
+        streamsInfo.get(streamID).temporalIndex.put(bucket.tStart, bucketID);
+        bucketStore.putBucket(streamID, bucketID, bucket);
     }
 
     public void printBucketState(StreamID streamID) throws RocksDBException {
@@ -251,8 +167,7 @@ public class SummaryStore implements DataStore {
         synchronized (streamsInfo) {
             // wait for all in-process writes and reads to finish
             for (StreamInfo streamInfo: streamsInfo.values()) {
-                streamInfo.writeLock.lock();
-                streamInfo.readLock.writeLock().lock();
+                streamInfo.lock.writeLock().lock();
             }
             // at this point all operations on existing streams will be blocked
             // TODO: lock out creating new streams
@@ -264,12 +179,12 @@ public class SummaryStore implements DataStore {
     public long getStoreSizeInBytes() {
         long ret = 0;
         for (StreamInfo si: streamsInfo.values()) {
-            si.readLock.readLock().lock();
+            si.lock.readLock().lock();
             try {
                 // FIXME: this does not account for the size of the time/count markers tracked by the index
                 ret += si.temporalIndex.size() * (StreamID.byteCount + BucketID.byteCount + Bucket.byteCount);
             } finally {
-                si.readLock.readLock().unlock();
+                si.lock.readLock().unlock();
             }
         }
         return ret;
@@ -284,11 +199,11 @@ public class SummaryStore implements DataStore {
                 throw new StreamException("attempting to get age of unknown stream " + streamID);
             }
         }
-        streamInfo.readLock.readLock().lock();
+        streamInfo.lock.readLock().lock();
         try {
             return streamInfo.lastValueTimestamp.value;
         } finally {
-            streamInfo.readLock.readLock().unlock();
+            streamInfo.lock.readLock().unlock();
         }
     }
 
@@ -301,11 +216,11 @@ public class SummaryStore implements DataStore {
                 throw new StreamException("attempting to get age of unknown stream " + streamID);
             }
         }
-        streamInfo.readLock.readLock().lock();
+        streamInfo.lock.readLock().lock();
         try {
             return streamInfo.numValues;
         } finally {
-            streamInfo.readLock.readLock().unlock();
+            streamInfo.lock.readLock().unlock();
         }
     }
 
@@ -315,12 +230,11 @@ public class SummaryStore implements DataStore {
             String storeLoc = "/tmp/tdstore";
             // FIXME: add a deleteStream/resetDatabase operation
             Runtime.getRuntime().exec(new String[]{"rm", "-rf", storeLoc}).waitFor();
-            //store = new SummaryStore(storeLoc, new ExponentialWBMHWindowingMechanism(3));
-            //store = new SummaryStore(storeLoc, new CountBasedWBMH(new ExponentialWindowLengths(2)));
             store = new SummaryStore(new RocksDBBucketStore(storeLoc));
             StreamID streamID = new StreamID(0);
-            store.registerStream(streamID, new CountBasedWBMH(new PolynomialWindowLengths(4, 0)));
-            for (long i = 0; i < 10; ++i) {
+            store.registerStream(streamID, new CountBasedWBMH(streamID, new PolynomialWindowLengths(4, 0)));
+            //store.registerStream(streamID, new CountBasedWBMH(streamID, new ExponentialWindowLengths(2)));
+            for (long i = 0; i < 20; ++i) {
                 store.append(streamID, new Timestamp(i), i + 1);
                 store.printBucketState(streamID);
             }
@@ -339,9 +253,5 @@ public class SummaryStore implements DataStore {
                 }
             }
         }
-        /*long N = 65536;
-        for (int W = 1; W <= 65536; W *= 2) {
-            ExponentialWindowLengths.getWindowingOfSize(N, W);
-        }*/
     }
 }

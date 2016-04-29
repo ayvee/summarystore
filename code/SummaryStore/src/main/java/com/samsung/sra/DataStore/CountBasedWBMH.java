@@ -1,11 +1,14 @@
 package com.samsung.sra.DataStore;
 
+import org.rocksdb.RocksDBException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.teneighty.heap.FibonacciHeap;
 import org.teneighty.heap.Heap;
 
-import java.io.Serializable;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.HashMap;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
  * Newer implementation of WBMH that maintains a priority queue of pending bucket
@@ -14,27 +17,14 @@ import java.util.stream.Collectors;
  * Can be controlled with care, which I've taken some of, but may need more analysis.
  */
 public class CountBasedWBMH implements WindowingMechanism {
+    private static Logger logger = LoggerFactory.getLogger(CountBasedWBMH.class);
+    private final StreamID streamID;
     private final WindowLengths windowLengths;
-
-    private static class BucketInfo implements Serializable {
-        BucketID prev = null, curr, next = null;
-        long Cl, Cr;
-        Heap.Entry<Long, BucketID> heapEntry = null;
-
-        BucketInfo(BucketID prevBucket, BucketID thisBucket, BucketID nextBucket, long Cl, long Cr) {
-            this.prev = prevBucket;
-            this.curr = thisBucket;
-            this.next = nextBucket;
-            this.Cl = Cl;
-            this.Cr = Cr;
-        }
-    }
 
     private BucketID lastBucketID = null;
     private long N = 0;
     private final long firstWindowLength; // length of the first window (the one holding the newest element)
 
-    private final Map<BucketID, BucketInfo> bucketsInfo = new HashMap<>();
     /* Priority queue, mapping each BucketID b_i to the time at which b_{i+1} will be
      * merged into it. Using a Fibonacci heap instead of the Java Collections PriorityQueue
      * because we need an efficient arbitrary-element delete.
@@ -43,8 +33,10 @@ public class CountBasedWBMH implements WindowingMechanism {
      * https://gabormakrai.wordpress.com/2015/02/11/experimenting-with-dijkstras-algorithm/
      */
     private final FibonacciHeap<Long, BucketID> mergeCounts = new FibonacciHeap<>();
+    private final HashMap<BucketID, Heap.Entry<Long, BucketID>> heapEntries = new HashMap<>();
 
-    public CountBasedWBMH(WindowLengths windowLengths) {
+    public CountBasedWBMH(StreamID streamID, WindowLengths windowLengths) {
+        this.streamID = streamID;
         this.windowLengths = windowLengths;
         addWindow((firstWindowLength = windowLengths.nextWindowLength()));
     }
@@ -119,110 +111,76 @@ public class CountBasedWBMH implements WindowingMechanism {
     }
 
     /**
-     * Update the priority queue's entry for the merge pair (b_i, b_ip1 = b_{i+1})
+     * Update the priority queue's entry for the merge pair (b0, b1)
      * */
-    private void updateMergeCountFor(BucketInfo b_i, BucketInfo b_ip1) {
-        Long mergeAt = findMergeCount(N, b_i.Cl, b_ip1.Cr);
-        if (mergeAt != null) {
-            b_i.heapEntry = mergeCounts.insert(mergeAt, b_i.curr);
-        } else {
-            b_i.heapEntry = null;
+    private void updateMergeCountFor(Bucket b0, Bucket b1) {
+        if (b0 == null || b1 == null) return;
+
+        Heap.Entry<Long, BucketID> existingEntry = heapEntries.remove(b0.curr);
+        if (existingEntry != null) mergeCounts.delete(existingEntry);
+
+        Long newMergeCount = findMergeCount(N, b0.cStart, b1.cEnd);
+        if (newMergeCount != null) {
+            heapEntries.put(b0.curr, mergeCounts.insert(newMergeCount, b0.curr));
         }
     }
 
     @Override
-    public List<SummaryStore.BucketModification> computeModifications(Timestamp newValueTimestamp, Object newValue) {
+    public void append(SummaryStore store, Timestamp ts, Object value) throws RocksDBException {
+        if (logger.isDebugEnabled() && N % 1000000 == 0) {
+            logger.debug("length of windowStartMarkers = {}, firstWindowOfLength = {}, mergeCounts = {}",
+                    windowStartMarkers.size(), firstWindowOfLength.size(), mergeCounts.getSize());
+        }
         ++N;
 
-        Map<BucketID, TreeSet<BucketID>> merges = new HashMap<>();
         while (!mergeCounts.isEmpty() && mergeCounts.getMinimum().getKey() <= N) {
             Heap.Entry<Long, BucketID> entry = mergeCounts.extractMinimum();
-            BucketInfo b_i = bucketsInfo.get(entry.getValue());
-            BucketInfo b_im1 = bucketsInfo.getOrDefault(b_i.prev, null), b_ip1 = bucketsInfo.get(b_i.next);
+            Heap.Entry<Long, BucketID> removed = heapEntries.remove(entry.getValue());
+            assert removed == entry;
+            Bucket b0 = store.getBucket(streamID, entry.getValue());
+            // We will now merge b0's successor b1 into b0. We also need to update b{-1}'s and
+            // b2's prev and next pointers and b{-1} and b0's heap entries
+            assert b0.next != null;
+            Bucket b1 = store.getBucket(streamID, b0.next, true); // note: this deletes b1 from bucketStore
+            Bucket b2 = b1.next == null ? null : store.getBucket(streamID, b1.next);
+            Bucket bm1 = b0.prev == null ? null : store.getBucket(streamID, b0.prev); // b{-1}
 
-            addMerge(merges, b_i.curr, b_i.next);
-            // update linked list pointers: b_i's next, b_{i+2}'s prev
-            b_i.next = b_ip1.next;
-            if (b_ip1.next != null) {
-                bucketsInfo.get(b_ip1.next).prev = b_i.curr;
-            }
-            // update b_i's Cr
-            assert b_i.Cr == b_ip1.Cl - 1;
-            b_i.Cr = b_ip1.Cr;
+            b0.merge(b1);
 
-            // update heap keys: delete b_{i+1}, increase b_{i-1} and b_{i}. also delete b_{i+1} from bucketsInfo and mergeCounts
-            if (b_im1 != null) {
-                if (b_im1.heapEntry != null) mergeCounts.delete(b_im1.heapEntry);
-                updateMergeCountFor(b_im1, b_i);
-            }
-            if (b_ip1.heapEntry != null) {
-                mergeCounts.delete(b_ip1.heapEntry);
-            }
-            bucketsInfo.remove(b_ip1.curr);
-            if (lastBucketID == b_ip1.curr) {
-                lastBucketID = b_i.curr;
-            }
-            b_ip1 = bucketsInfo.getOrDefault(b_i.next, null); // the bucket formerly known as b_{i+2}
-            if (b_ip1 != null) {
-                updateMergeCountFor(b_i, b_ip1);
-            }
+            if (bm1 != null) bm1.next = b0.curr;
+            b0.next = b1.next;
+            if (b2 != null) b2.prev = b0.curr;
+            if (b1.curr.equals(lastBucketID)) lastBucketID = b0.curr;
+
+            Heap.Entry<Long, BucketID> b1entry = heapEntries.remove(b1.curr);
+            if (b1entry != null) mergeCounts.delete(b1entry);
+            updateMergeCountFor(bm1, b0);
+            updateMergeCountFor(b0, b2);
+
+            if (bm1 != null) store.putBucket(streamID, bm1.curr, bm1);
+            store.putBucket(streamID, b0.curr, b0);
+            if (b2 != null) store.putBucket(streamID, b2.curr, b2);
         }
 
-        /*if (N % 100_000 == 0) {
-            System.out.println(
-                    "[" + LocalDateTime.now() + "] N = " + N +
-                    ": mergeCounts.size = " + mergeCounts.getSize() +
-                    ", bucketsInfo.size = " + bucketsInfo.size() +
-                    ", windowMap.size = " + firstWindowOfLength.size() +
-                    ", windowSet.size = " + windowStartMarkers.size());
-        }*/
-
-        boolean createNewBucketForLatestElement = true;
-        SummaryStore.BucketModification newBucketCreateOperation = null;
-        if (lastBucketID != null) {
-            BucketInfo b_m1 = bucketsInfo.get(lastBucketID);
-            createNewBucketForLatestElement = b_m1.Cr - b_m1.Cl + 1 >= firstWindowLength;
-        }
-        if (createNewBucketForLatestElement) {
-            BucketID newBucketID = lastBucketID != null ? lastBucketID.nextBucketID() : new BucketID(0);
-            // semantics decision: we start streams at T = 0, as opposed to T = timestamp of first ever inserted element
-            Timestamp newBucketTStart = lastBucketID != null ? newValueTimestamp : new Timestamp(0);
-            BucketInfo newBucketInfo = new BucketInfo(lastBucketID, newBucketID, null, N - 1, N - 1);
-            bucketsInfo.put(newBucketID, newBucketInfo);
-            if (lastBucketID != null) {
-                BucketInfo b_m1 = bucketsInfo.get(lastBucketID);
-                b_m1.next = newBucketID;
-                updateMergeCountFor(b_m1, newBucketInfo);
-            }
-            newBucketCreateOperation = new SummaryStore.BucketCreateModification(newBucketID, newBucketTStart, N - 1);
-            lastBucketID = newBucketID;
+        Bucket lastBucket = lastBucketID == null ? null : store.getBucket(streamID, lastBucketID);
+        if (lastBucket != null && lastBucket.cEnd - lastBucket.cStart + 1 < firstWindowLength) {
+            // last bucket isn't yet full; insert new value into it
+            lastBucket.cEnd = N-1;
+            lastBucket.tEnd = ts;
+            lastBucket.insertValue(ts, value);
+            store.putBucket(streamID, lastBucketID, lastBucket);
         } else {
-            assert lastBucketID != null;
-            bucketsInfo.get(lastBucketID).Cr = N-1;
-        }
-
-        List<SummaryStore.BucketModification> bucketModifications = merges.entrySet().stream().map(
-                merge -> new SummaryStore.BucketMergeModification(merge.getKey(), new ArrayList<>(merge.getValue()))).
-                collect(Collectors.toList());
-        if (createNewBucketForLatestElement) {
-            bucketModifications.add(newBucketCreateOperation);
-        }
-        return bucketModifications;
-    }
-
-    // FIXME: optimize.  Profiling shows this is as expensive as findMergeCount
-    private void addMerge(Map<BucketID, TreeSet<BucketID>> merges, BucketID dst, BucketID src) {
-        if (!merges.containsKey(dst)) {
-            merges.put(dst, new TreeSet<>());
-        }
-        // src needs to be merged into dst
-        merges.get(dst).add(src);
-        // any buckets that would have been merged into src now need to be merged into dst instead
-        Set<BucketID> recursiveMerges = merges.remove(src);
-        if (recursiveMerges != null) {
-            for (BucketID bucketID: recursiveMerges) {
-                merges.get(dst).add(bucketID);
+            // create new bucket holding the latest element
+            BucketID newBucketID = lastBucketID != null ? lastBucketID.nextBucketID() : new BucketID(0);
+            Bucket newBucket = new Bucket(lastBucketID, newBucketID, null, ts, ts, N-1, N-1);
+            newBucket.insertValue(ts, value);
+            store.putBucket(streamID, newBucketID, newBucket);
+            if (lastBucket != null) {
+                lastBucket.next = newBucketID;
+                updateMergeCountFor(lastBucket, newBucket);
+                store.putBucket(streamID, lastBucketID, lastBucket);
             }
+            lastBucketID = newBucketID;
         }
     }
 }
