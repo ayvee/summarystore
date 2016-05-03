@@ -148,7 +148,7 @@ public class SummaryStore implements DataStore {
     Bucket getBucket(StreamID streamID, BucketID bucketID, boolean delete) throws RocksDBException {
         Bucket bucket = bucketStore.getBucket(streamID, bucketID, delete);
         if (delete) {
-            streamsInfo.get(streamID).temporalIndex.remove(bucket.tStart);
+            streamsInfo.get(streamID).temporalIndex.remove(bucket.tStart.value);
         }
         return bucket;
     }
