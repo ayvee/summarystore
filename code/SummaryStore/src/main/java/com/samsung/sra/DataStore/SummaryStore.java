@@ -1,5 +1,9 @@
 package com.samsung.sra.DataStore;
 
+import org.mapdb.BTreeMap;
+import org.mapdb.DB;
+import org.mapdb.DBMaker;
+import org.mapdb.Serializer;
 import org.rocksdb.RocksDBException;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +34,8 @@ public class SummaryStore implements DataStore {
         final ReadWriteLock lock = new ReentrantReadWriteLock();
 
         /* Read index, maps bucket.tStart -> bucketID. Used to answer queries */
-        final TreeMap<Timestamp, BucketID> temporalIndex = new TreeMap<>();
+        //final TreeMap<Timestamp, BucketID> temporalIndex = new TreeMap<>();
+        final BTreeMap<Long, Long> temporalIndex;
 
         /* WindowingMechanism object. Maintains write indexes internally, which will be serialized
          * along with the rest of StreamInfo when persistStreamsInfo() is called */
@@ -39,6 +44,8 @@ public class SummaryStore implements DataStore {
         StreamInfo(StreamID streamID, WindowingMechanism windowingMechanism) {
             this.streamID = streamID;
             this.windowingMechanism = windowingMechanism;
+            DB mapDB = DBMaker.memoryDB().make();
+            temporalIndex = mapDB.treeMap("map", Serializer.LONG, Serializer.LONG).createOrOpen();
         }
     }
 
@@ -84,20 +91,20 @@ public class SummaryStore implements DataStore {
             if (t1.compareTo(streamInfo.lastValueTimestamp) > 0) {
                 throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
             }
-            TreeMap<Timestamp, BucketID> index = streamInfo.temporalIndex;
-            Timestamp l = index.floorKey(t0); // first bucket with tStart <= t0
-            Timestamp r = index.higherKey(t1); // first bucket with tStart > t1
+            BTreeMap<Long, Long> index = streamInfo.temporalIndex;
+            Long l = index.floorKey(t0.value); // first bucket with tStart <= t0
+            Long r = index.higherKey(t1.value); // first bucket with tStart > t1
             logger.trace("Overapproximated time range = [{}, {}]", l, r);
             if (r == null) {
                 r = index.lastKey();
             }
             // Query on all buckets with l <= tStart < r
-            SortedMap<Timestamp, BucketID> spanningBucketsIDs = index.subMap(l, true, r, false);
+            SortedMap<Long, Long> spanningBucketsIDs = index.subMap(l, true, r, false);
             Bucket first = null;
             List<Bucket> rest = new ArrayList<>();
             // TODO: RocksDB multiget
-            for (BucketID bucketID: spanningBucketsIDs.values()) {
-                Bucket bucket = bucketStore.getBucket(streamID, bucketID);
+            for (Long bucketIDlong: spanningBucketsIDs.values()) {
+                Bucket bucket = bucketStore.getBucket(streamID, new BucketID(bucketIDlong));
                 if (first == null) {
                     first = bucket;
                 } else {
@@ -151,15 +158,15 @@ public class SummaryStore implements DataStore {
     }
 
     void putBucket(StreamID streamID, BucketID bucketID, Bucket bucket) throws RocksDBException {
-        streamsInfo.get(streamID).temporalIndex.put(bucket.tStart, bucketID);
+        streamsInfo.get(streamID).temporalIndex.put(bucket.tStart.value, bucketID.id);
         bucketStore.putBucket(streamID, bucketID, bucket);
     }
 
     public void printBucketState(StreamID streamID) throws RocksDBException {
         StreamInfo streamInfo = streamsInfo.get(streamID);
         System.out.println("Stream " + streamID + " with " + streamInfo.numValues + " elements:");
-        for (BucketID bucketID: streamInfo.temporalIndex.values()) {
-            System.out.println("\t" + bucketStore.getBucket(streamID, bucketID));
+        for (Object bucketIDlong: streamInfo.temporalIndex.values()) {
+            System.out.println("\t" + bucketStore.getBucket(streamID, new BucketID((Long)bucketIDlong)));
         }
     }
 
