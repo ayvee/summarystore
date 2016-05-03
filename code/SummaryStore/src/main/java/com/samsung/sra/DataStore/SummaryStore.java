@@ -130,9 +130,6 @@ public class SummaryStore implements DataStore {
 
         streamInfo.lock.writeLock().lock();
         try {
-            if (logger.isDebugEnabled() && streamInfo.numValues % 1000000 == 0) {
-                logger.debug("size of temporal index = {}", streamInfo.temporalIndex.size());
-            }
             streamInfo.windowingMechanism.append(this, ts, value);
             ++streamInfo.numValues;
             streamInfo.lastValueTimestamp = ts;
