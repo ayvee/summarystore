@@ -61,22 +61,22 @@ public class RocksDBBucketStore implements BucketStore {
         rocksDB.put(rocksKey, rocksValue);
     }
 
-    /** We will persist indexes in RocksDB under this special key. Note that this key is 1 byte, as
-     * opposed to the 8 byte keys we use for buckets, so it won't interfere with bucket storage
+    /** We will persist metadata in RocksDB under this special (empty) key, which will
+     * never collide with any of the (non-empty) keys we use for bucket storage
      */
-    private final static byte[] indexesSpecialKey = {0};
+    private final static byte[] metadataSpecialKey = {};
 
     @Override
-    public Object getIndexes() throws RocksDBException {
-        byte[] indexesBytes = rocksDB.get(indexesSpecialKey);
+    public Object getMetadata() throws RocksDBException {
+        byte[] indexesBytes = rocksDB.get(metadataSpecialKey);
         return indexesBytes != null ?
                 fstConf.asObject(indexesBytes) :
                 null;
     }
 
     @Override
-    public void putIndexes(Object indexes) throws RocksDBException {
-        rocksDB.put(indexesSpecialKey, fstConf.asByteArray(indexes));
+    public void putMetadata(Object indexes) throws RocksDBException {
+        rocksDB.put(metadataSpecialKey, fstConf.asByteArray(indexes));
     }
 
     @Override

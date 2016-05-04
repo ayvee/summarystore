@@ -51,7 +51,7 @@ public class MeasureThroughput {
     }
 
     private static void registerStore(Map<String, SummaryStore> stores, String storeName, WindowingMechanism windowingMechanism) throws RocksDBException, StreamException {
-        SummaryStore store = new SummaryStore(new RocksDBBucketStore(loc_prefix + storeName));
+        SummaryStore store = new SummaryStore(loc_prefix + storeName);
         //SummaryStore store = new SummaryStore(new MainMemoryBucketStore());
         store.registerStream(streamID, windowingMechanism);
         stores.put(storeName, store);

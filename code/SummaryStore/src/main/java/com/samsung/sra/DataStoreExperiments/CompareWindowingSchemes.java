@@ -123,7 +123,7 @@ class CompareWindowingSchemes {
 
     private static void registerStore(Map<String, SummaryStore> stores, String storeName, WindowingMechanism windowingMechanism) throws RocksDBException, StreamException {
         //SummaryStore store = new SummaryStore(new RocksDBBucketStore(loc_prefix + storeName));
-        SummaryStore store = new SummaryStore(new MainMemoryBucketStore());
+        SummaryStore store = new SummaryStore(null);
         store.registerStream(streamID, windowingMechanism);
         stores.put(storeName, store);
     }

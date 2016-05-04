@@ -27,12 +27,12 @@ public class MainMemoryBucketStore implements BucketStore {
     private Object indexes = null;
 
     @Override
-    public Object getIndexes() throws RocksDBException {
+    public Object getMetadata() throws RocksDBException {
         return indexes;
     }
 
     @Override
-    public void putIndexes(Object indexes) throws RocksDBException {
+    public void putMetadata(Object indexes) throws RocksDBException {
         this.indexes = indexes;
     }
 

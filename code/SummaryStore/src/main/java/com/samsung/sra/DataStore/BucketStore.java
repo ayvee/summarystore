@@ -16,9 +16,9 @@ interface BucketStore extends AutoCloseable {
 
     void putBucket(long streamID, long bucketID, Bucket bucket) throws RocksDBException;
 
-    Object getIndexes() throws RocksDBException;
+    Object getMetadata() throws RocksDBException;
 
-    void putIndexes(Object indexes) throws RocksDBException;
+    void putMetadata(Object indexes) throws RocksDBException;
 
     @Override
     void close() throws RocksDBException;

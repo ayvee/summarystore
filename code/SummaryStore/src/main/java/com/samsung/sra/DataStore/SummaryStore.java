@@ -8,15 +8,24 @@ import org.rocksdb.RocksDBException;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.SortedMap;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Time-decayed aggregate storage
+ * FIXME:
+ * 1. Once a store is closed (via close()), it can only be reopened in read-only
+ *    mode (writes will throw a runtime exception). This is because of issues with
+ *    serializing the priority queue data structure used in WBMH.
  */
 public class SummaryStore implements DataStore {
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(SummaryStore.class);
+
+    private final String filePrefix;
 
     private final BucketStore bucketStore;
 
@@ -25,42 +34,68 @@ public class SummaryStore implements DataStore {
      * metadata in StreamInfo to help reads and writes. The append operation keeps StreamInfo
      * consistent with the base data in bucketStore. */
      static class StreamInfo implements Serializable {
+        final String filePrefix;
         final long streamID;
         // How many values have we inserted so far?
         long numValues = 0;
         // What was the timestamp of the latest value appended?
         long lastValueTimestamp = -1;
 
-        final ReadWriteLock lock = new ReentrantReadWriteLock();
+        transient ReadWriteLock lock;
 
         /* Read index, maps bucket.tStart -> bucketID. Used to answer queries */
         //final TreeMap<Timestamp, BucketID> temporalIndex = new TreeMap<>();
-        final BTreeMap<Long, Long> temporalIndex;
+        transient BTreeMap<Long, Long> temporalIndex;
 
         /* WindowingMechanism object. Maintains write indexes internally, which will be serialized
          * along with the rest of StreamInfo when persistStreamsInfo() is called */
-        final WindowingMechanism windowingMechanism;
+        transient final WindowingMechanism windowingMechanism;
 
-        StreamInfo(long streamID, WindowingMechanism windowingMechanism) {
+        void populateTransientFields() {
+            lock = new ReentrantReadWriteLock();
+            DB mapDB = filePrefix != null ?
+                    DBMaker.fileDB(filePrefix + ".readIndex").make() :
+                    DBMaker.memoryDB().make();
+            temporalIndex = mapDB.treeMap("map", Serializer.LONG, Serializer.LONG).threadSafeDisable().createOrOpen();
+        }
+
+        // FIXME: supposed to be called whenever object is deserialized, but FST breaks when we use it
+        /*private void readObject(java.io.ObjectInputStream in) throws IOException, ClassNotFoundException {
+            populateTransientFields();
+        }*/
+
+        StreamInfo(String filePrefix, long streamID, WindowingMechanism windowingMechanism) {
+            this.filePrefix = filePrefix;
             this.streamID = streamID;
             this.windowingMechanism = windowingMechanism;
-            DB mapDB = DBMaker.memoryDB().make();
-            temporalIndex = mapDB.treeMap("map", Serializer.LONG, Serializer.LONG).createOrOpen();
+            populateTransientFields();
         }
     }
 
     private final HashMap<Long, StreamInfo> streamsInfo;
 
     private void persistStreamsInfo() throws RocksDBException {
-        bucketStore.putIndexes(streamsInfo);
+        bucketStore.putMetadata(streamsInfo);
     }
 
-    public SummaryStore(BucketStore bucketStore) throws RocksDBException {
-        this.bucketStore = bucketStore;
-        Object uncast = bucketStore.getIndexes();
-        streamsInfo = uncast != null ?
-                (HashMap<Long, StreamInfo>)uncast :
-                new HashMap<>();
+    /**
+     * Create a SummaryStore that stores data and indexes in files/directories that
+     * start with filePrefix. To store everything in-memory use a null filePrefix
+     */
+    public SummaryStore(String filePrefix) throws RocksDBException {
+        this.filePrefix = filePrefix;
+        this.bucketStore = filePrefix != null ?
+                new RocksDBBucketStore(filePrefix + ".bucketStore") :
+                new MainMemoryBucketStore();
+        Object uncast = bucketStore.getMetadata();
+        if (uncast != null) {
+            streamsInfo = (HashMap<Long, StreamInfo>) uncast;
+            for (StreamInfo si: streamsInfo.values()) {
+                si.populateTransientFields();
+            }
+        } else {
+            streamsInfo = new HashMap<>();
+        }
     }
 
     public void registerStream(final long streamID, WindowingMechanism windowingMechanism) throws StreamException, RocksDBException {
@@ -69,7 +104,7 @@ public class SummaryStore implements DataStore {
             if (streamsInfo.containsKey(streamID)) {
                 throw new StreamException("attempting to register streamID " + streamID + " multiple times");
             } else {
-                streamsInfo.put(streamID, new StreamInfo(streamID, windowingMechanism));
+                streamsInfo.put(streamID, new StreamInfo(filePrefix, streamID, windowingMechanism));
             }
         }
     }
@@ -128,6 +163,9 @@ public class SummaryStore implements DataStore {
                 streamInfo = streamsInfo.get(streamID);
             }
         }
+        if (streamInfo.windowingMechanism == null) {
+            throw new UnsupportedOperationException("do not currently support appending to reopened store");
+        }
 
         streamInfo.lock.writeLock().lock();
         try {
@@ -170,9 +208,10 @@ public class SummaryStore implements DataStore {
 
     public void close() throws RocksDBException {
         synchronized (streamsInfo) {
-            // wait for all in-process writes and reads to finish
+            // wait for all in-process writes and reads to finish, and seal read index
             for (StreamInfo streamInfo: streamsInfo.values()) {
                 streamInfo.lock.writeLock().lock();
+                streamInfo.temporalIndex.close();
             }
             // at this point all operations on existing streams will be blocked
             // TODO: lock out creating new streams
@@ -187,7 +226,6 @@ public class SummaryStore implements DataStore {
         for (StreamInfo si: streamsInfo.values()) {
             si.lock.readLock().lock();
             try {
-                // FIXME: this does not account for the size of the time/count markers tracked by the index
                 ret += si.temporalIndex.size() * (8 + 8 + Bucket.byteCount);
             } finally {
                 si.lock.readLock().unlock();
@@ -235,15 +273,18 @@ public class SummaryStore implements DataStore {
         try {
             String storeLoc = "/tmp/tdstore";
             // FIXME: add a deleteStream/resetDatabase operation
-            Runtime.getRuntime().exec(new String[]{"rm", "-rf", storeLoc}).waitFor();
-            store = new SummaryStore(new RocksDBBucketStore(storeLoc));
+            Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + storeLoc + "*"}).waitFor();
+            store = new SummaryStore(storeLoc);
             long streamID = 0;
-            //store.registerStream(streamID, new CountBasedWBMH(streamID, new PolynomialWindowLengths(4, 0)));
-            store.registerStream(streamID, new CountBasedWBMH(streamID, new ExponentialWindowLengths(2)));
-            for (long i = 0; i < 20; ++i) {
-                store.append(streamID, i, i + 1);
-                store.printBucketState(streamID);
+            if (!store.streamsInfo.containsKey(streamID)) {
+                //store.registerStream(streamID, new CountBasedWBMH(streamID, new PolynomialWindowLengths(4, 0)));
+                store.registerStream(streamID, new CountBasedWBMH(streamID, new ExponentialWindowLengths(2)));
+                for (long i = 0; i < 20; ++i) {
+                    store.append(streamID, i, i + 1);
+                    store.printBucketState(streamID);
+                }
             }
+            store.printBucketState(streamID);
             long t0 = 0, t1 = 4;
             System.out.println(
                     "sum[" + t0 + ", " + t1 + "] = " + store.query(streamID, t0, t1, QueryType.SUM, null) + "; " +
