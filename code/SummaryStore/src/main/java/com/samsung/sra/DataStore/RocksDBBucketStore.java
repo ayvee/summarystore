@@ -1,11 +1,12 @@
 package com.samsung.sra.DataStore;
 
 import org.nustaq.serialization.FSTConfiguration;
+import org.nustaq.serialization.FSTObjectOutput;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 
-import java.nio.ByteBuffer;
+import java.io.IOException;
 
 public class RocksDBBucketStore implements BucketStore {
     private RocksDB rocksDB = null;
@@ -33,11 +34,14 @@ public class RocksDBBucketStore implements BucketStore {
      * order, this lays out data in temporal order within streams
      */
     private byte[] getRocksDBKey(long streamID, long bucketID) {
-        ByteBuffer bytebuf = ByteBuffer.allocate(8 + 8);
-        bytebuf.putLong(streamID);
-        bytebuf.putLong(bucketID);
-        bytebuf.flip();
-        return bytebuf.array();
+        FSTObjectOutput out = fstConf.getObjectOutput();
+        try {
+            out.writeLong(streamID);
+            out.writeLong(bucketID);
+        } catch (IOException e) {
+            throw new RuntimeException("FST failed to serialize long", e);
+        }
+        return out.getCopyOfWrittenBuffer();
     }
 
     @Override
