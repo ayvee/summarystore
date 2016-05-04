@@ -10,15 +10,17 @@ class Bucket implements Serializable {
     private long sum = 0;
 
     // metadata
-    BucketID prev, curr, next;
-    Timestamp tStart, tEnd;
+    /* We use longs for bucket IDs, timestamps, and count markers. Valid values should be
+       non-negative (all three are 0-indexed), and use "-1" to indicate null values. */
+    long prev, curr, next;
+    long tStart, tEnd;
     long cStart, cEnd;
 
     /** Size of the bucket itself, for count and sum, not counting metadata */
     static final int byteCount = Long.BYTES + Long.BYTES;
 
-    Bucket(BucketID prev, BucketID curr, BucketID next,
-           Timestamp tStart, Timestamp tEnd, long cStart, long cEnd) {
+    Bucket(long prev, long curr, long next,
+           long tStart, long tEnd, long cStart, long cEnd) {
         this.prev = prev;
         this.curr = curr;
         this.next = next;
@@ -44,13 +46,13 @@ class Bucket implements Serializable {
         }
     }
 
-    void insertValue(Timestamp ts, Object value) {
-        assert tStart.compareTo(ts) <= 0 && (tEnd == null || ts.compareTo(tEnd) <= 0);
+    void insertValue(long ts, Object value) {
+        assert tStart <= ts && (tEnd == -1 || ts <= tEnd);
         count += 1;
         sum += (Long)value;
     }
 
-    long query(Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams) throws QueryException {
+    long query(long t0, long t1, QueryType queryType, Object[] queryParams) throws QueryException {
         switch (queryType) {
             case COUNT:
                 return count;
@@ -67,7 +69,7 @@ class Bucket implements Serializable {
      * The sequence should cover the time range [t0, t1], although we don't sanity check
      * that it does
      */
-    long multiQuery(Collection<Bucket> rest, Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams) throws QueryException {
+    long multiQuery(Collection<Bucket> rest, long t0, long t1, QueryType queryType, Object[] queryParams) throws QueryException {
         long ret = this.query(t0, t1, queryType, queryParams);
         for (Bucket bucket: rest) {
             ret += bucket.query(t0, t1, queryType, queryParams);

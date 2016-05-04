@@ -32,16 +32,16 @@ public class RocksDBBucketStore implements BucketStore {
      * RocksDB key = <streamID, bucketID>. Since we ensure bucketIDs are assigned in increasing
      * order, this lays out data in temporal order within streams
      */
-    private byte[] getRocksDBKey(StreamID streamID, BucketID bucketID) {
-        ByteBuffer bytebuf = ByteBuffer.allocate(StreamID.byteCount + BucketID.byteCount);
-        streamID.writeToByteBuffer(bytebuf);
-        bucketID.writeToByteBuffer(bytebuf);
+    private byte[] getRocksDBKey(long streamID, long bucketID) {
+        ByteBuffer bytebuf = ByteBuffer.allocate(8 + 8);
+        bytebuf.putLong(streamID);
+        bytebuf.putLong(bucketID);
         bytebuf.flip();
         return bytebuf.array();
     }
 
     @Override
-    public Bucket getBucket(StreamID streamID, BucketID bucketID, boolean delete) throws RocksDBException {
+    public Bucket getBucket(long streamID, long bucketID, boolean delete) throws RocksDBException {
         byte[] rocksKey = getRocksDBKey(streamID, bucketID);
         byte[] rocksValue = rocksDB.get(rocksKey);
         if (delete) {
@@ -51,7 +51,7 @@ public class RocksDBBucketStore implements BucketStore {
     }
 
     @Override
-    public void putBucket(StreamID streamID, BucketID bucketID, Bucket bucket) throws RocksDBException {
+    public void putBucket(long streamID, long bucketID, Bucket bucket) throws RocksDBException {
         byte[] rocksKey = getRocksDBKey(streamID, bucketID);
         byte[] rocksValue = fstConf.asByteArray(bucket);
         rocksDB.put(rocksKey, rocksValue);

@@ -8,13 +8,13 @@ import org.rocksdb.RocksDBException;
  *      MainMemoryBucketStore
  */
 interface BucketStore extends AutoCloseable {
-    Bucket getBucket(StreamID streamID, BucketID bucketID, boolean delete) throws RocksDBException;
+    Bucket getBucket(long streamID, long bucketID, boolean delete) throws RocksDBException;
 
-    default Bucket getBucket(StreamID streamID, BucketID bucketID) throws RocksDBException {
+    default Bucket getBucket(long streamID, long bucketID) throws RocksDBException {
         return getBucket(streamID, bucketID, false);
     }
 
-    void putBucket(StreamID streamID, BucketID bucketID, Bucket bucket) throws RocksDBException;
+    void putBucket(long streamID, long bucketID, Bucket bucket) throws RocksDBException;
 
     Object getIndexes() throws RocksDBException;
 

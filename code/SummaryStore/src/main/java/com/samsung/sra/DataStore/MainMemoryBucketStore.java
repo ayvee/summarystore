@@ -6,18 +6,18 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class MainMemoryBucketStore implements BucketStore {
-    private Map<StreamID, Map<BucketID, Bucket>> buckets = new HashMap<>();
+    private Map<Long, Map<Long, Bucket>> buckets = new HashMap<>();
 
     @Override
-    public Bucket getBucket(StreamID streamID, BucketID bucketID, boolean delete) throws RocksDBException {
+    public Bucket getBucket(long streamID, long bucketID, boolean delete) throws RocksDBException {
         return delete ?
                 buckets.get(streamID).remove(bucketID) :
                 buckets.get(streamID).get(bucketID);
     }
 
     @Override
-    public void putBucket(StreamID streamID, BucketID bucketID, Bucket bucket) throws RocksDBException {
-        Map<BucketID, Bucket> stream = buckets.get(streamID);
+    public void putBucket(long streamID, long bucketID, Bucket bucket) throws RocksDBException {
+        Map<Long, Bucket> stream = buckets.get(streamID);
         if (stream == null) {
             buckets.put(streamID, (stream = new HashMap<>()));
         }

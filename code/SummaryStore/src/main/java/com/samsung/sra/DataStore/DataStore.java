@@ -9,19 +9,19 @@ import org.rocksdb.RocksDBException;
  */
 public interface DataStore extends AutoCloseable {
     // TODO: allow configuring the choice of bucket data structure for each stream (set at registration time)
-    void registerStream(StreamID streamID, WindowingMechanism windowingMechanism) throws StreamException, RocksDBException;
+    void registerStream(long streamID, WindowingMechanism windowingMechanism) throws StreamException, RocksDBException;
 
-    Object query(StreamID streamID, Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams)
+    Object query(long streamID, long t0, long t1, QueryType queryType, Object[] queryParams)
             throws StreamException, QueryException, RocksDBException;
 
-    void append(StreamID streamID, Timestamp ts, Object value) throws StreamException, RocksDBException;
+    void append(long streamID, long ts, Object value) throws StreamException, RocksDBException;
 
     @Override
     void close() throws RocksDBException;
 
     long getStoreSizeInBytes();
 
-    long getStreamAge(StreamID streamID) throws StreamException;
+    long getStreamAge(long streamID) throws StreamException;
 
-    long getStreamLength(StreamID streamID) throws StreamException;
+    long getStreamLength(long streamID) throws StreamException;
 }

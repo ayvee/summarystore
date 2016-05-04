@@ -12,12 +12,12 @@ class WriteLoadGenerator {
     private static Logger logger = LoggerFactory.getLogger(WriteLoadGenerator.class);
     private final InterarrivalDistribution interarrivalDistribution;
     private final ValueDistribution valueDistribution;
-    private final StreamID streamID;
+    private final long streamID;
     private final Collection<SummaryStore> datastores;
     private long T = 0;
 
     WriteLoadGenerator(InterarrivalDistribution interarrivalDistribution, ValueDistribution valueDistribution,
-                       StreamID streamID, Collection<SummaryStore> datastores) throws RocksDBException, StreamException {
+                       long streamID, Collection<SummaryStore> datastores) throws RocksDBException, StreamException {
         this.interarrivalDistribution = interarrivalDistribution;
         this.valueDistribution = valueDistribution;
         this.streamID = streamID;
@@ -25,7 +25,7 @@ class WriteLoadGenerator {
     }
 
     WriteLoadGenerator(InterarrivalDistribution interarrivalDistribution, ValueDistribution valueDistribution,
-                       StreamID streamID, SummaryStore... datastores) throws RocksDBException, StreamException {
+                       long streamID, SummaryStore... datastores) throws RocksDBException, StreamException {
         this(interarrivalDistribution, valueDistribution, streamID, Arrays.asList(datastores));
     }
 
@@ -35,7 +35,7 @@ class WriteLoadGenerator {
             if (T % 1_000_000 == 0) {
                 logger.debug("appending value #{}", T);
             }
-            Timestamp ts = new Timestamp(T);
+            long ts = T;
             long value = valueDistribution.getNextValue();
             for (DataStore ds: datastores) {
                 ds.append(streamID, ts, value);

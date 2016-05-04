@@ -19,7 +19,7 @@ import java.util.stream.IntStream;
 class CompareWindowingSchemes {
     private static Logger logger = LoggerFactory.getLogger(CompareWindowingSchemes.class);
     //private static String loc_prefix = "/tmp/tdstore_";
-    private static final StreamID streamID = new StreamID(0);
+    private static final long streamID = 0;
 
     // BEGIN CONFIG. If these parameters are changed, it may be necessary to delete memoized
     // results (see runExperiment()) to rerun the experiment
@@ -96,11 +96,10 @@ class CompareWindowingSchemes {
                 long age = ageLength.first(), length = ageLength.second();
                 long l = T - length + 1 - age, r = T - age;
                 if (l < 0 || r >= T) return;
-                Timestamp lt = new Timestamp(l), rt = new Timestamp(r);
                 double trueCount = r - l + 1;
                 stores.forEach((name, store) -> {
                     try {
-                        double estCount = (long)store.query(streamID, lt, rt, QueryType.COUNT, null);
+                        double estCount = (long)store.query(streamID, l, r, QueryType.COUNT, null);
                         results.get(name).get(alClass).addObservation(estCount / trueCount - 1);
                     } catch (Exception e) { // java streams don't like exceptions, apparently
                         e.printStackTrace();

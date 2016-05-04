@@ -18,17 +18,17 @@ public class EnumeratedStore implements DataStore {
     private Options rocksDBOptions;
 
     private static class StreamInfo implements Serializable {
-        final StreamID streamID;
+        final long streamID;
         final Object syncObj = new Object();
         int numValues = 0;
-        Timestamp lastValueTimestamp = null;
+        long lastValueTimestamp = -1;
 
-        StreamInfo(StreamID streamID) {
+        StreamInfo(long streamID) {
             this.streamID = streamID;
         }
     }
 
-    private final HashMap<StreamID, StreamInfo> streamsInfo;
+    private final HashMap<Long, StreamInfo> streamsInfo;
 
     private final static byte[] streamsInfoSpecialKey = {0};
 
@@ -42,7 +42,7 @@ public class EnumeratedStore implements DataStore {
 
         byte[] streamCountsBytes = rocksDB.get(streamsInfoSpecialKey);
         streamsInfo = streamCountsBytes != null ?
-                (HashMap<StreamID, StreamInfo>) fstConf.asObject(streamCountsBytes) :
+                (HashMap<Long, StreamInfo>) fstConf.asObject(streamCountsBytes) :
                 new HashMap<>();
     }
 
@@ -55,7 +55,7 @@ public class EnumeratedStore implements DataStore {
         RocksDB.loadLibrary();
     }
 
-    public void registerStream(StreamID streamID, WindowingMechanism windowingMechanism) throws StreamException, RocksDBException {
+    public void registerStream(long streamID, WindowingMechanism windowingMechanism) throws StreamException, RocksDBException {
         synchronized (streamsInfo) {
             if (streamsInfo.containsKey(streamID)) {
                 throw new StreamException("attempting to register stream " + streamID + " twice");
@@ -65,19 +65,19 @@ public class EnumeratedStore implements DataStore {
         }
     }
 
-    private byte[] getRocksKey(StreamID streamID, Timestamp t) {
-        ByteBuffer bytebuf = ByteBuffer.allocate(StreamID.byteCount + Timestamp.byteCount);
-        streamID.writeToByteBuffer(bytebuf);
-        t.writeToByteBuffer(bytebuf);
+    private byte[] getRocksKey(long streamID, long t) {
+        ByteBuffer bytebuf = ByteBuffer.allocate(8 + 8);
+        bytebuf.putLong(streamID);
+        bytebuf.putLong(t);
         bytebuf.flip();
         return bytebuf.array();
     }
 
-    private Timestamp parseRocksKeyTimestamp(byte[] bytes, StreamID streamID) {
+    private long parseRocksKeyTimestamp(byte[] bytes, long streamID) {
         ByteBuffer bytebuf = ByteBuffer.wrap(bytes);
-        StreamID readStreamID = StreamID.readFromByteBuffer(bytebuf);
-        assert streamID.equals(readStreamID);
-        return Timestamp.readFromByteBuffer(bytebuf);
+        long readStreamID = bytebuf.getLong();
+        assert streamID == readStreamID;
+        return bytebuf.getLong();
     }
 
     private long parseRocksValue(byte[] bytes) throws RocksDBException {
@@ -87,17 +87,17 @@ public class EnumeratedStore implements DataStore {
         return bytebuf.getLong();
     }
 
-    private void rocksPut(StreamID streamID, Timestamp t, long value) throws RocksDBException {
+    private void rocksPut(long streamID, long t, long value) throws RocksDBException {
         ByteBuffer bytebuf = ByteBuffer.allocate(8);
         bytebuf.putLong(value);
         bytebuf.flip();
         rocksDB.put(getRocksKey(streamID, t), bytebuf.array());
     }
 
-    public Object query(StreamID streamID,
-                        Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams)
+    public Object query(long streamID,
+                        long t0, long t1, QueryType queryType, Object[] queryParams)
             throws StreamException, QueryException, RocksDBException {
-        if (t0.compareTo(new Timestamp(0)) < 0 || t0.compareTo(t1) > 0) {
+        if (t0 < 0 || t0 > t1) {
             throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
         }
         StreamInfo streamInfo;
@@ -113,8 +113,8 @@ public class EnumeratedStore implements DataStore {
             try {
                 iter = rocksDB.newIterator();
                 for (iter.seek(getRocksKey(streamID, t0)); iter.isValid(); iter.next()) {
-                    Timestamp t = parseRocksKeyTimestamp(iter.key(), streamID);
-                    if (t.compareTo(t1) > 0) {
+                    long t = parseRocksKeyTimestamp(iter.key(), streamID);
+                    if (t > t1) {
                         break;
                     }
                     long v = parseRocksValue(iter.value());
@@ -137,7 +137,7 @@ public class EnumeratedStore implements DataStore {
     }
 
     @Override
-    public void append(StreamID streamID, Timestamp ts, Object value) throws StreamException, RocksDBException {
+    public void append(long streamID, long ts, Object value) throws StreamException, RocksDBException {
         StreamInfo streamInfo;
         synchronized (streamsInfo) {
             streamInfo = streamsInfo.get(streamID);
@@ -146,7 +146,7 @@ public class EnumeratedStore implements DataStore {
             }
         }
         synchronized (streamInfo.syncObj) {
-            assert streamInfo.lastValueTimestamp == null || streamInfo.lastValueTimestamp.compareTo(ts) < 0;
+            assert streamInfo.lastValueTimestamp == -1 || streamInfo.lastValueTimestamp < ts;
             streamInfo.lastValueTimestamp = ts;
             ++streamInfo.numValues;
             rocksPut(streamID, ts, (Long)value);
@@ -166,13 +166,13 @@ public class EnumeratedStore implements DataStore {
         // TODO: synchronize
         long ret = 0;
         for (StreamInfo streamInfo: streamsInfo.values()) {
-            ret += streamInfo.numValues * (StreamID.byteCount + Timestamp.byteCount + 8);
+            ret += streamInfo.numValues * (8 + 8 + 8);
         }
         return ret;
     }
 
     @Override
-    public long getStreamAge(StreamID streamID) throws StreamException {
+    public long getStreamAge(long streamID) throws StreamException {
         StreamInfo streamInfo;
         synchronized (streamsInfo) {
             streamInfo = streamsInfo.get(streamID);
@@ -180,11 +180,11 @@ public class EnumeratedStore implements DataStore {
                 throw new StreamException("attempting to get age of unknown stream " + streamID);
             }
         }
-        return streamInfo.lastValueTimestamp.value;
+        return streamInfo.lastValueTimestamp;
     }
 
     @Override
-    public long getStreamLength(StreamID streamID) throws StreamException {
+    public long getStreamLength(long streamID) throws StreamException {
         StreamInfo streamInfo;
         synchronized (streamsInfo) {
             streamInfo = streamsInfo.get(streamID);
@@ -202,12 +202,12 @@ public class EnumeratedStore implements DataStore {
             // FIXME: add a deleteStream/resetDatabase operation
             Runtime.getRuntime().exec(new String[]{"rm", "-rf", storeLoc}).waitFor();
             store = new EnumeratedStore(storeLoc);
-            StreamID streamID = new StreamID(0);
+            long streamID = 0;
             store.registerStream(streamID, null);
             for (long i = 0; i < 10; ++i) {
-                store.append(streamID, new Timestamp(i), i + 1);
+                store.append(streamID, i, i + 1);
             }
-            Timestamp t0 = new Timestamp(0), t1 = new Timestamp(3);
+            long t0 = 0, t1 = 3;
             System.out.println(
                     "sum[" + t0 + ", " + t1 + "] = " + store.query(streamID, t0, t1, QueryType.SUM, null) + "; " +
                             "count[" + t0 + ", " + t1 + "] = " + store.query(streamID, t0, t1, QueryType.COUNT, null));

@@ -25,11 +25,11 @@ public class SummaryStore implements DataStore {
      * metadata in StreamInfo to help reads and writes. The append operation keeps StreamInfo
      * consistent with the base data in bucketStore. */
      static class StreamInfo implements Serializable {
-        final StreamID streamID;
+        final long streamID;
         // How many values have we inserted so far?
         long numValues = 0;
         // What was the timestamp of the latest value appended?
-        Timestamp lastValueTimestamp = null;
+        long lastValueTimestamp = -1;
 
         final ReadWriteLock lock = new ReentrantReadWriteLock();
 
@@ -41,7 +41,7 @@ public class SummaryStore implements DataStore {
          * along with the rest of StreamInfo when persistStreamsInfo() is called */
         final WindowingMechanism windowingMechanism;
 
-        StreamInfo(StreamID streamID, WindowingMechanism windowingMechanism) {
+        StreamInfo(long streamID, WindowingMechanism windowingMechanism) {
             this.streamID = streamID;
             this.windowingMechanism = windowingMechanism;
             DB mapDB = DBMaker.memoryDB().make();
@@ -49,7 +49,7 @@ public class SummaryStore implements DataStore {
         }
     }
 
-    private final HashMap<StreamID, StreamInfo> streamsInfo;
+    private final HashMap<Long, StreamInfo> streamsInfo;
 
     private void persistStreamsInfo() throws RocksDBException {
         bucketStore.putIndexes(streamsInfo);
@@ -59,11 +59,11 @@ public class SummaryStore implements DataStore {
         this.bucketStore = bucketStore;
         Object uncast = bucketStore.getIndexes();
         streamsInfo = uncast != null ?
-                (HashMap<StreamID, StreamInfo>)uncast :
+                (HashMap<Long, StreamInfo>)uncast :
                 new HashMap<>();
     }
 
-    public void registerStream(final StreamID streamID, WindowingMechanism windowingMechanism) throws StreamException, RocksDBException {
+    public void registerStream(final long streamID, WindowingMechanism windowingMechanism) throws StreamException, RocksDBException {
         // TODO: also register what data structure we will use for each bucket
         synchronized (streamsInfo) {
             if (streamsInfo.containsKey(streamID)) {
@@ -74,8 +74,9 @@ public class SummaryStore implements DataStore {
         }
     }
 
-    public Object query(StreamID streamID, Timestamp t0, Timestamp t1, QueryType queryType, Object[] queryParams) throws StreamException, QueryException, RocksDBException {
-        if (t0.compareTo(t1) > 0 || t0.compareTo(new Timestamp(0)) < 0) {
+    @Override
+    public Object query(long streamID, long t0, long t1, QueryType queryType, Object[] queryParams) throws StreamException, QueryException, RocksDBException {
+        if (t0 < 0 || t0 > t1) {
             throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
         }
         final StreamInfo streamInfo;
@@ -88,12 +89,12 @@ public class SummaryStore implements DataStore {
         }
         streamInfo.lock.readLock().lock();
         try {
-            if (t1.compareTo(streamInfo.lastValueTimestamp) > 0) {
+            if (t1 > streamInfo.lastValueTimestamp) {
                 throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
             }
             BTreeMap<Long, Long> index = streamInfo.temporalIndex;
-            Long l = index.floorKey(t0.value); // first bucket with tStart <= t0
-            Long r = index.higherKey(t1.value); // first bucket with tStart > t1
+            Long l = index.floorKey(t0); // first bucket with tStart <= t0
+            Long r = index.higherKey(t1); // first bucket with tStart > t1
             logger.trace("Overapproximated time range = [{}, {}]", l, r);
             if (r == null) {
                 r = index.lastKey();
@@ -103,8 +104,8 @@ public class SummaryStore implements DataStore {
             Bucket first = null;
             List<Bucket> rest = new ArrayList<>();
             // TODO: RocksDB multiget
-            for (Long bucketIDlong: spanningBucketsIDs.values()) {
-                Bucket bucket = bucketStore.getBucket(streamID, new BucketID(bucketIDlong));
+            for (Long bucketID: spanningBucketsIDs.values()) {
+                Bucket bucket = bucketStore.getBucket(streamID, bucketID);
                 if (first == null) {
                     first = bucket;
                 } else {
@@ -118,7 +119,7 @@ public class SummaryStore implements DataStore {
         }
     }
 
-    public void append(StreamID streamID, Timestamp ts, Object value) throws StreamException, RocksDBException {
+    public void append(long streamID, long ts, Object value) throws StreamException, RocksDBException {
         final StreamInfo streamInfo;
         synchronized (streamsInfo) {
             if (!streamsInfo.containsKey(streamID)) {
@@ -142,28 +143,28 @@ public class SummaryStore implements DataStore {
        bucketStore and the temporal index we maintain. The stream-write lock should be acquired before
        calling these functions */
 
-    Bucket getBucket(StreamID streamID, BucketID bucketID, boolean delete) throws RocksDBException {
+    Bucket getBucket(long streamID, long bucketID, boolean delete) throws RocksDBException {
         Bucket bucket = bucketStore.getBucket(streamID, bucketID, delete);
         if (delete) {
-            streamsInfo.get(streamID).temporalIndex.remove(bucket.tStart.value);
+            streamsInfo.get(streamID).temporalIndex.remove(bucket.tStart);
         }
         return bucket;
     }
 
-    Bucket getBucket(StreamID streamID, BucketID bucketID) throws RocksDBException {
+    Bucket getBucket(long streamID, long bucketID) throws RocksDBException {
         return getBucket(streamID, bucketID, false);
     }
 
-    void putBucket(StreamID streamID, BucketID bucketID, Bucket bucket) throws RocksDBException {
-        streamsInfo.get(streamID).temporalIndex.put(bucket.tStart.value, bucketID.id);
+    void putBucket(long streamID, long bucketID, Bucket bucket) throws RocksDBException {
+        streamsInfo.get(streamID).temporalIndex.put(bucket.tStart, bucketID);
         bucketStore.putBucket(streamID, bucketID, bucket);
     }
 
-    public void printBucketState(StreamID streamID) throws RocksDBException {
+    public void printBucketState(long streamID) throws RocksDBException {
         StreamInfo streamInfo = streamsInfo.get(streamID);
         System.out.println("Stream " + streamID + " with " + streamInfo.numValues + " elements:");
-        for (Object bucketIDlong: streamInfo.temporalIndex.values()) {
-            System.out.println("\t" + bucketStore.getBucket(streamID, new BucketID((Long)bucketIDlong)));
+        for (Object bucketID: streamInfo.temporalIndex.values()) {
+            System.out.println("\t" + bucketStore.getBucket(streamID, (long)bucketID));
         }
     }
 
@@ -180,13 +181,14 @@ public class SummaryStore implements DataStore {
         }
     }
 
+    @Override
     public long getStoreSizeInBytes() {
         long ret = 0;
         for (StreamInfo si: streamsInfo.values()) {
             si.lock.readLock().lock();
             try {
                 // FIXME: this does not account for the size of the time/count markers tracked by the index
-                ret += si.temporalIndex.size() * (StreamID.byteCount + BucketID.byteCount + Bucket.byteCount);
+                ret += si.temporalIndex.size() * (8 + 8 + Bucket.byteCount);
             } finally {
                 si.lock.readLock().unlock();
             }
@@ -195,7 +197,7 @@ public class SummaryStore implements DataStore {
     }
 
     @Override
-    public long getStreamAge(StreamID streamID) throws StreamException {
+    public long getStreamAge(long streamID) throws StreamException {
         StreamInfo streamInfo;
         synchronized (streamsInfo) {
             streamInfo = streamsInfo.get(streamID);
@@ -205,14 +207,14 @@ public class SummaryStore implements DataStore {
         }
         streamInfo.lock.readLock().lock();
         try {
-            return streamInfo.lastValueTimestamp.value;
+            return streamInfo.lastValueTimestamp;
         } finally {
             streamInfo.lock.readLock().unlock();
         }
     }
 
     @Override
-    public long getStreamLength(StreamID streamID) throws StreamException {
+    public long getStreamLength(long streamID) throws StreamException {
         StreamInfo streamInfo;
         synchronized (streamsInfo) {
             streamInfo = streamsInfo.get(streamID);
@@ -235,14 +237,14 @@ public class SummaryStore implements DataStore {
             // FIXME: add a deleteStream/resetDatabase operation
             Runtime.getRuntime().exec(new String[]{"rm", "-rf", storeLoc}).waitFor();
             store = new SummaryStore(new RocksDBBucketStore(storeLoc));
-            StreamID streamID = new StreamID(0);
+            long streamID = 0;
             store.registerStream(streamID, new CountBasedWBMH(streamID, new PolynomialWindowLengths(4, 0)));
             //store.registerStream(streamID, new CountBasedWBMH(streamID, new ExponentialWindowLengths(2)));
             for (long i = 0; i < 20; ++i) {
-                store.append(streamID, new Timestamp(i), i + 1);
+                store.append(streamID, i, i + 1);
                 store.printBucketState(streamID);
             }
-            Timestamp t0 = new Timestamp(0), t1 = new Timestamp(4);
+            long t0 = 0, t1 = 4;
             System.out.println(
                     "sum[" + t0 + ", " + t1 + "] = " + store.query(streamID, t0, t1, QueryType.SUM, null) + "; " +
                     "count[" + t0 + ", " + t1 + "] = " + store.query(streamID, t0, t1, QueryType.COUNT, null));

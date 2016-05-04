@@ -8,7 +8,7 @@ import java.util.Map;
 
 public class MeasureThroughput {
     private static String loc_prefix = "/tmp/tdstore_";
-    private static StreamID streamID = new StreamID(0);
+    private static long streamID = 0;
 
     public static void main(String[] args) throws Exception {
         Runtime.getRuntime().exec(new String[]{"rm", "-rf", loc_prefix + "*"}).waitFor();
@@ -45,7 +45,7 @@ public class MeasureThroughput {
         System.out.println("Random query throughput = " + (Q * 1000d / (re - r0)) + " queries/s");*/
 
         long f0 = System.currentTimeMillis();
-        store.query(streamID, new Timestamp(0), new Timestamp(T-1), QueryType.COUNT, null);
+        store.query(streamID, 0, T-1, QueryType.COUNT, null);
         long fe = System.currentTimeMillis();
         System.out.println("Time to run longest query, spanning [0, T) = " + ((fe - f0) / 1000d) + " sec");
     }
