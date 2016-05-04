@@ -17,7 +17,7 @@ class Bucket implements Serializable {
     long cStart, cEnd;
 
     /** Size of the bucket itself, for count and sum, not counting metadata */
-    static final int byteCount = Long.BYTES + Long.BYTES;
+    static final int byteCount = 8 + 8;
 
     Bucket(long prev, long curr, long next,
            long tStart, long tEnd, long cStart, long cEnd) {
