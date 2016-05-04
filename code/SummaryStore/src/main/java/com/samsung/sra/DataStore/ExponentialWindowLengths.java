@@ -19,8 +19,8 @@ public class ExponentialWindowLengths extends WindowLengths {
     }
 
     @Override
-    public long getWindowLengthUpperBound(Long N) {
-        if (N == null) {
+    public long getWindowLengthUpperBound(long N) {
+        if (N == -1) {
             return Long.MAX_VALUE;
         } else {
             // return largest power of base smaller than N

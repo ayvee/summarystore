@@ -238,8 +238,8 @@ public class SummaryStore implements DataStore {
             Runtime.getRuntime().exec(new String[]{"rm", "-rf", storeLoc}).waitFor();
             store = new SummaryStore(new RocksDBBucketStore(storeLoc));
             long streamID = 0;
-            store.registerStream(streamID, new CountBasedWBMH(streamID, new PolynomialWindowLengths(4, 0)));
-            //store.registerStream(streamID, new CountBasedWBMH(streamID, new ExponentialWindowLengths(2)));
+            //store.registerStream(streamID, new CountBasedWBMH(streamID, new PolynomialWindowLengths(4, 0)));
+            store.registerStream(streamID, new CountBasedWBMH(streamID, new ExponentialWindowLengths(2)));
             for (long i = 0; i < 20; ++i) {
                 store.append(streamID, i, i + 1);
                 store.printBucketState(streamID);

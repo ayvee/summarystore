@@ -81,14 +81,14 @@ public class CountBasedWBMH implements WindowingMechanism {
     /**
      * Find the smallest N' >= N such that after N' elements have been inserted
      * the interval [Cl, Cr] will be contained inside the same window. Returns
-     * null if no such N' exists
+     * -1 if no such N' exists
      */
-    private Long findMergeCount(long N, long Cl, long Cr) {
+    private long findMergeCount(long N, long Cl, long Cr) {
         assert 0 <= Cl && Cl <= Cr && Cr < N;
         long l = N-1 - Cr, r = N-1 - Cl, length = Cr - Cl + 1;
 
         if (!addWindowsUntilLength(length)) {
-            return null;
+            return -1;
         }
         long firstMarker = firstWindowOfLength.ceilingEntry(length).getValue();
         if (firstMarker >= l) {
@@ -119,8 +119,8 @@ public class CountBasedWBMH implements WindowingMechanism {
         Heap.Entry<Long, Long> existingEntry = heapEntries.remove(b0.curr);
         if (existingEntry != null) mergeCounts.delete(existingEntry);
 
-        Long newMergeCount = findMergeCount(N, b0.cStart, b1.cEnd);
-        if (newMergeCount != null) {
+        long newMergeCount = findMergeCount(N, b0.cStart, b1.cEnd);
+        if (newMergeCount != -1) {
             heapEntries.put(b0.curr, mergeCounts.insert(newMergeCount, b0.curr));
         }
     }

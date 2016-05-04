@@ -49,7 +49,7 @@ class Bucket implements Serializable {
     void insertValue(long ts, Object value) {
         assert tStart <= ts && (tEnd == -1 || ts <= tEnd);
         count += 1;
-        sum += (Long)value;
+        sum += (long)value;
     }
 
     long query(long t0, long t1, QueryType queryType, Object[] queryParams) throws QueryException {

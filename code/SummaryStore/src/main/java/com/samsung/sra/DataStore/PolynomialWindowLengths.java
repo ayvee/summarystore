@@ -18,7 +18,7 @@ public class PolynomialWindowLengths extends WindowLengths {
     }
 
     @Override
-    public long getWindowLengthUpperBound(Long N) {
+    public long getWindowLengthUpperBound(long N) {
         if (degree == 0) {
             return (long)Math.ceil(scale);
         } else {

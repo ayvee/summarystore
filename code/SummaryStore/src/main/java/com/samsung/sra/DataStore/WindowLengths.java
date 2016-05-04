@@ -15,7 +15,7 @@ abstract class WindowLengths implements Serializable {
      * null N represents infinity. Should return Long.MAX_VALUE if
      * the answer is unbounded
      */
-    public abstract long getWindowLengthUpperBound(Long N);
+    public abstract long getWindowLengthUpperBound(long N);
 
     /**
      * Keep generating window lengths, passing them to the consumer, until we hit a window
@@ -23,7 +23,7 @@ abstract class WindowLengths implements Serializable {
      * If the optional argument N is specified, it will be passed onto getWindowLengthUpperBound
      * when computing the largest achievable window length.
      */
-    boolean addWindowsUntilLength(long targetLength, LongConsumer consumer, Long N) {
+    boolean addWindowsUntilLength(long targetLength, LongConsumer consumer, long N) {
         if (targetLength > getWindowLengthUpperBound(N)) {
             return false;
         } else {
@@ -37,6 +37,6 @@ abstract class WindowLengths implements Serializable {
     }
 
     boolean addWindowsUntilLength(long targetLength, LongConsumer consumer) {
-        return addWindowsUntilLength(targetLength, consumer, null);
+        return addWindowsUntilLength(targetLength, consumer, -1);
     }
 }
