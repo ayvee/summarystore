@@ -7,7 +7,7 @@ import java.util.function.LongConsumer;
  * Generate an infinite sequence of window lengths.
  * E.g. 1, 2, 4, 8, 16, ...
  */
-abstract class WindowLengths implements Serializable {
+public abstract class WindowLengths implements Serializable {
     public abstract long nextWindowLength();
 
     /**
