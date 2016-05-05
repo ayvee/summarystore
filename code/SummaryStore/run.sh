@@ -9,7 +9,8 @@ done
 #java -cp $cp com.samsung.sra.DataStoreExperiments.AgeLengthSampler $*
 #java -cp $cp com.samsung.sra.DataStoreExperiments.CompareWindowingSchemes
 #java -Xmx15G -cp $cp com.samsung.sra.DataStoreExperiments.MeasureThroughput
-java -Xmx15G -cp $cp com.samsung.sra.DataStoreExperiments.PopulateData $*
+#java -Xmx15G -cp $cp com.samsung.sra.DataStoreExperiments.PopulateData $*
+java -Xmx15G -cp $cp com.samsung.sra.DataStoreExperiments.QueryOnDiskStore $*
 #java -cp $cp com.samsung.sra.DataStoreExperiments.VaryN | tee varyN.tsv
 #java -cp $cp com.samsung.sra.DataStoreExperiments.VaryQueries | tee varyQueries.tsv
 #java -cp $cp com.samsung.sra.DataStoreExperiments.AgeLengthEffect > age-length-matrix.tsv 2> age-length-scatter.tsv

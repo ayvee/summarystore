@@ -37,9 +37,8 @@ public class SummaryStore implements DataStore {
         transient ReadWriteLock lock;
 
         /* Read index, maps bucket.tStart -> bucketID. Used to answer queries */
-        //final TreeMap<Timestamp, BucketID> temporalIndex = new TreeMap<>();
+        final TreeMap<Long, Long> temporalIndex = new TreeMap<>();
         //transient BTreeMap<Long, Long> temporalIndex;
-        TreeMap<Long, Long> temporalIndex;
 
         /* WindowingMechanism object. Maintains write indexes internally, which will be serialized
          * along with the rest of StreamInfo when persistStreamsInfo() is called */
@@ -62,7 +61,6 @@ public class SummaryStore implements DataStore {
             this.filePrefix = filePrefix;
             this.streamID = streamID;
             this.windowingMechanism = windowingMechanism;
-            this.temporalIndex = new TreeMap<>();
             populateTransientFields();
         }
     }
