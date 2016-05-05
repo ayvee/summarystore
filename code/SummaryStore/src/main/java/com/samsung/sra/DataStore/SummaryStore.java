@@ -1,17 +1,10 @@
 package com.samsung.sra.DataStore;
 
-import org.mapdb.BTreeMap;
-import org.mapdb.DB;
-import org.mapdb.DBMaker;
-import org.mapdb.Serializer;
 import org.rocksdb.RocksDBException;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.SortedMap;
+import java.util.*;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -45,7 +38,8 @@ public class SummaryStore implements DataStore {
 
         /* Read index, maps bucket.tStart -> bucketID. Used to answer queries */
         //final TreeMap<Timestamp, BucketID> temporalIndex = new TreeMap<>();
-        transient BTreeMap<Long, Long> temporalIndex;
+        //transient BTreeMap<Long, Long> temporalIndex;
+        TreeMap<Long, Long> temporalIndex;
 
         /* WindowingMechanism object. Maintains write indexes internally, which will be serialized
          * along with the rest of StreamInfo when persistStreamsInfo() is called */
@@ -53,10 +47,10 @@ public class SummaryStore implements DataStore {
 
         void populateTransientFields() {
             lock = new ReentrantReadWriteLock();
-            DB mapDB = filePrefix != null ?
+            /*DB mapDB = filePrefix != null ?
                     DBMaker.fileDB(filePrefix + ".readIndex").make() :
                     DBMaker.memoryDB().make();
-            temporalIndex = mapDB.treeMap("map", Serializer.LONG_DELTA, Serializer.LONG).threadSafeDisable().createOrOpen();
+            temporalIndex = mapDB.treeMap("map", Serializer.LONG_DELTA, Serializer.LONG).threadSafeDisable().createOrOpen();*/
         }
 
         // FIXME: supposed to be called whenever object is deserialized, but FST breaks when we use it
@@ -68,6 +62,7 @@ public class SummaryStore implements DataStore {
             this.filePrefix = filePrefix;
             this.streamID = streamID;
             this.windowingMechanism = windowingMechanism;
+            this.temporalIndex = new TreeMap<>();
             populateTransientFields();
         }
     }
@@ -127,7 +122,8 @@ public class SummaryStore implements DataStore {
             if (t1 > streamInfo.lastValueTimestamp) {
                 throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
             }
-            BTreeMap<Long, Long> index = streamInfo.temporalIndex;
+            //BTreeMap<Long, Long> index = streamInfo.temporalIndex;
+            TreeMap<Long, Long> index = streamInfo.temporalIndex;
             Long l = index.floorKey(t0); // first bucket with tStart <= t0
             Long r = index.higherKey(t1); // first bucket with tStart > t1
             logger.trace("Overapproximated time range = [{}, {}]", l, r);
@@ -211,7 +207,7 @@ public class SummaryStore implements DataStore {
             // wait for all in-process writes and reads to finish, and seal read index
             for (StreamInfo streamInfo: streamsInfo.values()) {
                 streamInfo.lock.writeLock().lock();
-                streamInfo.temporalIndex.close();
+                //streamInfo.temporalIndex.close();
             }
             // at this point all operations on existing streams will be blocked
             // TODO: lock out creating new streams
