@@ -56,7 +56,7 @@ public class SummaryStore implements DataStore {
             DB mapDB = filePrefix != null ?
                     DBMaker.fileDB(filePrefix + ".readIndex").make() :
                     DBMaker.memoryDB().make();
-            temporalIndex = mapDB.treeMap("map", Serializer.LONG, Serializer.LONG).threadSafeDisable().createOrOpen();
+            temporalIndex = mapDB.treeMap("map", Serializer.LONG_DELTA, Serializer.LONG).threadSafeDisable().createOrOpen();
         }
 
         // FIXME: supposed to be called whenever object is deserialized, but FST breaks when we use it
