@@ -6,8 +6,8 @@ import java.util.List;
 
 class Bucket implements Serializable {
     // data
-    private long count = 0;
-    private long sum = 0;
+    long count;
+    long sum;
 
     // metadata
     /* We use longs for bucket IDs, timestamps, and count markers. Valid values should be
@@ -19,8 +19,11 @@ class Bucket implements Serializable {
     /** Size of the bucket itself, for count and sum, not counting metadata */
     static final int byteCount = 8 + 8;
 
-    Bucket(long prevBucketID, long thisBucketID, long nextBucketID,
+    Bucket(long count, long sum,
+           long prevBucketID, long thisBucketID, long nextBucketID,
            long tStart, long tEnd, long cStart, long cEnd) {
+        this.count = count;
+        this.sum = sum;
         this.prevBucketID = prevBucketID;
         this.thisBucketID = thisBucketID;
         this.nextBucketID = nextBucketID;
@@ -28,6 +31,11 @@ class Bucket implements Serializable {
         this.tEnd = tEnd;
         this.cStart = cStart;
         this.cEnd = cEnd;
+    }
+
+    Bucket(long prevBucketID, long thisBucketID, long nextBucketID,
+           long tStart, long tEnd, long cStart, long cEnd) {
+        this(0, 0, prevBucketID, thisBucketID, nextBucketID,tStart, tEnd, cStart, cEnd);
     }
 
     void merge(Bucket... buckets) {
