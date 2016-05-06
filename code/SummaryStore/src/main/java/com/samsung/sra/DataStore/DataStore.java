@@ -14,7 +14,7 @@ public interface DataStore extends AutoCloseable {
     Object query(long streamID, long t0, long t1, QueryType queryType, Object[] queryParams)
             throws StreamException, QueryException, RocksDBException;
 
-    void append(long streamID, long ts, Object value) throws StreamException, RocksDBException;
+    void append(long streamID, long timestamp, Object value) throws StreamException, RocksDBException;
 
     @Override
     void close() throws RocksDBException;
@@ -23,5 +23,5 @@ public interface DataStore extends AutoCloseable {
 
     long getStreamAge(long streamID) throws StreamException;
 
-    long getStreamLength(long streamID) throws StreamException;
+    long getStreamCount(long streamID) throws StreamException;
 }

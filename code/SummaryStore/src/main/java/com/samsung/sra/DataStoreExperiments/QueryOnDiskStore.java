@@ -32,7 +32,7 @@ public class QueryOnDiskStore {
         }
         SummaryStore store = new SummaryStore(prefix);
         if (r == -1) {
-            r = store.getStreamLength(streamID) - 1;
+            r = store.getStreamCount(streamID) - 1;
         }
         store.printBucketState(streamID);
         System.out.println("COUNT[" + l + ":" + r + "] = " + store.query(streamID, l, r, QueryType.COUNT, null));

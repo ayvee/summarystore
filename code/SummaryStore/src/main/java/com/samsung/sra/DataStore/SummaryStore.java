@@ -246,7 +246,7 @@ public class SummaryStore implements DataStore {
     }
 
     @Override
-    public long getStreamLength(long streamID) throws StreamException {
+    public long getStreamCount(long streamID) throws StreamException {
         StreamInfo streamInfo;
         synchronized (streamsInfo) {
             streamInfo = streamsInfo.get(streamID);
