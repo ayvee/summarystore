@@ -87,11 +87,11 @@ public class RocksDBBucketStore implements BucketStore {
     @Override
     public Bucket getBucket(long streamID, long bucketID, boolean delete) throws RocksDBException {
         byte[] rocksKey = getRocksDBKey(streamID, bucketID);
-        byte[] rocksValue = rocksDB.get(rocksKey);
+        rocksDB.get(rocksKey, valueArray);
         if (delete) {
             rocksDB.remove(rocksKey);
         }
-        return byteArrayToBucket(rocksValue);
+        return byteArrayToBucket(valueArray);
     }
 
     @Override
