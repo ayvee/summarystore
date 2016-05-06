@@ -12,18 +12,18 @@ class Bucket implements Serializable {
     // metadata
     /* We use longs for bucket IDs, timestamps, and count markers. Valid values should be
        non-negative (all three are 0-indexed), and use "-1" to indicate null values. */
-    long prev, curr, next;
+    long prevBucketID, thisBucketID, nextBucketID;
     long tStart, tEnd;
     long cStart, cEnd;
 
     /** Size of the bucket itself, for count and sum, not counting metadata */
     static final int byteCount = 8 + 8;
 
-    Bucket(long prev, long curr, long next,
+    Bucket(long prevBucketID, long thisBucketID, long nextBucketID,
            long tStart, long tEnd, long cStart, long cEnd) {
-        this.prev = prev;
-        this.curr = curr;
-        this.next = next;
+        this.prevBucketID = prevBucketID;
+        this.thisBucketID = thisBucketID;
+        this.nextBucketID = nextBucketID;
         this.tStart = tStart;
         this.tEnd = tEnd;
         this.cStart = cStart;
@@ -79,7 +79,7 @@ class Bucket implements Serializable {
 
     @Override
     public String toString() {
-        String ret = "<bucket " + curr;
+        String ret = "<bucket " + thisBucketID;
         ret += ", time range [" + tStart + ":" + tEnd + "]";
         ret += ", count range [" + cStart + ":" + cEnd + "]";
         ret += ", count " + count;

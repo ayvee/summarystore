@@ -116,12 +116,12 @@ public class CountBasedWBMH implements WindowingMechanism {
     private void updateMergeCountFor(Bucket b0, Bucket b1) {
         if (b0 == null || b1 == null) return;
 
-        Heap.Entry<Long, Long> existingEntry = heapEntries.remove(b0.curr);
+        Heap.Entry<Long, Long> existingEntry = heapEntries.remove(b0.thisBucketID);
         if (existingEntry != null) mergeCounts.delete(existingEntry);
 
         long newMergeCount = findMergeCount(N, b0.cStart, b1.cEnd);
         if (newMergeCount != -1) {
-            heapEntries.put(b0.curr, mergeCounts.insert(newMergeCount, b0.curr));
+            heapEntries.put(b0.thisBucketID, mergeCounts.insert(newMergeCount, b0.thisBucketID));
         }
     }
 
@@ -140,26 +140,26 @@ public class CountBasedWBMH implements WindowingMechanism {
             Bucket b0 = store.getBucket(streamID, entry.getValue());
             // We will now merge b0's successor b1 into b0. We also need to update b{-1}'s and
             // b2's prev and next pointers and b{-1} and b0's heap entries
-            assert b0.next != -1;
-            Bucket b1 = store.getBucket(streamID, b0.next, true); // note: this deletes b1 from bucketStore
-            Bucket b2 = b1.next == -1 ? null : store.getBucket(streamID, b1.next);
-            Bucket bm1 = b0.prev == -1 ? null : store.getBucket(streamID, b0.prev); // b{-1}
+            assert b0.nextBucketID != -1;
+            Bucket b1 = store.getBucket(streamID, b0.nextBucketID, true); // note: this deletes b1 from bucketStore
+            Bucket b2 = b1.nextBucketID == -1 ? null : store.getBucket(streamID, b1.nextBucketID);
+            Bucket bm1 = b0.prevBucketID == -1 ? null : store.getBucket(streamID, b0.prevBucketID); // b{-1}
 
             b0.merge(b1);
 
-            if (bm1 != null) bm1.next = b0.curr;
-            b0.next = b1.next;
-            if (b2 != null) b2.prev = b0.curr;
-            if (b1.curr == lastBucketID) lastBucketID = b0.curr;
+            if (bm1 != null) bm1.nextBucketID = b0.thisBucketID;
+            b0.nextBucketID = b1.nextBucketID;
+            if (b2 != null) b2.prevBucketID = b0.thisBucketID;
+            if (b1.thisBucketID == lastBucketID) lastBucketID = b0.thisBucketID;
 
-            Heap.Entry<Long, Long> b1entry = heapEntries.remove(b1.curr);
+            Heap.Entry<Long, Long> b1entry = heapEntries.remove(b1.thisBucketID);
             if (b1entry != null) mergeCounts.delete(b1entry);
             updateMergeCountFor(bm1, b0);
             updateMergeCountFor(b0, b2);
 
-            if (bm1 != null) store.putBucket(streamID, bm1.curr, bm1);
-            store.putBucket(streamID, b0.curr, b0);
-            if (b2 != null) store.putBucket(streamID, b2.curr, b2);
+            if (bm1 != null) store.putBucket(streamID, bm1.thisBucketID, bm1);
+            store.putBucket(streamID, b0.thisBucketID, b0);
+            if (b2 != null) store.putBucket(streamID, b2.thisBucketID, b2);
         }
 
         Bucket lastBucket = lastBucketID == -1 ? null : store.getBucket(streamID, lastBucketID);
@@ -176,7 +176,7 @@ public class CountBasedWBMH implements WindowingMechanism {
             newBucket.insertValue(ts, value);
             store.putBucket(streamID, newBucketID, newBucket);
             if (lastBucket != null) {
-                lastBucket.next = newBucketID;
+                lastBucket.nextBucketID = newBucketID;
                 updateMergeCountFor(lastBucket, newBucket);
                 store.putBucket(streamID, lastBucketID, lastBucket);
             }
