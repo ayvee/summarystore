@@ -20,33 +20,27 @@ public class PopulateData {
         parser.accepts("decay", "decay function").withRequiredArg().required();
         parser.accepts("outprefix", "prefix to store output files under").withRequiredArg().required();
 
-        long N, W;
-        String decay;
+        long N;
         WindowLengths windowLengths;
         String outprefix;
         try {
             OptionSet options = parser.parse(args);
-            N = (long)options.valueOf("N");
-            W = (long)options.valueOf("W");
+            N = (long) options.valueOf("N");
+            long W = (long) options.valueOf("W");
             if (N <= 0) {
                 throw new IllegalArgumentException("N should be positive");
             }
             if (W > N) {
                 throw new IllegalArgumentException("W should be <= N");
             }
-            windowLengths = null;
-            decay = (String) options.valueOf("decay");
+            String decay = (String) options.valueOf("decay");
             if (decay.equals("exponential")) {
                 windowLengths = ExponentialWindowLengths.getWindowingOfSize(N, W);
+            } else if (decay.startsWith("polynomial")) {
+                // throws NumberFormatException on parse failure, a subclass of IllegalArgumentException
+                int d = Integer.parseInt(decay.substring("polynomial".length()));
+                windowLengths = PolynomialWindowLengths.getWindowingOfSize(d, N, W);
             } else {
-                for (int d = 0; d < 10; ++d) {
-                    if (decay.equals("polynomial" + d)) {
-                        windowLengths = PolynomialWindowLengths.getWindowingOfSize(d, N, W);
-                        break;
-                    }
-                }
-            }
-            if (windowLengths == null) {
                 throw new IllegalArgumentException("unrecognized decay function");
             }
             outprefix = (String)options.valueOf("outprefix");
@@ -57,13 +51,13 @@ public class PopulateData {
             return;
         }
 
-        populateData(outprefix, N, W, decay, windowLengths);
+        populateData(outprefix, N, windowLengths);
     }
 
-    private static void populateData(String prefix, long N, long W, String decayName, WindowLengths windowLengths) throws Exception {
+    private static void populateData(String prefix, long N, WindowLengths windowLengths) throws Exception {
         SummaryStore store = new SummaryStore(prefix);
         store.registerStream(streamID, new CountBasedWBMH(streamID, windowLengths));
-        // NOTE: fixing seed at 0 here, guarantees that every decay function will see the same set of values
+        // NOTE: fixing seed at 0 here, guarantees that every experiment will see the same run of values
         RandomGenerator rng = RandomGeneratorFactory.createRandomGenerator(new Random(0));
         InterarrivalDistribution interarrivals = new FixedInterarrival(1);
         ValueDistribution values = new UniformValues(rng, 0, 100);
