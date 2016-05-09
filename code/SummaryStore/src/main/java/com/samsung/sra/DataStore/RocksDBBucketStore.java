@@ -5,13 +5,20 @@ import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class RocksDBBucketStore implements BucketStore {
-    private RocksDB rocksDB = null;
-    private Options rocksDBOptions = null;
+    private final RocksDB rocksDB;
+    private final Options rocksDBOptions;
+    private static final int cacheSize = 1_000_000;
+    // WARNING: caching only works with single stream right now
+    private final Map<Long, Bucket> cache;
 
     public RocksDBBucketStore(String rocksPath) throws RocksDBException {
         rocksDBOptions = new Options().setCreateIfMissing(true);
         rocksDB = RocksDB.open(rocksDBOptions, rocksPath);
+        cache = new HashMap<>(cacheSize);
     }
 
     // FST is a fast serialization library, used to quickly convert Buckets to/from RocksDB byte arrays
@@ -93,19 +100,30 @@ public class RocksDBBucketStore implements BucketStore {
 
     @Override
     public Bucket getBucket(long streamID, long bucketID, boolean delete) throws RocksDBException {
-        byte[] rocksKey = getRocksDBKey(streamID, bucketID);
-        rocksDB.get(rocksKey, valueArray);
-        if (delete) {
-            rocksDB.remove(rocksKey);
+        if (cache.containsKey(bucketID)) {
+            return delete ? cache.remove(bucketID) : cache.get(bucketID);
+        } else {
+            byte[] rocksKey = getRocksDBKey(streamID, bucketID);
+            rocksDB.get(rocksKey, valueArray);
+            Bucket bucket = byteArrayToBucket(valueArray);
+            if (delete) {
+                rocksDB.remove(rocksKey);
+            } else {
+                cache.put(bucketID, bucket);
+            }
+            return bucket;
         }
-        return byteArrayToBucket(valueArray);
     }
 
     @Override
     public void putBucket(long streamID, long bucketID, Bucket bucket) throws RocksDBException {
-        byte[] rocksKey = getRocksDBKey(streamID, bucketID);
-        byte[] rocksValue = bucketToByteArray(bucket);
-        rocksDB.put(rocksKey, rocksValue);
+        if (cache.size() >= cacheSize) { // evict something
+            Map.Entry<Long, Bucket> evicted = cache.entrySet().iterator().next();
+            byte[] evictedKey = getRocksDBKey(streamID, evicted.getKey());
+            byte[] evictedValue = bucketToByteArray(evicted.getValue());
+            rocksDB.put(evictedKey, evictedValue);
+        }
+        cache.put(bucketID, bucket);
     }
 
     /** We will persist metadata in RocksDB under this special (empty) key, which will
@@ -128,6 +146,12 @@ public class RocksDBBucketStore implements BucketStore {
 
     @Override
     public void close() throws RocksDBException {
+        // flush cache to disk
+        for (Map.Entry<Long, Bucket> entry: cache.entrySet()) {
+            byte[] rocksKey = getRocksDBKey(0, entry.getKey());
+            byte[] rocksValue = bucketToByteArray(entry.getValue());
+            rocksDB.put(rocksKey, rocksValue);
+        }
         if (rocksDB != null) {
             rocksDB.close();
         }
