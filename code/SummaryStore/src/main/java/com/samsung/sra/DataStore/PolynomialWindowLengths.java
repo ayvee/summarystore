@@ -35,7 +35,7 @@ public class PolynomialWindowLengths extends WindowLengths {
         for (long n = 1; n <= numWindows; ++n) {
             unscaled += Math.pow(n, degree);
         }
-        double scale = rangeSize / unscaled;
+        double scale = rangeSize / unscaled; // FIXME: does not account for rounding (Math.ceil above)
         return new PolynomialWindowLengths(scale, degree);
     }
 }

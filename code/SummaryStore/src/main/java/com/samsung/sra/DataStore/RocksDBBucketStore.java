@@ -11,8 +11,8 @@ import java.util.Map;
 public class RocksDBBucketStore implements BucketStore {
     private final RocksDB rocksDB;
     private final Options rocksDBOptions;
-    private static final int cacheSize = 1_000_000;
-    // WARNING: caching only works with single stream right now
+    private static final int cacheSize = 10_000_000;
+    // WARNING: caching only works with single stream right now, should really do one cache per streamID
     private final Map<Long, Bucket> cache;
 
     public RocksDBBucketStore(String rocksPath) throws RocksDBException {
@@ -33,6 +33,7 @@ public class RocksDBBucketStore implements BucketStore {
         RocksDB.loadLibrary();
     }
 
+    // FIXME: only works in single-threaded mode, breaks if we append to multiple streams in parallel
     byte[] keyArray = new byte[16];
     byte[] valueArray = new byte[72];
 
@@ -148,6 +149,7 @@ public class RocksDBBucketStore implements BucketStore {
     public void close() throws RocksDBException {
         // flush cache to disk
         for (Map.Entry<Long, Bucket> entry: cache.entrySet()) {
+            // FIXME: fixing streamID to 0
             byte[] rocksKey = getRocksDBKey(0, entry.getKey());
             byte[] rocksValue = bucketToByteArray(entry.getValue());
             rocksDB.put(rocksKey, rocksValue);
