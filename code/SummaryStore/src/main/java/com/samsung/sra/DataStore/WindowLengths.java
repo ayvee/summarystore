@@ -12,7 +12,7 @@ public abstract class WindowLengths implements Serializable {
 
     /**
      * What is the largest window size in a windowing covering N elements?
-     * null N represents infinity. Should return Long.MAX_VALUE if
+     * N == -1 represents infinity. Should return Long.MAX_VALUE if
      * the answer is unbounded
      */
     public abstract long getWindowLengthUpperBound(long N);

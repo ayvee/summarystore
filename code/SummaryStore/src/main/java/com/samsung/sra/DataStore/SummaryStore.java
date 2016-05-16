@@ -220,7 +220,7 @@ public class SummaryStore implements DataStore {
         for (StreamInfo si: streamsInfo.values()) {
             si.lock.readLock().lock();
             try {
-                ret += si.temporalIndex.size() * (8 + 8 + Bucket.byteCount);
+                ret += si.temporalIndex.size() * Bucket.byteCount;
             } finally {
                 si.lock.readLock().unlock();
             }

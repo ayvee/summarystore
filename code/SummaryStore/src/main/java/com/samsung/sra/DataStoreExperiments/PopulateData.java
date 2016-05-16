@@ -6,17 +6,19 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import org.apache.commons.math3.random.RandomGenerator;
 import org.apache.commons.math3.random.RandomGeneratorFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Random;
 
-// TODO: error recovery
 public class PopulateData {
     private static final long streamID = 0;
+    private static final Logger logger = LoggerFactory.getLogger(PopulateData.class);
 
     public static void main(String[] args) throws Exception {
         OptionParser parser = new OptionParser();
         parser.accepts("N", "size of stream to generate (number of elements)").withRequiredArg().ofType(Long.class).required();
-        parser.accepts("W", "number of windows").withRequiredArg().ofType(Long.class).required();
+        //parser.accepts("W", "number of windows").withRequiredArg().ofType(Long.class).required();
         parser.accepts("decay", "decay function").withRequiredArg().required();
         parser.accepts("outprefix", "prefix to store output files under").withRequiredArg().required();
 
@@ -26,20 +28,22 @@ public class PopulateData {
         try {
             OptionSet options = parser.parse(args);
             N = (long) options.valueOf("N");
-            long W = (long) options.valueOf("W");
+            //long W = (long) options.valueOf("W");
             if (N <= 0) {
                 throw new IllegalArgumentException("N should be positive");
             }
-            if (W > N) {
+            /*if (W > N) {
                 throw new IllegalArgumentException("W should be <= N");
-            }
+            }*/
             String decay = (String) options.valueOf("decay");
             if (decay.equals("exponential")) {
-                windowLengths = ExponentialWindowLengths.getWindowingOfSize(N, W);
+                //windowLengths = ExponentialWindowLengths.getWindowingOfSize(N, W);
+                windowLengths = new ExponentialWindowLengths(2);
             } else if (decay.startsWith("polynomial")) {
                 // throws NumberFormatException on parse failure, a subclass of IllegalArgumentException
                 int d = Integer.parseInt(decay.substring("polynomial".length()));
-                windowLengths = PolynomialWindowLengths.getWindowingOfSize(d, N, W);
+                //windowLengths = PolynomialWindowLengths.getWindowingOfSize(d, N, W);
+                windowLengths = new PolynomialWindowLengths(1, d);
             } else if (decay.startsWith("rationalPower")) {
                 String[] pq = decay.substring("rationalPower".length()).split(",");
                 if (pq.length != 2) {
@@ -70,6 +74,7 @@ public class PopulateData {
         ValueDistribution values = new UniformValues(rng, 0, 100);
         WriteLoadGenerator generator = new WriteLoadGenerator(interarrivals, values, streamID, store);
         generator.generateUntil(N);
+        logger.info("{} = {} bytes", prefix, store.getStoreSizeInBytes());
         store.close();
     }
 }

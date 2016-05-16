@@ -127,9 +127,9 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     @Override
     public void append(SummaryStore store, long ts, Object value) throws RocksDBException {
-        if (logger.isDebugEnabled() && N % 1000000 == 0) {
-            logger.debug("length of windowStartMarkers = {}, firstWindowOfLength = {}, mergeCounts = {}",
-                    windowStartMarkers.size(), firstWindowOfLength.size(), mergeCounts.getSize());
+        if (logger.isDebugEnabled() && N % 1_000_000 == 0) {
+            logger.debug("N = {}, length of windowStartMarkers = {}, firstWindowOfLength = {}, mergeCounts = {}",
+                    N, windowStartMarkers.size(), firstWindowOfLength.size(), mergeCounts.getSize());
         }
         ++N;
 

@@ -27,6 +27,15 @@ public class RationalPowerWindowLengths extends WindowLengths {
 
     @Override
     public long getWindowLengthUpperBound(long N) {
-        return q == 0 ? 1 : Long.MAX_VALUE;
+        if (N == -1) {
+            return Long.MAX_VALUE;
+        }
+        if (q == 0) {
+            return 1;
+        } else {
+            // calculate upper bound assuming fastest possible growth, i.e. 1, 2, 3, 4, ..., U
+            // U(U+1)/2 = N => U = sqrt(U^2) <= sqrt(2N)
+            return (long)Math.ceil(Math.sqrt(2 * N));
+        }
     }
 }

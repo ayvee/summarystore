@@ -10,7 +10,7 @@ public class ExponentialWindowLengths extends WindowLengths {
     private double next = 1;
     private final double base;
 
-    ExponentialWindowLengths(double base) {
+    public ExponentialWindowLengths(double base) {
         this.base = base;
     }
 
