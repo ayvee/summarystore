@@ -3,6 +3,9 @@ package com.samsung.sra.DataStore;
 import org.apache.commons.math3.analysis.UnivariateFunction;
 import org.apache.commons.math3.analysis.solvers.BrentSolver;
 
+/**
+ * 1, b, b^2, ..., b^k, ...
+ */
 public class ExponentialWindowLengths extends WindowLengths {
     private double next = 1;
     private final double base;

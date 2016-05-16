@@ -40,6 +40,13 @@ public class PopulateData {
                 // throws NumberFormatException on parse failure, a subclass of IllegalArgumentException
                 int d = Integer.parseInt(decay.substring("polynomial".length()));
                 windowLengths = PolynomialWindowLengths.getWindowingOfSize(d, N, W);
+            } else if (decay.startsWith("rationalPower")) {
+                String[] pq = decay.substring("rationalPower".length()).split(",");
+                if (pq.length != 2) {
+                    throw new IllegalArgumentException("rationalPower decay spec must be rationalPowerp,q");
+                }
+                int p = Integer.parseInt(pq[0]), q = Integer.parseInt(pq[1]);
+                windowLengths = new RationalPowerWindowLengths(p, q);
             } else {
                 throw new IllegalArgumentException("unrecognized decay function");
             }
