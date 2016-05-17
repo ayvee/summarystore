@@ -1,9 +1,7 @@
 RockDB Installation:
 
 	git clone https://github.com/facebook/rocksdb.git
-	cd rockdb
+	cd rocksdb
 	Set JAVA_HOME
 	make rocksdbjavastatic
 	mvn install:install-file -Dfile=java/target/rocksdbjni-4.8.0-linux64.jar -DgroupId=org.rocksdb -DartifactId=rocksdbjni -Dversion=4.4 -Dpackaging=jar -DgeneratePom=true
-
-
