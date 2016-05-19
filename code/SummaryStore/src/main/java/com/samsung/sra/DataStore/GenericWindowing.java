@@ -33,20 +33,13 @@ public class GenericWindowing implements Windowing {
      * if the target length isn't achievable
      */
     private boolean addWindowsUntilLength(long targetLength) {
-        if (targetLength <= lastWindowLength) {
-            // already added, nothing to do
-            return true;
+        if (targetLength > windowLengths.maxWindowSize()) {
+            return false;
         } else {
-            if (targetLength > windowLengths.maxWindowSize()) {
-                return false;
-            } else {
-                long genLength;
-                do {
-                    genLength = windowLengths.nextWindowLength();
-                    addWindow(genLength);
-                } while (genLength < targetLength);
-                return true;
+            while (lastWindowLength < targetLength) {
+                addWindow(windowLengths.nextWindowLength());
             }
+            return true;
         }
     }
 

@@ -49,13 +49,6 @@ public class RationalPowerWindowing implements Windowing {
         if (q != 0) while (lastMarker <= targetMarker) addOne();
     }
 
-    void printDebug() {
-        System.out.println("length -> first marker");
-        for (Map.Entry<Long, Long> entry: lengthToFirstMarker.entrySet()) {
-            System.out.println(entry.getKey() + " -> " + entry.getValue());
-        }
-    }
-
     @Override
     public long getFirstContainingTime(long Tl, long Tr, long T) {
         assert 0 <= Tl && Tl <= Tr && Tr <= T-1;
