@@ -7,23 +7,20 @@ import org.teneighty.heap.FibonacciHeap;
 import org.teneighty.heap.Heap;
 
 import java.util.HashMap;
-import java.util.TreeMap;
-import java.util.TreeSet;
 
 /**
- * Newer implementation of WBMH that maintains a priority queue of pending bucket
- * merge operations. Faster than the old implementation, but potentially uses more
- * memory, because it can end up building the windowing out very far into the future.
- * Can be controlled with care, which I've taken some of, but may need more analysis.
+ * WBMH implementation with
+ * 1. Two amortized bucket merge operations per insert
+ * 2. O(log(# buckets)) book-keeping overhead per insert (comes from a priority
+ *    queue we maintain to identify when buckets need to be merged)
  */
 public class CountBasedWBMH implements WindowingMechanism {
     private static Logger logger = LoggerFactory.getLogger(CountBasedWBMH.class);
     private final long streamID;
-    private final WindowLengths windowLengths;
+    private final Windowing windowing;
 
     private long lastBucketID = -1;
     private long N = 0;
-    private final long firstWindowLength; // length of the first window (the one holding the newest element)
 
     /* Priority queue, mapping each BucketID b_i to the time at which b_{i+1} will be
      * merged into it. Using a Fibonacci heap instead of the Java Collections PriorityQueue
@@ -35,80 +32,12 @@ public class CountBasedWBMH implements WindowingMechanism {
     private final FibonacciHeap<Long, Long> mergeCounts = new FibonacciHeap<>();
     private final HashMap<Long, Heap.Entry<Long, Long>> heapEntries = new HashMap<>();
 
-    public CountBasedWBMH(long streamID, WindowLengths windowLengths) {
+
+    public CountBasedWBMH(long streamID, Windowing windowing) {
         this.streamID = streamID;
-        this.windowLengths = windowLengths;
-        addWindow((firstWindowLength = windowLengths.nextWindowLength()));
+        this.windowing = windowing;
     }
 
-    // maps window length to the start marker of the first window of that length
-    private final TreeMap<Long, Long> firstWindowOfLength = new TreeMap<>();
-    // all window start markers in an ordered set
-    private final TreeSet<Long> windowStartMarkers = new TreeSet<>();
-
-    private long lastWindowStart = 0L, lastWindowLength = 0L;
-
-    private void addWindow(long length) {
-        assert length >= lastWindowLength && length > 0;
-        lastWindowStart += lastWindowLength;
-        if (length > lastWindowLength) firstWindowOfLength.put(length, lastWindowStart);
-        windowStartMarkers.add(lastWindowStart);
-        lastWindowLength = length;
-    }
-
-    /**
-     * Add windows until we have one with length >= the specified target. Returns false
-     * if the target length isn't achievable
-     */
-    private boolean addWindowsUntilLength(long targetLength) {
-        if (targetLength <= lastWindowLength) {
-            // already added, nothing to do
-            return true;
-        } else {
-            return windowLengths.addWindowsUntilLength(targetLength, this::addWindow);
-        }
-    }
-
-    /**
-     * Add windows until we have at least one window marker larger than the target
-     */
-    private void addWindowsPastMarker(long targetMarker) {
-        while (lastWindowStart <= targetMarker) {
-            addWindow(windowLengths.nextWindowLength());
-        }
-    }
-
-    /**
-     * Find the smallest N' >= N such that after N' elements have been inserted
-     * the interval [Cl, Cr] will be contained inside the same window. Returns
-     * -1 if no such N' exists
-     */
-    private long findMergeCount(long N, long Cl, long Cr) {
-        assert 0 <= Cl && Cl <= Cr && Cr < N;
-        long l = N-1 - Cr, r = N-1 - Cl, length = Cr - Cl + 1;
-
-        if (!addWindowsUntilLength(length)) {
-            return -1;
-        }
-        long firstMarker = firstWindowOfLength.ceilingEntry(length).getValue();
-        if (firstMarker >= l) {
-            // l' == firstMarker, where l' := N'-1 - Cr
-            return firstMarker + Cr + 1;
-        } else {
-            // we've already hit the target window length, so [l, r] is either
-            // already in the same window or will be once we move into the next window
-            addWindowsPastMarker(l);
-            long currWindowL = windowStartMarkers.floor(l), currWindowR = windowStartMarkers.higher(l) - 1;
-            if (r <= currWindowR) {
-                // already in same window
-                return N;
-            } else {
-                assert currWindowR - currWindowL + 1 >= length;
-                // need to wait until next window, i.e. l' == currWindowR + 1, where l' := N'-1 - Cr
-                return currWindowR + Cr + 2;
-            }
-        }
-    }
 
     /**
      * Update the priority queue's entry for the merge pair (b0, b1)
@@ -119,7 +48,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         Heap.Entry<Long, Long> existingEntry = heapEntries.remove(b0.thisBucketID);
         if (existingEntry != null) mergeCounts.delete(existingEntry);
 
-        long newMergeCount = findMergeCount(N, b0.cStart, b1.cEnd);
+        long newMergeCount = windowing.getFirstContainingTime(b0.cStart, b1.cEnd, N);
         if (newMergeCount != -1) {
             heapEntries.put(b0.thisBucketID, mergeCounts.insert(newMergeCount, b0.thisBucketID));
         }
@@ -128,8 +57,7 @@ public class CountBasedWBMH implements WindowingMechanism {
     @Override
     public void append(SummaryStore store, long ts, Object value) throws RocksDBException {
         if (logger.isDebugEnabled() && N % 1_000_000 == 0) {
-            logger.debug("N = {}, length of windowStartMarkers = {}, firstWindowOfLength = {}, mergeCounts = {}",
-                    N, windowStartMarkers.size(), firstWindowOfLength.size(), mergeCounts.getSize());
+            logger.debug("N = {}, mergeCounts.size = {}", N, mergeCounts.getSize());
         }
         ++N;
 
@@ -163,7 +91,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         }
 
         Bucket lastBucket = lastBucketID == -1 ? null : store.getBucket(streamID, lastBucketID);
-        if (lastBucket != null && lastBucket.cEnd - lastBucket.cStart + 1 < firstWindowLength) {
+        if (lastBucket != null && lastBucket.cEnd - lastBucket.cStart + 1 < windowing.getSizeOfFirstWindow()) {
             // last bucket isn't yet full; insert new value into it
             lastBucket.cEnd = N-1;
             lastBucket.tEnd = ts;

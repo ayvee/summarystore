@@ -1,12 +1,11 @@
 package com.samsung.sra.DataStoreExperiments;
 
 import com.samsung.sra.DataStore.ExponentialWindowLengths;
-import com.samsung.sra.DataStore.PolynomialWindowLengths;
-import com.samsung.sra.DataStore.WindowLengths;
+import com.samsung.sra.DataStore.WindowLengthsSequence;
 
 public class PrintDecayFunction {
     public static void main(String[] args) {
-        WindowLengths windowLengths;
+        WindowLengthsSequence windowLengths;
         long N, W;
         try {
             if (args.length != 3) {
@@ -16,10 +15,7 @@ public class PrintDecayFunction {
             N = Long.parseLong(args[1]);
             W = Long.parseLong(args[2]);
             if (decay.equals("exponential")) {
-                windowLengths = ExponentialWindowLengths.getWindowingOfSize(N, W);
-            } else if (decay.startsWith("polynomial")) {
-                int d = Integer.parseInt(decay.substring("polynomial".length()));
-                windowLengths = PolynomialWindowLengths.getWindowingOfSize(d, N, W);
+                windowLengths = new ExponentialWindowLengths(2);
             } else {
                 throw new IllegalArgumentException("unrecognized decay function");
             }

@@ -271,14 +271,19 @@ public class SummaryStore implements DataStore {
             store = new SummaryStore(storeLoc);
             long streamID = 0;
             if (!store.streamsInfo.containsKey(streamID)) {
-                //store.registerStream(streamID, new CountBasedWBMH(streamID, new PolynomialWindowLengths(4, 0)));
-                store.registerStream(streamID, new CountBasedWBMH(streamID, new ExponentialWindowLengths(2)));
-                for (long i = 0; i < 20; ++i) {
+                //store.registerStream(streamID, new CountBasedWBMH(streamID, new GenericWindowing(new ExponentialWindowLengths(2))));
+                Windowing windowing
+                        = new GenericWindowing(new ExponentialWindowLengths(2));
+                        //= new RationalPowerWindowing(1, 1);
+                store.registerStream(streamID, new CountBasedWBMH(streamID, windowing));
+                for (long i = 0; i < 1023; ++i) {
                     store.append(streamID, i, i + 1);
                     store.printBucketState(streamID);
                 }
+                //((RationalPowerWindowing) windowing).printDebug();
+            } else {
+                store.printBucketState(streamID);
             }
-            store.printBucketState(streamID);
             long t0 = 0, t1 = 4;
             System.out.println(
                     "sum[" + t0 + ", " + t1 + "] = " + store.query(streamID, t0, t1, QueryType.SUM, null) + "; " +

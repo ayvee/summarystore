@@ -24,7 +24,7 @@ public class MeasureThroughput {
 
         LinkedHashMap<String, SummaryStore> stores = new LinkedHashMap<>();
         System.out.println("Testing a store with " + T + " elements and constant size 1 bucketing (0% storage savings)");
-        registerStore(stores, "linearstore", new CountBasedWBMH(streamID, new PolynomialWindowLengths(1, 0)));
+        registerStore(stores, "linearstore", new CountBasedWBMH(streamID, new RationalPowerWindowing(1, 0)));
 
         WriteLoadGenerator generator = new WriteLoadGenerator(interarrivals, values, streamID, stores.values());
         long w0 = System.currentTimeMillis();

@@ -23,7 +23,7 @@ public class PopulateData {
         parser.accepts("outprefix", "prefix to store output files under").withRequiredArg().required();
 
         long N;
-        WindowLengths windowLengths;
+        Windowing windowing;
         String outprefix;
         try {
             OptionSet options = parser.parse(args);
@@ -38,19 +38,14 @@ public class PopulateData {
             String decay = (String) options.valueOf("decay");
             if (decay.equals("exponential")) {
                 //windowLengths = ExponentialWindowLengths.getWindowingOfSize(N, W);
-                windowLengths = new ExponentialWindowLengths(2);
-            } else if (decay.startsWith("polynomial")) {
-                // throws NumberFormatException on parse failure, a subclass of IllegalArgumentException
-                int d = Integer.parseInt(decay.substring("polynomial".length()));
-                //windowLengths = PolynomialWindowLengths.getWindowingOfSize(d, N, W);
-                windowLengths = new PolynomialWindowLengths(1, d);
+                windowing = new GenericWindowing(new ExponentialWindowLengths(2));
             } else if (decay.startsWith("rationalPower")) {
                 String[] pq = decay.substring("rationalPower".length()).split(",");
                 if (pq.length != 2) {
                     throw new IllegalArgumentException("rationalPower decay spec must be rationalPowerp,q");
                 }
                 int p = Integer.parseInt(pq[0]), q = Integer.parseInt(pq[1]);
-                windowLengths = new RationalPowerWindowLengths(p, q);
+                windowing = new RationalPowerWindowing(p, q);
             } else {
                 throw new IllegalArgumentException("unrecognized decay function");
             }
@@ -62,12 +57,12 @@ public class PopulateData {
             return;
         }
 
-        populateData(outprefix, N, windowLengths);
+        populateData(outprefix, N, windowing);
     }
 
-    private static void populateData(String prefix, long N, WindowLengths windowLengths) throws Exception {
+    private static void populateData(String prefix, long N, Windowing windowing) throws Exception {
         SummaryStore store = new SummaryStore(prefix);
-        store.registerStream(streamID, new CountBasedWBMH(streamID, windowLengths));
+        store.registerStream(streamID, new CountBasedWBMH(streamID, windowing));
         // NOTE: fixing seed at 0 here, guarantees that every experiment will see the same run of values
         RandomGenerator rng = RandomGeneratorFactory.createRandomGenerator(new Random(0));
         InterarrivalDistribution interarrivals = new FixedInterarrival(1);
