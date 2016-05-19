@@ -11,7 +11,7 @@ public interface DataStore extends AutoCloseable {
     // TODO: allow configuring the choice of bucket data structure for each stream (set at registration time)
     void registerStream(long streamID, WindowingMechanism windowingMechanism) throws StreamException, RocksDBException;
 
-    Object query(long streamID, long t0, long t1, QueryType queryType, Object[] queryParams)
+    Object query(long streamID, long t0, long t1, QueryType queryType, Object... queryParams)
             throws StreamException, QueryException, RocksDBException;
 
     void append(long streamID, long timestamp, Object value) throws StreamException, RocksDBException;
