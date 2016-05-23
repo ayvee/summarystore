@@ -124,10 +124,10 @@ public class SummaryStore implements DataStore {
             TreeMap<Long, Long> index = streamInfo.temporalIndex;
             Long l = index.floorKey(t0); // first bucket with tStart <= t0
             Long r = index.higherKey(t1); // first bucket with tStart > t1
-            logger.trace("Overapproximated time range = [{}, {}]", l, r);
             if (r == null) {
-                r = index.lastKey();
+                r = index.lastKey() + 1;
             }
+            logger.trace("Overapproximated time range = [{}, {}]", l, r);
             // Query on all buckets with l <= tStart < r
             SortedMap<Long, Long> spanningBucketsIDs = index.subMap(l, true, r, false);
             Bucket first = null;
