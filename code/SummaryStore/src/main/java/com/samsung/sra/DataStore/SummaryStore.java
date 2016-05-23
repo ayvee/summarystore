@@ -192,12 +192,19 @@ public class SummaryStore implements DataStore {
         bucketStore.putBucket(streamID, bucketID, bucket);
     }
 
-    public void printBucketState(long streamID) throws RocksDBException {
+    public void printBucketState(long streamID, boolean printPerBucketState) throws RocksDBException {
         StreamInfo streamInfo = streamsInfo.get(streamID);
-        System.out.println("Stream " + streamID + " with " + streamInfo.numValues + " elements:");
-        for (Object bucketID: streamInfo.temporalIndex.values()) {
-            System.out.println("\t" + bucketStore.getBucket(streamID, (long)bucketID));
+        System.out.println("Stream " + streamID + " with " + streamInfo.numValues + " elements in " +
+                streamInfo.temporalIndex.size() + " windows");
+        if (printPerBucketState) {
+            for (Object bucketID : streamInfo.temporalIndex.values()) {
+                System.out.println("\t" + bucketStore.getBucket(streamID, (long) bucketID));
+            }
         }
+    }
+
+    public void printBucketState(long streamID) throws RocksDBException {
+        printBucketState(streamID, false);
     }
 
     public void close() throws RocksDBException {
@@ -278,7 +285,7 @@ public class SummaryStore implements DataStore {
                 store.registerStream(streamID, new CountBasedWBMH(streamID, windowing));
                 for (long i = 0; i < 1023; ++i) {
                     store.append(streamID, i, i + 1);
-                    store.printBucketState(streamID);
+                    store.printBucketState(streamID, true);
                 }
                 //((RationalPowerWindowing) windowing).printDebug();
             } else {
