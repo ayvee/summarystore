@@ -11,12 +11,23 @@ import java.util.Map;
 public class RocksDBBucketStore implements BucketStore {
     private final RocksDB rocksDB;
     private final Options rocksDBOptions;
-    private static final int cacheSizePerStream = 10_000_000;
-    private final Map<Long, Map<Long, Bucket>> cache = new HashMap<>(); // map streamID -> bucketID -> bucket
+    private final int cacheSizePerStream;
+    private final Map<Long, Map<Long, Bucket>> cache; // map streamID -> bucketID -> bucket
 
-    public RocksDBBucketStore(String rocksPath) throws RocksDBException {
+    /**
+     * @param rocksPath  on-disk path
+     * @param cacheSizePerStream  number of elements per stream to cache in main memory. Set to 0 to disable caching
+     * @throws RocksDBException
+     */
+    public RocksDBBucketStore(String rocksPath, int cacheSizePerStream) throws RocksDBException {
+        this.cacheSizePerStream = cacheSizePerStream;
+        cache = cacheSizePerStream > 0 ? new HashMap<>() : null;
         rocksDBOptions = new Options().setCreateIfMissing(true);
         rocksDB = RocksDB.open(rocksDBOptions, rocksPath);
+    }
+
+    public RocksDBBucketStore(String rocksPath) throws RocksDBException {
+        this(rocksPath, 0);
     }
 
     // FST is a fast serialization library, originally used to convert Buckets
@@ -116,20 +127,26 @@ public class RocksDBBucketStore implements BucketStore {
 
     @Override
     public Bucket getBucket(long streamID, long bucketID, boolean delete) throws RocksDBException {
-        Map<Long, Bucket> streamCache = cache.get(streamID);
-        if (streamCache == null) cache.put(streamID, streamCache = new HashMap<>());
+        Map<Long, Bucket> streamCache = null;
+        if (cache == null) {
+            streamCache = null;
+        } else {
+            streamCache = cache.get(streamID);
+            if (streamCache == null) cache.put(streamID, streamCache = new HashMap<>());
+        }
 
-        Bucket bucket = streamCache.get(bucketID);
+        Bucket bucket = streamCache != null ? streamCache.get(bucketID) : null;
         if (bucket != null) { // cache hit
             if (delete) streamCache.remove(bucketID);
             return bucket;
-        } else { // cache miss, read-through from RocksDB
+        } else { // either no cache or cache miss; read-through from RocksDB
             byte[] rocksKey = getRocksDBKey(streamID, bucketID);
             rocksDB.get(rocksKey, valueArray);
             bucket = byteArrayToBucket(valueArray);
             if (delete) {
                 rocksDB.remove(rocksKey);
-            } else {
+            }
+            if (streamCache != null) {
                 insertIntoCache(streamCache, streamID, bucketID, bucket);
             }
             return bucket;
@@ -138,10 +155,16 @@ public class RocksDBBucketStore implements BucketStore {
 
     @Override
     public void putBucket(long streamID, long bucketID, Bucket bucket) throws RocksDBException {
-        Map<Long, Bucket> streamCache = cache.get(streamID);
-        if (streamCache == null) cache.put(streamID, streamCache = new HashMap<>());
+        if (cache != null) {
+            Map<Long, Bucket> streamCache = cache.get(streamID);
+            if (streamCache == null) cache.put(streamID, streamCache = new HashMap<>());
 
-        insertIntoCache(streamCache, streamID, bucketID, bucket);
+            insertIntoCache(streamCache, streamID, bucketID, bucket);
+        } else {
+            byte[] key = getRocksDBKey(streamID, bucketID);
+            byte[] value = bucketToByteArray(bucket);
+            rocksDB.put(key, value);
+        }
     }
 
     /** We will persist metadata in RocksDB under this special (empty) key, which will
@@ -165,15 +188,17 @@ public class RocksDBBucketStore implements BucketStore {
     @Override
     public void close() throws RocksDBException {
         if (rocksDB != null) {
-            // flush cache to disk
-            for (Map.Entry<Long, Map<Long, Bucket>> streamEntry: cache.entrySet()) {
-                long streamID = streamEntry.getKey();
-                for (Map.Entry<Long, Bucket> bucketEntry: streamEntry.getValue().entrySet()) {
-                    long bucketID = bucketEntry.getKey();
-                    Bucket bucket = bucketEntry.getValue();
-                    byte[] rocksKey = getRocksDBKey(streamID, bucketID);
-                    byte[] rocksValue = bucketToByteArray(bucket);
-                    rocksDB.put(rocksKey, rocksValue);
+            if (cache != null) {
+                // flush cache to disk
+                for (Map.Entry<Long, Map<Long, Bucket>> streamEntry : cache.entrySet()) {
+                    long streamID = streamEntry.getKey();
+                    for (Map.Entry<Long, Bucket> bucketEntry : streamEntry.getValue().entrySet()) {
+                        long bucketID = bucketEntry.getKey();
+                        Bucket bucket = bucketEntry.getValue();
+                        byte[] rocksKey = getRocksDBKey(streamID, bucketID);
+                        byte[] rocksValue = bucketToByteArray(bucket);
+                        rocksDB.put(rocksKey, rocksValue);
+                    }
                 }
             }
             rocksDB.close();
