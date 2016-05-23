@@ -127,7 +127,7 @@ public class RocksDBBucketStore implements BucketStore {
 
     @Override
     public Bucket getBucket(long streamID, long bucketID, boolean delete) throws RocksDBException {
-        Map<Long, Bucket> streamCache = null;
+        Map<Long, Bucket> streamCache;
         if (cache == null) {
             streamCache = null;
         } else {
