@@ -75,10 +75,10 @@ public class SummaryStore implements DataStore {
      * Create a SummaryStore that stores data and indexes in files/directories that
      * start with filePrefix. To store everything in-memory use a null filePrefix
      */
-    public SummaryStore(String filePrefix) throws RocksDBException {
+    public SummaryStore(String filePrefix, long cacheSizePerStream) throws RocksDBException {
         this.filePrefix = filePrefix;
         this.bucketStore = filePrefix != null ?
-                new RocksDBBucketStore(filePrefix + ".bucketStore") :
+                new RocksDBBucketStore(filePrefix + ".bucketStore", cacheSizePerStream) :
                 new MainMemoryBucketStore();
         Object uncast = bucketStore.getMetadata();
         if (uncast != null) {
@@ -89,6 +89,10 @@ public class SummaryStore implements DataStore {
         } else {
             streamsInfo = new HashMap<>();
         }
+    }
+
+    public SummaryStore(String filePrefix) throws RocksDBException {
+        this(filePrefix, 0);
     }
 
     public void registerStream(final long streamID, WindowingMechanism windowingMechanism) throws StreamException, RocksDBException {

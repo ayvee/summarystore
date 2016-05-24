@@ -21,10 +21,12 @@ public class PopulateData {
         //parser.accepts("W", "number of windows").withRequiredArg().ofType(Long.class).required();
         parser.accepts("decay", "decay function").withRequiredArg().required();
         parser.accepts("outprefix", "prefix to store output files under").withRequiredArg().required();
+        parser.accepts("cachesize", "number of buckets per stream to cache in main memory").withOptionalArg().ofType(Long.class);
 
         long N;
         Windowing windowing;
         String outprefix;
+        long cacheSize = 0;
         try {
             OptionSet options = parser.parse(args);
             N = (long) options.valueOf("N");
@@ -50,6 +52,7 @@ public class PopulateData {
                 throw new IllegalArgumentException("unrecognized decay function");
             }
             outprefix = (String)options.valueOf("outprefix");
+            if (options.has("cachesize")) cacheSize = (long)options.valueOf("cachesize");
         } catch (IllegalArgumentException | OptionException e) {
             System.err.println("ERROR: " + e.getMessage());
             parser.printHelpOn(System.err);
@@ -57,11 +60,11 @@ public class PopulateData {
             return;
         }
 
-        populateData(outprefix, N, windowing);
+        populateData(outprefix, N, windowing, cacheSize);
     }
 
-    private static void populateData(String prefix, long N, Windowing windowing) throws Exception {
-        SummaryStore store = new SummaryStore(prefix);
+    private static void populateData(String prefix, long N, Windowing windowing, long cacheSize) throws Exception {
+        SummaryStore store = new SummaryStore(prefix, cacheSize);
         store.registerStream(streamID, new CountBasedWBMH(streamID, windowing));
         // NOTE: fixing seed at 0 here, guarantees that every experiment will see the same run of values
         RandomGenerator rng = RandomGeneratorFactory.createRandomGenerator(new Random(0));

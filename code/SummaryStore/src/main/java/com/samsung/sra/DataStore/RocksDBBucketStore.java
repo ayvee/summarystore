@@ -11,7 +11,7 @@ import java.util.Map;
 public class RocksDBBucketStore implements BucketStore {
     private final RocksDB rocksDB;
     private final Options rocksDBOptions;
-    private final int cacheSizePerStream;
+    private final long cacheSizePerStream;
     private final Map<Long, Map<Long, Bucket>> cache; // map streamID -> bucketID -> bucket
 
     /**
@@ -19,7 +19,7 @@ public class RocksDBBucketStore implements BucketStore {
      * @param cacheSizePerStream  number of elements per stream to cache in main memory. Set to 0 to disable caching
      * @throws RocksDBException
      */
-    public RocksDBBucketStore(String rocksPath, int cacheSizePerStream) throws RocksDBException {
+    public RocksDBBucketStore(String rocksPath, long cacheSizePerStream) throws RocksDBException {
         this.cacheSizePerStream = cacheSizePerStream;
         cache = cacheSizePerStream > 0 ? new HashMap<>() : null;
         rocksDBOptions = new Options().setCreateIfMissing(true);
