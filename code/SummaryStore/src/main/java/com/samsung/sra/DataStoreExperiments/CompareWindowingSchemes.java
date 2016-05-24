@@ -1,6 +1,7 @@
 package com.samsung.sra.DataStoreExperiments;
 
-import com.samsung.sra.DataStore.*;
+import com.samsung.sra.DataStore.QueryType;
+import com.samsung.sra.DataStore.SummaryStore;
 import org.nustaq.serialization.FSTConfiguration;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
@@ -8,46 +9,26 @@ import org.slf4j.LoggerFactory;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
-import java.nio.file.Paths;
+import java.nio.file.*;
 import java.util.*;
 import java.util.function.ToDoubleFunction;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 class CompareWindowingSchemes {
+    private static final int numAgeLengthClasses = 8;
+    private static final int numRandomQueriesPerClass = 10_000;
+    private static final ToDoubleFunction<Statistics> metric = stats ->
+            //stats.getMean();
+            stats.getQuantile(0.95);
+    private static final ToDoubleFunction<AgeLengthClass> weightFunction = alClass ->
+            1;
+            //Math.pow(alClass.lengthClassNum + 1, 0) / Math.pow(alClass.ageClassNum + 1, 2);
+
     private static Logger logger = LoggerFactory.getLogger(CompareWindowingSchemes.class);
-    //private static String loc_prefix = "/tmp/tdstore_";
     private static final long streamID = 0;
-
-    // BEGIN CONFIG. If these parameters are changed, it may be necessary to delete memoized
-    // results (see runExperiment()) to rerun the experiment
-    private static long T = 1_000_000;
-    private static int storageSavingsFactor = 100;
-    // # of windows. Divide by 2 because we maintain 2 aggregates per window, sum and count
-    private static int W = (int)(T / storageSavingsFactor / 2);
-
-    // write workload
-    private static InterarrivalDistribution interarrivals = new FixedInterarrival(1);
-    private static ValueDistribution values = new UniformValues(0, 100);
-
-    // read workload
-    private static int numAgeLengthClasses = 8;
-    private static int numRandomQueriesPerClass = 10_000;
-
-    // set of decay functions
-    private static LinkedHashMap<String, SummaryStore> stores = new LinkedHashMap<>();
-    static {
-        //Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + loc_prefix + "*"}).waitFor();
-        try {
-            registerStore(stores, "exponential", new CountBasedWBMH(streamID, new GenericWindowing(new ExponentialWindowLengths(2))));
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.exit(1);
-        }
-    }
-    // END CONFIG
 
     private static final FSTConfiguration fstConf;
     static {
@@ -55,12 +36,30 @@ class CompareWindowingSchemes {
         fstConf.registerClass(Statistics.class);
     }
 
+    private static Map<String, SummaryStore> discoverStores(String directory, long N) throws IOException, RocksDBException {
+        Pattern pattern = Pattern.compile("(.*N" + N + "\\.D([^\\.]+))\\.bucketStore.*");
+        Map<String, SummaryStore> stores = new LinkedHashMap<>();
+        try (DirectoryStream<Path> paths = Files.newDirectoryStream(Paths.get(directory), "N" + N + ".*.bucketStore")) {
+            for (Path path: paths) {
+                if (Files.isDirectory(path)) {
+                    Matcher matcher = pattern.matcher(path.toString());
+                    if (matcher.matches()) {
+                        String prefix = matcher.group(1), decay = matcher.group(2);
+                        stores.put(decay, new SummaryStore(prefix));
+                    }
+                }
+            }
+        }
+        return stores;
+    }
+
     /**
      * Compute stats for each (decay function, age length class) pair. Results will be memoized if the argument is true
      */
-    private static LinkedHashMap<String, LinkedHashMap<AgeLengthClass, Statistics>> runExperiment(boolean memoize) throws Exception {
+    private static LinkedHashMap<String, LinkedHashMap<AgeLengthClass, Statistics>> runExperiment(
+            String directory, long N, boolean memoize) throws Exception {
         LinkedHashMap<String, LinkedHashMap<AgeLengthClass, Statistics>> results;
-        String memoFile = memoize ? String.format("compare-windowing.T%d.W%d.dat", T, W) : null;
+        String memoFile = memoize ? String.format("%s/N%d.profile", directory, N) : null;
         if (memoize) {
             try {
                 byte[] serialized = Files.readAllBytes(Paths.get(memoFile));
@@ -71,17 +70,12 @@ class CompareWindowingSchemes {
                 logger.warn("failed to deserialize memoized results", e);
             }
         }
+        Map<String, SummaryStore> stores = discoverStores(directory, N);
         results = new LinkedHashMap<>();
-
-        WriteLoadGenerator generator = new WriteLoadGenerator(interarrivals, values, streamID, stores.values());
-        generator.generateUntil(T);
 
         //stores.forEach((name, store) -> System.out.println(name + " = " + store.getStoreSizeInBytes() + " bytes"));
 
-        //Double[] weights = new Double[numAgeLengthClasses * numAgeLengthClasses];
-        //Arrays.fill(weights, 1d);
-        //AgeLengthSampler querySampler = new AgeLengthSampler(T, T, numAgeLengthClasses, numAgeLengthClasses, Arrays.asList(weights));
-        List<AgeLengthClass> alClasses = AgeLengthSampler.getAgeLengthClasses(T, T, numAgeLengthClasses, numAgeLengthClasses);
+        List<AgeLengthClass> alClasses = AgeLengthSampler.getAgeLengthClasses(N, N, numAgeLengthClasses, numAgeLengthClasses);
 
         stores.keySet().forEach(name -> results.put(name, new LinkedHashMap<>()));
         Random random = new Random();
@@ -91,8 +85,8 @@ class CompareWindowingSchemes {
             IntStream.range(0, numRandomQueriesPerClass).parallel().forEach(q -> {
                 Pair<Long> ageLength = alClass.sample(random);
                 long age = ageLength.first(), length = ageLength.second();
-                long l = T - length + 1 - age, r = T - age;
-                if (l < 0 || r >= T) return;
+                long l = N - length + 1 - age, r = N - age;
+                if (l < 0 || r >= N) return;
                 double trueCount = r - l + 1;
                 stores.forEach((name, store) -> {
                     try {
@@ -118,20 +112,21 @@ class CompareWindowingSchemes {
         return results;
     }
 
-    private static void registerStore(Map<String, SummaryStore> stores, String storeName, WindowingMechanism windowingMechanism) throws RocksDBException, StreamException {
-        //SummaryStore store = new SummaryStore(new RocksDBBucketStore(loc_prefix + storeName));
-        SummaryStore store = new SummaryStore(null);
-        store.registerStream(streamID, windowingMechanism);
-        stores.put(storeName, store);
-    }
-
     public static void main(String[] args) throws Exception {
-        ToDoubleFunction<Statistics> metric = stats -> stats.getQuantile(0.95);
-        ToDoubleFunction<AgeLengthClass> weightFunction = alClass ->
-                //1;
-                Math.pow(alClass.lengthClassNum + 1, 0) / Math.pow(alClass.ageClassNum + 1, 2);
+        String directory;
+        long N;
+        try {
+            if (args.length != 2) throw new IllegalArgumentException("wrong argument count");
+            directory = args[0];
+            N = Long.parseLong(args[1]);
+        } catch (IllegalArgumentException e) {
+            System.out.println("SYNTAX ERROR: " + e.getMessage());
+            System.out.println("\tCompareWindowingSchemes <datasets_directory> <N>");
+            System.exit(2);
+            return;
+        }
 
-        LinkedHashMap<String, LinkedHashMap<AgeLengthClass, Statistics>> results = runExperiment(true);
+        LinkedHashMap<String, LinkedHashMap<AgeLengthClass, Statistics>> results = runExperiment(directory, N, true);
 
         System.out.println("cost of");
         LinkedHashMap<String, Double> decayFunctionCosts = new LinkedHashMap<>(); // compute cost of each decay function
@@ -143,14 +138,6 @@ class CompareWindowingSchemes {
             // construct the aggregate weighted mixture distribution over all the classes
             Statistics mixtureStats = new Statistics(eachClassStatistics, eachClassWeight);
             double cost = metric.applyAsDouble(mixtureStats);
-            /*// normalize so that sum of all classes' weights = 1
-            final double weightNormFact = perClassResults.keySet().stream().mapToDouble(weightFunction).sum();
-            // cost of each decay function = weighted sum of value of metric in each class (e.g. weighted mean or weighted median)
-            double cost = perClassResults.entrySet().stream().mapToDouble(entry -> {
-                AgeLengthClass alClass = entry.getKey();
-                Statistics stats = entry.getValue();
-                return metric.applyAsDouble(stats) * weightFunction.applyAsDouble(alClass) / weightNormFact;
-            }).sum();*/
             decayFunctionCosts.put(decayFunction, cost);
             System.out.println("\t" + decayFunction + " = " + cost);
         });
