@@ -10,7 +10,7 @@ import java.util.HashMap;
 
 /**
  * WBMH implementation with
- * 1. Two amortized bucket merge operations per insert
+ * 1. One amortized bucket merge operation per insert
  * 2. O(log(# buckets)) book-keeping overhead per insert (comes from a priority
  *    queue we maintain to identify when buckets need to be merged)
  */

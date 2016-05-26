@@ -4,6 +4,7 @@ import org.nustaq.serialization.FSTConfiguration;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
+import org.rocksdb.RocksIterator;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -68,23 +69,30 @@ public class RocksDBBucketStore implements BucketStore {
                 ((long)  array[startPos + 7] & 0xFFL);
     }
 
-    // FIXME: we will use a single pre-allocated byte array for every RocksDB key and value, instead
-    // of creating new arrays on each operation. Reusing byte arrays avoids GC overhead, but only works
-    // in single-threaded mode, and will break if we append to multiple streams in parallel.
-    byte[] keyArray = new byte[16];
-    byte[] valueArray = new byte[72];
+    private static final int KEY_SIZE = 16;
+    private static final int VALUE_SIZE = Bucket.BYTE_COUNT;
 
     /**
      * RocksDB key = <streamID, bucketID>. Since we ensure bucketIDs are assigned in increasing
      * order, this lays out data in temporal order within streams
      */
     private byte[] getRocksDBKey(long streamID, long bucketID) {
+        byte[] keyArray = new byte[KEY_SIZE];
         longToByteArray(streamID, keyArray, 0);
         longToByteArray(bucketID, keyArray, 8);
         return keyArray;
     }
 
+    private long parseRocksDBKeyStreamID(byte[] keyArray) {
+        return byteArrayToLong(keyArray, 0);
+    }
+
+    private long parseRocksDBKeyBucketID(byte[] keyArray) {
+        return byteArrayToLong(keyArray, 8);
+    }
+
     private byte[] bucketToByteArray(Bucket bucket) {
+        byte[] valueArray = new byte[VALUE_SIZE];
         longToByteArray(bucket.count, valueArray, 0);
         longToByteArray(bucket.sum, valueArray, 8);
         longToByteArray(bucket.prevBucketID, valueArray, 16);
@@ -98,7 +106,7 @@ public class RocksDBBucketStore implements BucketStore {
     }
 
     private Bucket byteArrayToBucket(byte[] array) {
-        assert array.length == 72;
+        assert array.length == VALUE_SIZE;
         long count = byteArrayToLong(array, 0);
         long sum = byteArrayToLong(array, 8);
         long prevBucketID = byteArrayToLong(array, 16);
@@ -141,8 +149,8 @@ public class RocksDBBucketStore implements BucketStore {
             return bucket;
         } else { // either no cache or cache miss; read-through from RocksDB
             byte[] rocksKey = getRocksDBKey(streamID, bucketID);
-            rocksDB.get(rocksKey, valueArray);
-            bucket = byteArrayToBucket(valueArray);
+            byte[] rocksValue = rocksDB.get(rocksKey);
+            bucket = byteArrayToBucket(rocksValue);
             if (delete) {
                 rocksDB.remove(rocksKey);
             }
@@ -164,6 +172,31 @@ public class RocksDBBucketStore implements BucketStore {
             byte[] key = getRocksDBKey(streamID, bucketID);
             byte[] value = bucketToByteArray(bucket);
             rocksDB.put(key, value);
+        }
+    }
+
+    public void warmupCache() throws RocksDBException {
+        if (cache == null) return;
+
+        RocksIterator iter = null;
+        try {
+            iter = rocksDB.newIterator();
+            for (iter.seekToFirst(); iter.isValid(); iter.next()) {
+                byte[] keyArray = iter.key();
+                if (keyArray.length != KEY_SIZE) return; // ignore metadataSpecialKey
+                long streamID = parseRocksDBKeyStreamID(keyArray);
+                Map<Long, Bucket> streamCache = cache.get(streamID);
+                if (streamCache == null) {
+                    cache.put(streamID, streamCache = new HashMap<>());
+                } else if (streamCache.size() >= cacheSizePerStream) {
+                    continue;
+                }
+                long bucketID = parseRocksDBKeyBucketID(keyArray);
+                Bucket bucket = byteArrayToBucket(iter.value());
+                streamCache.put(bucketID, bucket);
+            }
+        } finally {
+            if (iter != null) iter.dispose();
         }
     }
 

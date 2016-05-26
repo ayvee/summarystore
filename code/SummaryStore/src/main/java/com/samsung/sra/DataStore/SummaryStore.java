@@ -211,6 +211,12 @@ public class SummaryStore implements DataStore {
         printBucketState(streamID, false);
     }
 
+    public void warmupCache() throws RocksDBException {
+        if (bucketStore instanceof  RocksDBBucketStore) {
+            ((RocksDBBucketStore)bucketStore).warmupCache();
+        }
+    }
+
     public void close() throws RocksDBException {
         synchronized (streamsInfo) {
             // wait for all in-process writes and reads to finish, and seal read index
@@ -231,7 +237,7 @@ public class SummaryStore implements DataStore {
         for (StreamInfo si: streamsInfo.values()) {
             si.lock.readLock().lock();
             try {
-                ret += (long)si.temporalIndex.size() * (long)Bucket.byteCount;
+                ret += (long)si.temporalIndex.size() * (long)Bucket.BYTE_COUNT;
             } finally {
                 si.lock.readLock().unlock();
             }

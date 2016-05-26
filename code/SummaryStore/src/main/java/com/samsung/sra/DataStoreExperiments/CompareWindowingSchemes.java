@@ -19,7 +19,7 @@ import java.util.stream.IntStream;
 
 class CompareWindowingSchemes {
     private static final int numAgeLengthClasses = 8;
-    private static final int numRandomQueriesPerClass = 10_000;
+    private static final int numRandomQueriesPerClass = 1_000;
     private static final ToDoubleFunction<Statistics> metric = stats ->
             //stats.getMean();
             stats.getQuantile(0.95);
@@ -45,7 +45,10 @@ class CompareWindowingSchemes {
                     Matcher matcher = pattern.matcher(path.toString());
                     if (matcher.matches()) {
                         String prefix = matcher.group(1), decay = matcher.group(2);
-                        stores.put(decay, new SummaryStore(prefix));
+                        // WARNING: setting cache size to N, i.e. load everything off RocksDB into memory
+                        SummaryStore store = new SummaryStore(prefix, N);
+                        stores.put(decay, store);
+                        store.warmupCache();
                     }
                 }
             }
@@ -71,6 +74,9 @@ class CompareWindowingSchemes {
             }
         }
         Map<String, SummaryStore> stores = discoverStores(directory, N);
+        if (stores.isEmpty()) {
+            throw new IllegalArgumentException("no stores found with N = " + N);
+        }
         results = new LinkedHashMap<>();
 
         //stores.forEach((name, store) -> System.out.println(name + " = " + store.getStoreSizeInBytes() + " bytes"));

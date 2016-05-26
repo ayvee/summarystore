@@ -16,7 +16,7 @@ class Bucket implements Serializable {
     long tStart, tEnd;
     long cStart, cEnd;
 
-    static final int byteCount = 8 * 9;
+    static final int BYTE_COUNT = 8 * 9;
 
     Bucket(long count, long sum,
            long prevBucketID, long thisBucketID, long nextBucketID,
