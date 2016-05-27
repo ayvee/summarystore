@@ -1,14 +1,14 @@
 package com.samsung.sra.DataStoreExperiments;
 
 import com.samsung.sra.DataStore.*;
-import joptsimple.OptionException;
-import joptsimple.OptionParser;
-import joptsimple.OptionSet;
+import net.sourceforge.argparse4j.ArgumentParsers;
+import net.sourceforge.argparse4j.inf.*;
 import org.apache.commons.math3.random.RandomGenerator;
 import org.apache.commons.math3.random.RandomGeneratorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.PrintWriter;
 import java.util.Random;
 
 public class PopulateData {
@@ -16,28 +16,30 @@ public class PopulateData {
     private static final Logger logger = LoggerFactory.getLogger(PopulateData.class);
 
     public static void main(String[] args) throws Exception {
-        OptionParser parser = new OptionParser();
-        parser.accepts("N", "size of stream to generate (number of elements)").withRequiredArg().ofType(Long.class).required();
-        //parser.accepts("W", "number of windows").withRequiredArg().ofType(Long.class).required();
-        parser.accepts("decay", "decay function").withRequiredArg().required();
-        parser.accepts("outprefix", "prefix to store output files under").withRequiredArg().required();
-        parser.accepts("cachesize", "number of buckets per stream to cache in main memory").withOptionalArg().ofType(Long.class);
+        ArgumentParser parser = ArgumentParsers.newArgumentParser("PopulateData", false).defaultHelp(true);
+        ArgumentType<Long> CommaSeparatedLong = (ArgumentParser argParser, Argument arg, String value) ->
+                Long.valueOf(value.replace(",", ""));
+        parser.addArgument("N").help("size of stream to generate (number of elements)").type(CommaSeparatedLong);
+        parser.addArgument("decay").help("decay function");
+        parser.addArgument("outprefix").help("prefix to store output files under");
+        parser.addArgument("-cachesize").help("number of buckets per stream to cache in main memory").
+                type(CommaSeparatedLong).setDefault(0L);
 
         long N;
         Windowing windowing;
         String outprefix;
-        long cacheSize = 0;
+        long cacheSize;
         try {
-            OptionSet options = parser.parse(args);
-            N = (long) options.valueOf("N");
-            //long W = (long) options.valueOf("W");
+            Namespace parsed = parser.parseArgs(args);
+            N = parsed.get("N");
             if (N <= 0) {
                 throw new IllegalArgumentException("N should be positive");
             }
-            /*if (W > N) {
+            /*long W = (long) parsed.getLong("W");
+            if (W > N) {
                 throw new IllegalArgumentException("W should be <= N");
             }*/
-            String decay = (String) options.valueOf("decay");
+            String decay = parsed.get("decay");
             if (decay.equals("exponential")) {
                 //windowLengths = ExponentialWindowLengths.getWindowingOfSize(N, W);
                 windowing = new GenericWindowing(new ExponentialWindowLengths(2));
@@ -51,11 +53,11 @@ public class PopulateData {
             } else {
                 throw new IllegalArgumentException("unrecognized decay function");
             }
-            outprefix = (String)options.valueOf("outprefix");
-            if (options.has("cachesize")) cacheSize = (long)options.valueOf("cachesize");
-        } catch (IllegalArgumentException | OptionException e) {
+            outprefix = parsed.get("outprefix");
+            cacheSize = parsed.get("cachesize");
+        } catch (ArgumentParserException | IllegalArgumentException e) {
             System.err.println("ERROR: " + e.getMessage());
-            parser.printHelpOn(System.err);
+            parser.printHelp(new PrintWriter(System.err, true));
             System.exit(2);
             return;
         }
