@@ -124,7 +124,7 @@ class CompareWindowingSchemes {
         try {
             if (args.length != 2) throw new IllegalArgumentException("wrong argument count");
             directory = args[0];
-            N = Long.parseLong(args[1]);
+            N = Long.parseLong(args[1].replace(",", ""));
         } catch (IllegalArgumentException e) {
             System.out.println("SYNTAX ERROR: " + e.getMessage());
             System.out.println("\tCompareWindowingSchemes <datasets_directory> <N>");
