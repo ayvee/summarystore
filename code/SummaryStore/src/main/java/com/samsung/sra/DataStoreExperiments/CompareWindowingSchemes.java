@@ -125,7 +125,7 @@ class CompareWindowingSchemes {
             store.warmupCache();
 
             StoreStats storeStats = new StoreStats(store.getStoreSizeInBytes(), alClasses);
-            for (AgeLengthClass alClass: alClasses) {
+            alClasses.parallelStream().forEach(alClass -> {
                 logger.info("Processing {}{}", decay, alClass);
                 Statistics stats = storeStats.queryStats.get(alClass);
                 workload.get(alClass).parallelStream().forEach(q -> {
@@ -137,7 +137,7 @@ class CompareWindowingSchemes {
                         throw new RuntimeException(e);
                     }
                 });
-            }
+            });
             results.put(decay, storeStats);
         }
 
@@ -181,7 +181,7 @@ class CompareWindowingSchemes {
             Statistics mixtureStats = new Statistics(eachClassStatistics, eachClassWeight);
             double cost = metric.applyAsDouble(mixtureStats);
             decayFunctionCosts.put(decayFunction, cost);
-            System.out.println("\t" + decayFunction + " = " + cost);
+            System.out.println("\t" + decayFunction + "(" + (stats.sizeInBytes / 1024.0 / 1024) + " MB) = " + cost);
         });
 
         String bestDecay = decayFunctionCosts.entrySet().stream().
