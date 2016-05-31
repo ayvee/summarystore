@@ -9,6 +9,8 @@ import org.rocksdb.RocksDBException;
  */
 public interface DataStore extends AutoCloseable {
     // TODO: allow configuring the choice of bucket data structure for each stream (set at registration time)
+
+    // provide list of class names for desired AggrOperators
     void registerStream(long streamID, WindowingMechanism windowingMechanism) throws StreamException, RocksDBException;
 
     Object query(long streamID, long t0, long t1, QueryType queryType, Object... queryParams)

@@ -24,11 +24,16 @@
             <artifactId>rocksdbjni</artifactId>
             <version>4.4</version>
         </dependency>
-		<!-- <dependency>
+        <dependency>
+            <groupId>de.ruedigermoeller</groupId>
+            <artifactId>fst</artifactId>
+            <version>2.42</version>
+        </dependency>
+		<dependency>
             <groupId>com.clearspring.analytics</groupId>
             <artifactId>stream</artifactId>
             <version>2.9.0</version>
-		</dependency> -->
+		</dependency> 
 		<!-- https://code.google.com/archive/p/java-heaps/ -->
 		<dependency>
 			<groupId>teneighty</groupId>
@@ -77,7 +82,12 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>1.7.19</version>
+            <version>1.7.21</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.7</version>
         </dependency>
     </dependencies>
 

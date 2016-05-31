@@ -1,9 +1,13 @@
 package com.samsung.sra.DataStore;
 
+import com.samsung.sra.Misc.HyperLogLogAggrOperator;
+import com.samsung.sra.Misc.SimpleCount;
+import com.samsung.sra.Misc.SimpleSum;
+
 import java.io.Serializable;
 import java.util.stream.Stream;
 
-class Bucket implements Serializable {
+public class Bucket implements Serializable {
     // data
     long count;
     long sum;

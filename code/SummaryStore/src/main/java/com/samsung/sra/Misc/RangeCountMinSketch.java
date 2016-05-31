@@ -38,6 +38,7 @@ public class RangeCountMinSketch {
         assert 0 <= n && n < N;
         for (int l = 0; l <= L; ++l) {
             long d = getDyadicIndex(n, l);
+            //System.out.println("Dyadic index ["+n+","+l+"]:"+d);
             sketches.get(l).add(d, count);
         }
     }
@@ -72,7 +73,7 @@ public class RangeCountMinSketch {
         RangeCountMinSketch sketch = new RangeCountMinSketch(N);
         //CountMinSketch sketch = new CountMinSketch(0.0001, 0.95, 0);
         Random random = new Random();
-        int truesum = 0, t0 = 10, t1 = 100;
+        int truesum = 0, t0 = 2, t1 = 63;
         for (long n = 0; n < N; ++n) {
             int val = random.nextInt(U);
             sketch.add(n, val);
