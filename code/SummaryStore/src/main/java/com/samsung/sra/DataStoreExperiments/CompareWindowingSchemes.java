@@ -121,26 +121,28 @@ class CompareWindowingSchemes {
         LinkedHashMap<String, StoreStats> results = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry: stores.entrySet()) {
             String decay = entry.getKey();
+            StoreStats storeStats;
             // WARNING: setting cache size to N, i.e. loading all data into main memory
-            SummaryStore store = new SummaryStore(entry.getValue(), N);
-            store.warmupCache();
+            try (SummaryStore store = new SummaryStore(entry.getValue(), N)) {
+                store.warmupCache();
 
-            StoreStats storeStats = new StoreStats(store.getStoreSizeInBytes(), alClasses);
-            alClasses.parallelStream().forEach(alClass -> {
-                logger.info("Starting processing {}{}", decay, alClass);
-                Statistics stats = storeStats.queryStats.get(alClass);
-                workload.get(alClass).parallelStream().forEach(q -> {
-                    try {
-                        logger.trace("Running query [{}, {}]", q.l, q.r);
-                        double trueCount = q.r - q.l + 1;
-                        double estCount = (long) store.query(streamID, q.l, q.r, q.type, q.params);
-                        stats.addObservation(estCount / trueCount - 1);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
+                storeStats = new StoreStats(store.getStoreSizeInBytes(), alClasses);
+                alClasses.parallelStream().forEach(alClass -> {
+                    logger.info("Starting processing {}{}", decay, alClass);
+                    Statistics stats = storeStats.queryStats.get(alClass);
+                    workload.get(alClass).parallelStream().forEach(q -> {
+                        try {
+                            logger.trace("Running query [{}, {}]", q.l, q.r);
+                            double trueCount = q.r - q.l + 1;
+                            double estCount = (long) store.query(streamID, q.l, q.r, q.type, q.params);
+                            stats.addObservation(estCount / trueCount - 1);
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+                    logger.info("Finished processing {}{}", decay, alClass);
                 });
-                logger.info("Finished processing {}{}", decay, alClass);
-            });
+            }
             results.put(decay, storeStats);
         }
 

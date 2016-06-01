@@ -233,6 +233,7 @@ public class RocksDBBucketStore implements BucketStore {
                         rocksDB.put(rocksKey, rocksValue);
                     }
                 }
+                cache.clear(); // to free up memory
             }
             rocksDB.close();
         }
