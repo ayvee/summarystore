@@ -183,7 +183,7 @@ public class RocksDBBucketStore implements BucketStore {
             iter = rocksDB.newIterator();
             for (iter.seekToFirst(); iter.isValid(); iter.next()) {
                 byte[] keyArray = iter.key();
-                if (keyArray.length != KEY_SIZE) return; // ignore metadataSpecialKey
+                if (keyArray.length != KEY_SIZE) continue; // ignore metadataSpecialKey
                 long streamID = parseRocksDBKeyStreamID(keyArray);
                 ConcurrentHashMap<Long, Bucket> streamCache = cache.get(streamID);
                 if (streamCache == null) {
