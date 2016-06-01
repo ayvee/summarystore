@@ -6,14 +6,14 @@ import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class RocksDBBucketStore implements BucketStore {
     private final RocksDB rocksDB;
     private final Options rocksDBOptions;
     private final long cacheSizePerStream;
-    private final Map<Long, Map<Long, Bucket>> cache; // map streamID -> bucketID -> bucket
+    private final ConcurrentHashMap<Long, ConcurrentHashMap<Long, Bucket>> cache; // map streamID -> bucketID -> bucket
 
     /**
      * @param rocksPath  on-disk path
@@ -22,7 +22,7 @@ public class RocksDBBucketStore implements BucketStore {
      */
     public RocksDBBucketStore(String rocksPath, long cacheSizePerStream) throws RocksDBException {
         this.cacheSizePerStream = cacheSizePerStream;
-        cache = cacheSizePerStream > 0 ? new HashMap<>() : null;
+        cache = cacheSizePerStream > 0 ? new ConcurrentHashMap<>() : null;
         rocksDBOptions = new Options().setCreateIfMissing(true);
         rocksDB = RocksDB.open(rocksDBOptions, rocksPath);
     }
@@ -135,12 +135,12 @@ public class RocksDBBucketStore implements BucketStore {
 
     @Override
     public Bucket getBucket(long streamID, long bucketID, boolean delete) throws RocksDBException {
-        Map<Long, Bucket> streamCache;
+        ConcurrentHashMap<Long, Bucket> streamCache;
         if (cache == null) {
             streamCache = null;
         } else {
             streamCache = cache.get(streamID);
-            if (streamCache == null) cache.put(streamID, streamCache = new HashMap<>());
+            if (streamCache == null) cache.put(streamID, streamCache = new ConcurrentHashMap<>());
         }
 
         Bucket bucket = streamCache != null ? streamCache.get(bucketID) : null;
@@ -164,8 +164,8 @@ public class RocksDBBucketStore implements BucketStore {
     @Override
     public void putBucket(long streamID, long bucketID, Bucket bucket) throws RocksDBException {
         if (cache != null) {
-            Map<Long, Bucket> streamCache = cache.get(streamID);
-            if (streamCache == null) cache.put(streamID, streamCache = new HashMap<>());
+            ConcurrentHashMap<Long, Bucket> streamCache = cache.get(streamID);
+            if (streamCache == null) cache.put(streamID, streamCache = new ConcurrentHashMap<>());
 
             insertIntoCache(streamCache, streamID, bucketID, bucket);
         } else {
@@ -185,9 +185,9 @@ public class RocksDBBucketStore implements BucketStore {
                 byte[] keyArray = iter.key();
                 if (keyArray.length != KEY_SIZE) return; // ignore metadataSpecialKey
                 long streamID = parseRocksDBKeyStreamID(keyArray);
-                Map<Long, Bucket> streamCache = cache.get(streamID);
+                ConcurrentHashMap<Long, Bucket> streamCache = cache.get(streamID);
                 if (streamCache == null) {
-                    cache.put(streamID, streamCache = new HashMap<>());
+                    cache.put(streamID, streamCache = new ConcurrentHashMap<>());
                 } else if (streamCache.size() >= cacheSizePerStream) {
                     continue;
                 }
@@ -223,7 +223,7 @@ public class RocksDBBucketStore implements BucketStore {
         if (rocksDB != null) {
             if (cache != null) {
                 // flush cache to disk
-                for (Map.Entry<Long, Map<Long, Bucket>> streamEntry : cache.entrySet()) {
+                for (ConcurrentHashMap.Entry<Long, ConcurrentHashMap<Long, Bucket>> streamEntry : cache.entrySet()) {
                     long streamID = streamEntry.getKey();
                     for (Map.Entry<Long, Bucket> bucketEntry : streamEntry.getValue().entrySet()) {
                         long bucketID = bucketEntry.getKey();

@@ -127,10 +127,11 @@ class CompareWindowingSchemes {
 
             StoreStats storeStats = new StoreStats(store.getStoreSizeInBytes(), alClasses);
             alClasses.parallelStream().forEach(alClass -> {
-                logger.info("Processing {}{}", decay, alClass);
+                logger.info("Starting processing {}{}", decay, alClass);
                 Statistics stats = storeStats.queryStats.get(alClass);
                 workload.get(alClass).parallelStream().forEach(q -> {
                     try {
+                        logger.trace("Running query [{}, {}]", q.l, q.r);
                         double trueCount = q.r - q.l + 1;
                         double estCount = (long) store.query(streamID, q.l, q.r, q.type, q.params);
                         stats.addObservation(estCount / trueCount - 1);
@@ -138,6 +139,7 @@ class CompareWindowingSchemes {
                         throw new RuntimeException(e);
                     }
                 });
+                logger.info("Finished processing {}{}", decay, alClass);
             });
             results.put(decay, storeStats);
         }
