@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ToDoubleFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -102,7 +103,7 @@ class CompareWindowingSchemes {
         }
         List<AgeLengthClass> alClasses = AgeLengthSampler.getAgeLengthClasses(N, N, numAgeLengthClasses, numAgeLengthClasses);
 
-        Map<AgeLengthClass, List<Query>> workload = new LinkedHashMap<>();
+        Map<AgeLengthClass, List<Query>> workload = new ConcurrentHashMap<>();
         Random random = new Random();
         for (AgeLengthClass alClass: alClasses) {
             List<Query> queries = new ArrayList<>();
