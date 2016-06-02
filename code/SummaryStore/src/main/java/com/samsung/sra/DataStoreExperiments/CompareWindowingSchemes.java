@@ -154,7 +154,7 @@ class CompareWindowingSchemes {
 
         if (memoize) {
             try (FileOutputStream fos = new FileOutputStream(memoFile)) {
-                SerializationUtils.serialize(unsorted, fos);
+                SerializationUtils.serialize(sorted, fos);
             } catch (IOException e) {
                 logger.warn("failed to serialize results to memo file", e);
             }
@@ -179,7 +179,7 @@ class CompareWindowingSchemes {
 
         LinkedHashMap<String, StoreStats> results = runExperiment(directory, N, true);
 
-        System.out.println("cost of");
+        System.out.println("#decay\tstore size (bytes)\tcost");
         LinkedHashMap<String, Double> decayFunctionCosts = new LinkedHashMap<>(); // compute cost of each decay function
         results.forEach((decayFunction, stats) -> {
             Collection<Statistics> eachClassStatistics = stats.queryStats.values();
@@ -190,12 +190,12 @@ class CompareWindowingSchemes {
             Statistics mixtureStats = new Statistics(eachClassStatistics, eachClassWeight);
             double cost = metric.applyAsDouble(mixtureStats);
             decayFunctionCosts.put(decayFunction, cost);
-            System.out.println("\t" + decayFunction + "(" + (stats.sizeInBytes / 1024.0 / 1024) + " MB) = " + cost);
+            System.out.println(decayFunction + "\t" + stats.sizeInBytes + "\t" + cost);
         });
 
-        String bestDecay = decayFunctionCosts.entrySet().stream().
+        /*String bestDecay = decayFunctionCosts.entrySet().stream().
                 min(Comparator.comparing(Map.Entry::getValue)).
                 get().getKey();
-        System.out.println("Best decay = " + bestDecay);
+        System.out.println("Best decay = " + bestDecay);*/
     }
 }
