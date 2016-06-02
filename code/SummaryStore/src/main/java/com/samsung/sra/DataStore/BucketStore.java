@@ -2,6 +2,8 @@ package com.samsung.sra.DataStore;
 
 import org.rocksdb.RocksDBException;
 
+import java.io.Serializable;
+
 /**
  * Underlying key-value store holding all the buckets. Two implementations:
  *      RocksDBBucketStore
@@ -16,9 +18,9 @@ interface BucketStore extends AutoCloseable {
 
     void putBucket(long streamID, long bucketID, Bucket bucket) throws RocksDBException;
 
-    Object getMetadata() throws RocksDBException;
+    Serializable getMetadata() throws RocksDBException;
 
-    void putMetadata(Object indexes) throws RocksDBException;
+    void putMetadata(Serializable indexes) throws RocksDBException;
 
     @Override
     void close() throws RocksDBException;

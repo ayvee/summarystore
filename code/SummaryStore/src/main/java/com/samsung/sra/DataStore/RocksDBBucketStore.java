@@ -1,11 +1,12 @@
 package com.samsung.sra.DataStore;
 
-import org.nustaq.serialization.FSTConfiguration;
+import org.apache.commons.lang.SerializationUtils;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
 
+import java.io.Serializable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -27,20 +28,7 @@ public class RocksDBBucketStore implements BucketStore {
         rocksDB = RocksDB.open(rocksDBOptions, rocksPath);
     }
 
-    public RocksDBBucketStore(String rocksPath) throws RocksDBException {
-        this(rocksPath, 0);
-    }
-
-    // FST is a fast serialization library, originally used to convert Buckets
-    // to/from RocksDB byte arrays, now only used to serialize metadata
-    private static final FSTConfiguration fstConf;
-
     static {
-        fstConf = FSTConfiguration.createDefaultConfiguration();
-        //fstConf.registerClass(Bucket.class);
-        fstConf.registerClass(SummaryStore.StreamInfo.class);
-        fstConf.registerClass(CountBasedWBMH.class);
-
         RocksDB.loadLibrary();
     }
 
@@ -206,16 +194,16 @@ public class RocksDBBucketStore implements BucketStore {
     private final static byte[] metadataSpecialKey = {};
 
     @Override
-    public Object getMetadata() throws RocksDBException {
+    public Serializable getMetadata() throws RocksDBException {
         byte[] indexesBytes = rocksDB.get(metadataSpecialKey);
         return indexesBytes != null ?
-                fstConf.asObject(indexesBytes) :
+                (Serializable)SerializationUtils.deserialize(indexesBytes) :
                 null;
     }
 
     @Override
-    public void putMetadata(Object indexes) throws RocksDBException {
-        rocksDB.put(metadataSpecialKey, fstConf.asByteArray(indexes));
+    public void putMetadata(Serializable indexes) throws RocksDBException {
+        rocksDB.put(metadataSpecialKey, SerializationUtils.serialize(indexes));
     }
 
     @Override

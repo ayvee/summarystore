@@ -2,7 +2,7 @@ package com.samsung.sra.DataStoreExperiments;
 
 import com.samsung.sra.DataStore.QueryType;
 import com.samsung.sra.DataStore.SummaryStore;
-import org.nustaq.serialization.FSTConfiguration;
+import org.apache.commons.lang.SerializationUtils;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,12 +30,6 @@ class CompareWindowingSchemes {
 
     private static Logger logger = LoggerFactory.getLogger(CompareWindowingSchemes.class);
     private static final long streamID = 0;
-
-    private static final FSTConfiguration fstConf;
-    static {
-        fstConf = FSTConfiguration.createDefaultConfiguration();
-        fstConf.registerClass(StoreStats.class);
-    }
 
     /** Returns (decay function name) -> (store location prefix) mapping for all stores in the directory
      * with the specified N */
@@ -89,7 +83,7 @@ class CompareWindowingSchemes {
         if (memoize) {
             try {
                 byte[] serialized = Files.readAllBytes(Paths.get(memoFile));
-                return (LinkedHashMap<String, StoreStats>)fstConf.asObject(serialized);
+                return (LinkedHashMap<String, StoreStats>) SerializationUtils.deserialize(serialized);
             } catch (NoSuchFileException e) {
                 logger.info("memoized results not found, running experiment");
             } catch (IOException | ClassCastException e) {
@@ -158,7 +152,7 @@ class CompareWindowingSchemes {
 
         if (memoize) {
             try (FileOutputStream fos = new FileOutputStream(memoFile)) {
-                fos.write(fstConf.asByteArray(results));
+                SerializationUtils.serialize(results, fos);
             } catch (IOException e) {
                 logger.warn("failed to serialize results to memo file", e);
             }

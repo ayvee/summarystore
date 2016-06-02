@@ -2,6 +2,7 @@ package com.samsung.sra.DataStore;
 
 import org.rocksdb.RocksDBException;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,15 +25,15 @@ public class MainMemoryBucketStore implements BucketStore {
         stream.put(bucketID, bucket);
     }
 
-    private Object indexes = null;
+    private Serializable indexes = null;
 
     @Override
-    public Object getMetadata() throws RocksDBException {
+    public Serializable getMetadata() throws RocksDBException {
         return indexes;
     }
 
     @Override
-    public void putMetadata(Object indexes) throws RocksDBException {
+    public void putMetadata(Serializable indexes) throws RocksDBException {
         this.indexes = indexes;
     }
 

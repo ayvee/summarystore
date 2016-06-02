@@ -1,6 +1,6 @@
 package com.samsung.sra.DataStore;
 
-import org.nustaq.serialization.FSTConfiguration;
+import org.apache.commons.lang.SerializationUtils;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
@@ -30,10 +30,10 @@ public class EnumeratedStore implements DataStore {
 
     private final HashMap<Long, StreamInfo> streamsInfo;
 
-    private final static byte[] streamsInfoSpecialKey = {0};
+    private final static byte[] streamsInfoSpecialKey = {};
 
     private void persistStreamsInfo() throws RocksDBException {
-        rocksDB.put(streamsInfoSpecialKey, fstConf.asByteArray(streamsInfo));
+        rocksDB.put(streamsInfoSpecialKey, SerializationUtils.serialize(streamsInfo));
     }
 
     public EnumeratedStore(String rocksDBPath) throws RocksDBException {
@@ -42,17 +42,8 @@ public class EnumeratedStore implements DataStore {
 
         byte[] streamCountsBytes = rocksDB.get(streamsInfoSpecialKey);
         streamsInfo = streamCountsBytes != null ?
-                (HashMap<Long, StreamInfo>) fstConf.asObject(streamCountsBytes) :
+                (HashMap<Long, StreamInfo>) SerializationUtils.deserialize(streamCountsBytes) :
                 new HashMap<>();
-    }
-
-    private static final FSTConfiguration fstConf;
-
-    static {
-        fstConf = FSTConfiguration.createDefaultConfiguration();
-        fstConf.registerClass(StreamInfo.class);
-
-        RocksDB.loadLibrary();
     }
 
     public void registerStream(long streamID, WindowingMechanism windowingMechanism) throws StreamException, RocksDBException {
