@@ -82,8 +82,7 @@ class CompareWindowingSchemes {
         String memoFile = memoize ? String.format("%s/N%d.profile", directory, N) : null;
         if (memoize) {
             try {
-                byte[] serialized = Files.readAllBytes(Paths.get(memoFile));
-                return (LinkedHashMap<String, StoreStats>) SerializationUtils.deserialize(serialized);
+                return (LinkedHashMap<String, StoreStats>) SerializationUtils.deserialize(Files.newInputStream(Paths.get(memoFile)));
             } catch (NoSuchFileException e) {
                 logger.info("memoized results not found, running experiment");
             } catch (IOException | ClassCastException e) {
@@ -112,7 +111,7 @@ class CompareWindowingSchemes {
             workload.put(alClass, queries);
         }
 
-        LinkedHashMap<String, StoreStats> results = new LinkedHashMap<>();
+        HashMap<String, StoreStats> unsorted = new HashMap<>();
         for (Map.Entry<String, String> entry: stores.entrySet()) {
             String decay = entry.getKey();
             StoreStats storeStats;
@@ -145,20 +144,23 @@ class CompareWindowingSchemes {
                     }
                 });
             }
-            results.put(decay, storeStats);
+            unsorted.put(decay, storeStats);
         }
-
-        // FIXME: close() stores when done
+        // sort by store size
+        LinkedHashMap<String, StoreStats> sorted = new LinkedHashMap<>();
+        unsorted.entrySet().stream().
+                sorted(Comparator.comparing(e -> e.getValue().sizeInBytes)).
+                forEach(e -> sorted.put(e.getKey(), e.getValue()));
 
         if (memoize) {
             try (FileOutputStream fos = new FileOutputStream(memoFile)) {
-                SerializationUtils.serialize(results, fos);
+                SerializationUtils.serialize(unsorted, fos);
             } catch (IOException e) {
                 logger.warn("failed to serialize results to memo file", e);
             }
         }
 
-        return results;
+        return sorted;
     }
 
     public static void main(String[] args) throws Exception {
