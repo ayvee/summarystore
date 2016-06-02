@@ -4,9 +4,12 @@ import org.rocksdb.RocksDBException;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.HashMap;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Stream;
 
 /**
  * Time-decayed aggregate storage
@@ -134,7 +137,15 @@ public class SummaryStore implements DataStore {
             logger.trace("Overapproximated time range = [{}, {}]", l, r);
             // Query on all buckets with l <= tStart < r
             SortedMap<Long, Long> spanningBucketsIDs = index.subMap(l, true, r, false);
-            Bucket first = null;
+            Stream<Bucket> buckets = spanningBucketsIDs.values().stream().map(bucketID -> {
+                try {
+                    return bucketStore.getBucket(streamID, bucketID, false);
+                } catch (RocksDBException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            return Bucket.multiQuery(buckets, t0, t1, queryType, queryParams);
+            /*Bucket first = null;
             List<Bucket> rest = new ArrayList<>();
             // TODO: RocksDB multiget
             for (Long bucketID: spanningBucketsIDs.values()) {
@@ -146,7 +157,7 @@ public class SummaryStore implements DataStore {
                 }
             }
             assert first != null;
-            return first.multiQuery(rest, t0, t1, queryType, queryParams);
+            return first.multiQuery(rest, t0, t1, queryType, queryParams);*/
         } finally {
             streamInfo.lock.readLock().unlock();
         }
@@ -283,7 +294,6 @@ public class SummaryStore implements DataStore {
         SummaryStore store = null;
         try {
             String storeLoc = "/tmp/tdstore";
-            // FIXME: add a deleteStream/resetDatabase operation
             Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + storeLoc + "*"}).waitFor();
             store = new SummaryStore(storeLoc);
             long streamID = 0;

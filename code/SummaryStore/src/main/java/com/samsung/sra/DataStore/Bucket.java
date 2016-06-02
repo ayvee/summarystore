@@ -1,8 +1,7 @@
 package com.samsung.sra.DataStore;
 
 import java.io.Serializable;
-import java.util.Collection;
-import java.util.List;
+import java.util.stream.Stream;
 
 class Bucket implements Serializable {
     // data
@@ -47,41 +46,21 @@ class Bucket implements Serializable {
         }
     }
 
-    void merge(List<Bucket> buckets) {
-        if (buckets != null) {
-            merge(buckets.toArray(new Bucket[buckets.size()]));
-        }
-    }
-
     void insertValue(long ts, Object value) {
         assert tStart <= ts && (tEnd == -1 || ts <= tEnd);
         count += 1;
         sum += (long)value;
     }
 
-    long query(long t0, long t1, QueryType queryType, Object[] queryParams) throws QueryException {
+    static long multiQuery(Stream<Bucket> buckets, long t0, long t1, QueryType queryType, Object[] queryParams) {
         switch (queryType) {
             case COUNT:
-                return count;
+                return buckets.mapToLong(b -> b.count).sum();
             case SUM:
-                return sum;
-            case EXISTENCE:
+                return buckets.mapToLong(b -> b.sum).sum();
+            default:
                 throw new UnsupportedOperationException("not yet implemented");
         }
-        throw new IllegalStateException("hit unreachable code");
-    }
-
-    /**
-     * Query a sequence of successive buckets. Sequence = (this bucket) :: rest.
-     * The sequence should cover the time range [t0, t1], although we don't sanity check
-     * that it does
-     */
-    long multiQuery(Collection<Bucket> rest, long t0, long t1, QueryType queryType, Object[] queryParams) throws QueryException {
-        long ret = this.query(t0, t1, queryType, queryParams);
-        for (Bucket bucket: rest) {
-            ret += bucket.query(t0, t1, queryType, queryParams);
-        }
-        return ret;
     }
 
     @Override
