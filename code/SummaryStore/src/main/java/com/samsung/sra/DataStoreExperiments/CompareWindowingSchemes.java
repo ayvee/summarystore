@@ -127,8 +127,7 @@ class CompareWindowingSchemes {
                 store.warmupCache();
 
                 storeStats = new StoreStats(store.getStoreSizeInBytes(), alClasses);
-                final Map<AgeLengthClass, Boolean> isPending = Collections.synchronizedMap(new LinkedHashMap<>());
-                alClasses.forEach(alClass -> isPending.put(alClass, true));
+                final Set<AgeLengthClass> pending = Collections.synchronizedSet(new LinkedHashSet<>(alClasses));
                 alClasses.parallelStream().forEach(alClass -> {
                     Statistics stats = storeStats.queryStats.get(alClass);
                     workload.get(alClass).parallelStream().forEach(q -> {
@@ -141,14 +140,12 @@ class CompareWindowingSchemes {
                             throw new RuntimeException(e);
                         }
                     });
-                    isPending.put(alClass, false);
-                    synchronized (isPending) {
+                    pending.remove(alClass);
+                    synchronized (pending) {
                         if (logger.isInfoEnabled()) {
                             logger.info("pending({}):", decay);
-                            for (Map.Entry<AgeLengthClass, Boolean> pendingEntry : isPending.entrySet()) {
-                                if (pendingEntry.getValue()) {
-                                    System.out.println("\t\t" + pendingEntry.getKey());
-                                }
+                            for (AgeLengthClass pendingALClass : pending) {
+                                System.out.println("\t\t" + pendingALClass);
                             }
                         }
                     }
