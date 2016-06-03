@@ -1,7 +1,7 @@
 #!/bin/bash
-if [ $# -ne 1 ]
+if [ $# -ne 2 ]
 then
-	echo "SYNTAX: $0 <N>"
+	echo "SYNTAX: $0 <directory> <N>"
 	exit 2
 fi
 cp=".:target/SummaryStore-1.0-SNAPSHOT.jar"
@@ -11,8 +11,8 @@ do
 done
 
 set -e
-dstdir="$(dirname $0)/datasets"
-N=$1
+dstdir=$1
+N=$2
 Nflat=$(echo $N|sed 's/,//g')
 Ds="exponential"
 for p in 1 2 3 4 5 6 7 8 9 11 13 15 18 21 24 28 32
