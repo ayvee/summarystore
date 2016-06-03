@@ -24,7 +24,7 @@ public class StorageVsAccuracy {
             results[sri] = new Statistics(false);
         }
         for (int trial = 0; trial < nTrialsPerRatio; ++trial) {
-            long[] counts = StreamGenerator.generateBinnedStream(T, interarrivals);
+            long[] counts = BinnedStreamGenerator.generateBinnedStream(T, interarrivals);
             ValueAwareOptimizer optimizer = new ValueAwareOptimizer(T, tMeasure, counts);
             System.err.println("[" + LocalDateTime.now() + "] trial " + trial + ":");
             for (int sri = 0; sri < storageRatios.length; ++sri) {

@@ -1,5 +1,7 @@
 package com.samsung.sra.DataStoreExperiments;
 
+import java.util.Random;
+
 public class FixedInterarrival implements InterarrivalDistribution {
     private final long interarrival;
 
@@ -7,7 +9,8 @@ public class FixedInterarrival implements InterarrivalDistribution {
         this.interarrival = interarrival;
     }
 
-    public long getNextInterarrival() {
+    @Override
+    public long next(Random random) {
         return interarrival;
     }
 }

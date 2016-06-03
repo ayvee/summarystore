@@ -3,13 +3,10 @@ package com.samsung.sra.DataStoreExperiments;
 import com.samsung.sra.DataStore.*;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.*;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.random.RandomGeneratorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.PrintWriter;
-import java.util.Random;
 
 public class PopulateData {
     private static final long streamID = 0;
@@ -68,12 +65,17 @@ public class PopulateData {
     private static void populateData(String prefix, long N, Windowing windowing, long cacheSize) throws Exception {
         SummaryStore store = new SummaryStore(prefix, cacheSize);
         store.registerStream(streamID, new CountBasedWBMH(streamID, windowing));
-        // NOTE: fixing seed at 0 here, guarantees that every experiment will see the same run of values
-        RandomGenerator rng = RandomGeneratorFactory.createRandomGenerator(new Random(0));
         InterarrivalDistribution interarrivals = new FixedInterarrival(1);
-        ValueDistribution values = new UniformValues(rng, 0, 100);
-        WriteLoadGenerator generator = new WriteLoadGenerator(interarrivals, values, streamID, store);
-        generator.generateUntil(N);
+        ValueDistribution values = new UniformValues(0, 100);
+        // NOTE: fixing random seed at 0 here, guarantees that every experiment will see the same run of values
+        StreamGenerator generator = new StreamGenerator(interarrivals, values, 0);
+        generator.generateFor(N, (t, v) -> {
+            try {
+                store.append(streamID, t, v);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
         logger.info("{} = {} bytes", prefix, store.getStoreSizeInBytes());
         store.close();
     }

@@ -19,7 +19,7 @@ public class AgeLengthVsAccuracy {
 
         InterarrivalDistribution interarrivals = new ExponentialInterarrivals(arrivalRate);
         TMeasure tMeasure = new ZipfTMeasure(T, queriesZipfS);
-        long[] counts = StreamGenerator.generateBinnedStream(T, interarrivals);
+        long[] counts = BinnedStreamGenerator.generateBinnedStream(T, interarrivals);
         for (int i = 0; i < counts.length; ++i) {
             counts[i] = 1;
         }

@@ -26,23 +26,21 @@ public class MeasureThroughput {
         System.out.println("Testing a store with " + T + " elements and constant size 1 bucketing (0% storage savings)");
         registerStore(stores, "linearstore", new CountBasedWBMH(streamID, new RationalPowerWindowing(1, 0)));
 
-        WriteLoadGenerator generator = new WriteLoadGenerator(interarrivals, values, streamID, stores.values());
+        StreamGenerator generator = new StreamGenerator(interarrivals, values, 0);
         long w0 = System.currentTimeMillis();
-        generator.generateUntil(T);
+        generator.generateFor(T, (t, v) -> {
+            try {
+                for (SummaryStore store: stores.values()) {
+                    store.append(streamID, t, v);
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
         long we = System.currentTimeMillis();
         System.out.println("Write throughput = " + (T * 1000d / (we - w0)) + " appends/s");
 
         SummaryStore store = stores.get("linearstore");
-        /*Random random = new Random();
-        long r0 = System.currentTimeMillis();
-        for (long q = 0; q < Q; ++q) {
-            long a = Math.abs(random.nextLong()) % T;
-            long b = Math.abs(random.nextLong()) % T;
-            Timestamp l = new Timestamp(Math.min(a, b)), r = new Timestamp(Math.max(a, b));
-            store.query(streamID, l, r, QueryType.COUNT, null);
-        }
-        long re = System.currentTimeMillis();
-        System.out.println("Random query throughput = " + (Q * 1000d / (re - r0)) + " queries/s");*/
 
         long f0 = System.currentTimeMillis();
         store.query(streamID, 0, T-1, QueryType.COUNT, null);
