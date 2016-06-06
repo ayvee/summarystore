@@ -9,7 +9,7 @@
     <version>1.0-SNAPSHOT</version>
 
 	<!-- http://stackoverflow.com/questions/5692256/maven-best-way-of-linking-custom-external-jar-to-my-project -->
-	<!-- we use this for the Fibonacci heap library used by WBMH, which isn't on Maven and had to be downloaded by hand -->
+	<!-- we use this for a couple of external deps which aren't on Maven and had to be downloaded by hand -->
 	<repositories>
 		<repository>
 			<id>in-project</id>
@@ -35,6 +35,25 @@
 			<artifactId>heaps</artifactId>
 			<version>2.0</version>
 		</dependency>
+		<!-- http://blog.mikemccandless.com/2013/12/fast-range-faceting-using-segment-trees.html
+			 https://github.com/mikemccand/segment-trees/blob/master/src/java/com/changingbits/Builder.java -->
+        <dependency>
+            <groupId>changingbits</groupId>
+            <artifactId>segment_trees</artifactId>
+            <version>0.1</version>
+        </dependency>
+		<!-- BEGIN segment-trees dependencies -->
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm</artifactId>
+            <version>4.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm-commons</artifactId>
+            <version>4.1</version>
+        </dependency>
+		<!-- END segment-trees dependencies -->
         <dependency>
             <groupId>net.sourceforge.argparse4j</groupId>
             <artifactId>argparse4j</artifactId>
