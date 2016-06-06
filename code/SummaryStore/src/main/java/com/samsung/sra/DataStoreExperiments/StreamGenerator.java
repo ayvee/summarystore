@@ -17,7 +17,7 @@ public class StreamGenerator {
         this.random = new Random(randomSeed);
     }
 
-    public void generateFor(long T, BiConsumer<Long, Long> consumer) {
+    public void generate(long T, BiConsumer<Long, Long> consumer) {
         for (long t = 0; t < T; t += interarrivals.next(random)) {
             long v = values.next(random);
             consumer.accept(t, v);
@@ -32,12 +32,9 @@ public class StreamGenerator {
         StreamGenerator generator = new StreamGenerator(new FixedInterarrival(2), new UniformValues(0, 100), 0);
         BiConsumer<Long, Long> printer = (ts, v) -> System.out.println(ts + "\t" + v);
         System.out.println("=====> reset <====");
-        generator.generateFor(10, printer);
+        generator.generate(10, printer);
         generator.reset(0);
         System.out.println("=====> reset <====");
-        generator.generateFor(10, printer);
-        generator.reset(0);
-        System.out.println("=====> reset <====");
-        generator.generateFor(10, printer);
+        generator.generate(10, printer);
     }
 }

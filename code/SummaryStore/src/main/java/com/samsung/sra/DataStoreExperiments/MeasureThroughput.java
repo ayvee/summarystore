@@ -28,7 +28,7 @@ public class MeasureThroughput {
 
         StreamGenerator generator = new StreamGenerator(interarrivals, values, 0);
         long w0 = System.currentTimeMillis();
-        generator.generateFor(T, (t, v) -> {
+        generator.generate(T, (t, v) -> {
             try {
                 for (SummaryStore store: stores.values()) {
                     store.append(streamID, t, v);

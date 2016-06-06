@@ -59,17 +59,18 @@ public class PopulateData {
             return;
         }
 
-        populateData(outprefix, N, windowing, cacheSize);
-    }
-
-    private static void populateData(String prefix, long N, Windowing windowing, long cacheSize) throws Exception {
-        SummaryStore store = new SummaryStore(prefix, cacheSize);
-        store.registerStream(streamID, new CountBasedWBMH(streamID, windowing));
         InterarrivalDistribution interarrivals = new FixedInterarrival(1);
         ValueDistribution values = new UniformValues(0, 100);
-        // NOTE: fixing random seed at 0 here, guarantees that every experiment will see the same run of values
         StreamGenerator generator = new StreamGenerator(interarrivals, values, 0);
-        generator.generateFor(N, (t, v) -> {
+        populateData(outprefix, generator, N, windowing, cacheSize);
+    }
+
+    private static void populateData(String prefix, StreamGenerator streamGenerator, long N, Windowing windowing, long cacheSize) throws Exception {
+        SummaryStore store = new SummaryStore(prefix, cacheSize);
+        store.registerStream(streamID, new CountBasedWBMH(streamID, windowing));
+        // NOTE: fixing random seed at 0 here, guarantees that every experiment will see the same run of values
+        streamGenerator.reset(0);
+        streamGenerator.generate(N, (t, v) -> {
             try {
                 store.append(streamID, t, v);
             } catch (Exception e) {
