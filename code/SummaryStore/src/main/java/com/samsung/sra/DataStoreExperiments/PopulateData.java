@@ -61,14 +61,13 @@ public class PopulateData {
 
         String outprefix = String.format("%s/T%d.I%s.V%s.R%d.D%s", outdir, T, I, V, R, D);
         StreamGenerator generator = new StreamGenerator(interarrivals, values, R);
-        populateData(outprefix, generator, R, T, windowing, cacheSize);
+        populateData(outprefix, generator, T, windowing, cacheSize);
     }
 
-    private static void populateData(String prefix, StreamGenerator streamGenerator, long R, long T, Windowing windowing, long cacheSize) throws Exception {
+    private static void populateData(String prefix, StreamGenerator streamGenerator, long T, Windowing windowing, long cacheSize) throws Exception {
         SummaryStore store = new SummaryStore(prefix, cacheSize);
         store.registerStream(streamID, new CountBasedWBMH(streamID, windowing));
-        // NOTE: fixing random seed at 0 here, guarantees that every experiment will see the same run of values
-        streamGenerator.reset(R);
+        streamGenerator.reset();
         streamGenerator.generate(T, (t, v) -> {
             try {
                 store.append(streamID, t, v);

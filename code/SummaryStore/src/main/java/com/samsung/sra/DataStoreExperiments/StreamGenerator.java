@@ -10,11 +10,13 @@ public class StreamGenerator {
     private final InterarrivalDistribution interarrivals;
     private final ValueDistribution values;
     private Random random;
+    private final long R;
 
     public StreamGenerator(InterarrivalDistribution interarrivals, ValueDistribution values, long randomSeed) {
         this.interarrivals = interarrivals;
         this.values = values;
-        this.random = new Random(randomSeed);
+        this.R = randomSeed;
+        this.random = new Random(R);
     }
 
     public void generate(long T, BiConsumer<Long, Long> consumer) {
@@ -24,8 +26,8 @@ public class StreamGenerator {
         }
     }
 
-    public void reset(long randomSeed) {
-        random.setSeed(randomSeed);
+    public void reset() {
+        random.setSeed(R);
     }
 
     public static void main(String[] args) {
@@ -33,7 +35,7 @@ public class StreamGenerator {
         BiConsumer<Long, Long> printer = (ts, v) -> System.out.println(ts + "\t" + v);
         System.out.println("=====> reset <====");
         generator.generate(10, printer);
-        generator.reset(0);
+        generator.reset();
         System.out.println("=====> reset <====");
         generator.generate(10, printer);
     }
