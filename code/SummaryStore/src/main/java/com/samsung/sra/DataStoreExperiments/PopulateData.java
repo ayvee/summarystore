@@ -14,44 +14,44 @@ public class PopulateData {
 
     public static void main(String[] args) throws Exception {
         ArgumentParser parser = ArgumentParsers.newArgumentParser("PopulateData", false).defaultHelp(true);
-        ArgumentType<Long> CommaSeparatedLong = (ArgumentParser argParser, Argument arg, String value) ->
-                Long.valueOf(value.replace(",", ""));
-        parser.addArgument("N").help("size of stream to generate (number of elements)").type(CommaSeparatedLong);
-        parser.addArgument("decay").help("decay function");
-        parser.addArgument("outprefix").help("prefix to store output files under");
-        parser.addArgument("-cachesize").help("number of buckets per stream to cache in main memory").
-                type(CommaSeparatedLong).setDefault(0L);
+        ArgumentType<Long> CommaSeparatedLong = (argParser, arg, value) -> Long.valueOf(value.replace(",", ""));
+        parser.addArgument("outdir").help("output directory");
+        parser.addArgument("T").help("size of stream to generate").type(CommaSeparatedLong);
+        parser.addArgument("D").help("decay function [" + CLIParser.getValidDecayFunctions() + "]");
+        parser.addArgument("-I")
+                .help("interarrival distribution [" + CLIParser.getValidInterarrivalDistributions() + "]")
+                .setDefault("fixed1");
+        parser.addArgument("-V")
+                .help("value distribution [" + CLIParser.getValidValueDistributions() + "]")
+                .setDefault("uniform0,100");
+        parser.addArgument("-R").help("stream generator RNG seed").type(Long.class).setDefault(0L);
+        parser.addArgument("-cachesize")
+                .help("number of buckets per stream to cache in main memory").metavar("CS")
+                .type(CommaSeparatedLong).setDefault(0L);
 
-        long N;
+        String outdir;
+        long T;
+        String I, V, D;
+        InterarrivalDistribution interarrivals;
+        ValueDistribution values;
         Windowing windowing;
-        String outprefix;
+        long R;
         long cacheSize;
         try {
             Namespace parsed = parser.parseArgs(args);
-            N = parsed.get("N");
-            if (N <= 0) {
-                throw new IllegalArgumentException("N should be positive");
+            outdir = parsed.get("outdir");
+            T = parsed.get("T");
+            if (T <= 0) {
+                throw new IllegalArgumentException("T should be positive");
             }
-            /*long W = (long) parsed.getLong("W");
-            if (W > N) {
-                throw new IllegalArgumentException("W should be <= N");
-            }*/
-            String decay = parsed.get("decay");
-            if (decay.equals("exponential")) {
-                //windowLengths = ExponentialWindowLengths.getWindowingOfSize(N, W);
-                windowing = new GenericWindowing(new ExponentialWindowLengths(2));
-            } else if (decay.startsWith("rationalPower")) {
-                String[] pq = decay.substring("rationalPower".length()).split(",");
-                if (pq.length != 2) {
-                    throw new IllegalArgumentException("rationalPower decay spec must be rationalPowerp,q");
-                }
-                int p = Integer.parseInt(pq[0]), q = Integer.parseInt(pq[1]);
-                windowing = new RationalPowerWindowing(p, q);
-            } else {
-                throw new IllegalArgumentException("unrecognized decay function");
-            }
-            outprefix = parsed.get("outprefix");
+            I = parsed.get("I");
+            interarrivals = CLIParser.parseInterarrivalDistribution(I);
+            V = parsed.get("V");
+            values = CLIParser.parseValueDistribution(V);
+            D = parsed.get("D");
+            windowing = CLIParser.parseDecayFunction(D);
             cacheSize = parsed.get("cachesize");
+            R = parsed.get("R");
         } catch (ArgumentParserException | IllegalArgumentException e) {
             System.err.println("ERROR: " + e.getMessage());
             parser.printHelp(new PrintWriter(System.err, true));
@@ -59,18 +59,17 @@ public class PopulateData {
             return;
         }
 
-        InterarrivalDistribution interarrivals = new FixedInterarrival(1);
-        ValueDistribution values = new UniformValues(0, 100);
-        StreamGenerator generator = new StreamGenerator(interarrivals, values, 0);
-        populateData(outprefix, generator, N, windowing, cacheSize);
+        String outprefix = String.format("%s/T%d.I%s.V%s.R%d.D%s", outdir, T, I, V, R, D);
+        StreamGenerator generator = new StreamGenerator(interarrivals, values, R);
+        populateData(outprefix, generator, R, T, windowing, cacheSize);
     }
 
-    private static void populateData(String prefix, StreamGenerator streamGenerator, long N, Windowing windowing, long cacheSize) throws Exception {
+    private static void populateData(String prefix, StreamGenerator streamGenerator, long R, long T, Windowing windowing, long cacheSize) throws Exception {
         SummaryStore store = new SummaryStore(prefix, cacheSize);
         store.registerStream(streamID, new CountBasedWBMH(streamID, windowing));
         // NOTE: fixing random seed at 0 here, guarantees that every experiment will see the same run of values
-        streamGenerator.reset(0);
-        streamGenerator.generate(N, (t, v) -> {
+        streamGenerator.reset(R);
+        streamGenerator.generate(T, (t, v) -> {
             try {
                 store.append(streamID, t, v);
             } catch (Exception e) {

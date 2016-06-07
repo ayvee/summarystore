@@ -21,18 +21,18 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-class CompareWindowingSchemes {
-    private static Logger logger = LoggerFactory.getLogger(CompareWindowingSchemes.class);
+class CompareDecayFunctions {
+    private static Logger logger = LoggerFactory.getLogger(CompareDecayFunctions.class);
     private static final long streamID = 0;
 
     /**
      * Returns (decay function name) -> (store location prefix) mapping for all stores in the directory
      * with the specified N
      */
-    private static Map<String, String> discoverStores(String directory, long N) throws IOException, RocksDBException {
-        Pattern pattern = Pattern.compile("(.*N" + N + "\\.D([^\\.]+))\\.bucketStore.*");
+    private static Map<String, String> discoverStores(String directory, long T, String I, String V, long R) throws IOException, RocksDBException {
+        Pattern pattern = Pattern.compile(String.format("(.*T%d\\.I%s\\.V%s\\.R%d\\.D([^\\.]+))\\.bucketStore.*", T, I, V, R));
         Map<String, String> stores = new LinkedHashMap<>();
-        try (DirectoryStream<Path> paths = Files.newDirectoryStream(Paths.get(directory), "N" + N + ".*.bucketStore")) {
+        try (DirectoryStream<Path> paths = Files.newDirectoryStream(Paths.get(directory), "T*.bucketStore")) {
             for (Path path : paths) {
                 if (Files.isDirectory(path)) {
                     Matcher matcher = pattern.matcher(path.toString());
@@ -74,10 +74,10 @@ class CompareWindowingSchemes {
      * Compute stats for each store. Results will be memoized to disk if the argument is true
      */
     private static LinkedHashMap<String, StoreStats> computeStatistics(
-            String directory, long N, int numAgeClasses, int numLengthClasses, int numRandomQueriesPerClass,
+            String directory, long T, String I, String V, long R, int A, int L, int Q,
             boolean memoize) throws Exception {
-        String memoFile = memoize ? String.format("%s/N%d.A%d.L%d.Q%d.profile", directory,
-                N, numAgeClasses, numLengthClasses, numRandomQueriesPerClass) : null;
+        String memoFile = memoize ? String.format("%s/T%d.I%s.V%s.R%d.A%d.L%d.Q%d.profile", directory,
+                T, I, V, R, A, L, Q) : null;
         if (memoize) {
             try {
                 return (LinkedHashMap<String, StoreStats>) SerializationUtils.deserialize(Files.newInputStream(Paths.get(memoFile)));
@@ -88,21 +88,21 @@ class CompareWindowingSchemes {
             }
         }
 
-        Map<String, String> stores = discoverStores(directory, N);
+        Map<String, String> stores = discoverStores(directory, T, I, V, R);
         if (stores.isEmpty()) {
-            throw new IllegalArgumentException("no stores found with N = " + N);
+            throw new IllegalArgumentException(String.format("no stores found with T, I, V, R = %d, %s, %s, %d", T, I, V, R));
         }
-        List<AgeLengthClass> alClasses = AgeLengthSampler.getAgeLengthClasses(N, N, numAgeClasses, numLengthClasses);
+        List<AgeLengthClass> alClasses = AgeLengthSampler.getAgeLengthClasses(T, T, A, L);
 
         Map<AgeLengthClass, List<Query>> workload = new ConcurrentHashMap<>();
         Random random = new Random();
         for (AgeLengthClass alClass : alClasses) {
             List<Query> queries = new ArrayList<>();
-            for (int q = 0; q < numRandomQueriesPerClass; ++q) {
+            for (int q = 0; q < Q; ++q) {
                 Pair<Long> ageLength = alClass.sample(random);
                 long age = ageLength.first(), length = ageLength.second();
-                long l = N - length + 1 - age, r = N - age;
-                if (0 <= l && r < N) {
+                long l = T - length + 1 - age, r = T - age;
+                if (0 <= l && r < T) {
                     queries.add(new Query(l, r, QueryType.COUNT, null));
                 }
             }
@@ -113,8 +113,8 @@ class CompareWindowingSchemes {
         for (Map.Entry<String, String> entry : stores.entrySet()) {
             String decay = entry.getKey();
             StoreStats storeStats;
-            // WARNING: setting cache size to N, i.e. loading all data into main memory
-            try (SummaryStore store = new SummaryStore(entry.getValue(), N)) {
+            // WARNING: setting cache size to T, i.e. loading all data into main memory
+            try (SummaryStore store = new SummaryStore(entry.getValue(), T)) {
                 store.warmupCache();
 
                 storeStats = new StoreStats(store.getStoreSizeInBytes(), alClasses);
@@ -162,35 +162,50 @@ class CompareWindowingSchemes {
     }
 
     public static void main(String[] args) throws Exception {
-        ArgumentParser parser = ArgumentParsers.newArgumentParser("CompareWindowingSchemes", false).
+        ArgumentParser parser = ArgumentParsers.newArgumentParser("CompareDecayFunctions", false).
                 description("compute statistics for each decay function and age length class, " +
                         "and optionally print weighted stats if a weight function and metric are specified").
                 defaultHelp(true);
         ArgumentType<Long> CommaSeparatedLong = (ArgumentParser argParser, Argument arg, String value) ->
                 Long.valueOf(value.replace(",", ""));
         parser.addArgument("directory").help("directory containing input SummaryStores; also where output profile will be written");
-        parser.addArgument("N").help("size of stream").type(CommaSeparatedLong);
-        parser.addArgument("-metric").help("error metric (allowed: \"mean\", \"p<percentile>\", e.g. \"p50\")");
-        parser.addArgument("-weight").help("weight function (allowed: \"uniform\")");
+        parser.addArgument("T").help("size of stream").type(CommaSeparatedLong);
+        parser.addArgument("-I")
+                .help("interarrival distribution [" + CLIParser.getValidInterarrivalDistributions() + "]")
+                .setDefault("fixed1");
+        parser.addArgument("-V")
+                .help("value distribution [" + CLIParser.getValidValueDistributions() + "]")
+                .setDefault("uniform0,100");
+        parser.addArgument("-R").help("stream generator RNG seed").type(Long.class).setDefault(0L);
         parser.addArgument("-A").help("number of age classes").type(int.class).setDefault(8);
         parser.addArgument("-L").help("number of length classes").type(int.class).setDefault(8);
         parser.addArgument("-Q").help("number of random queries to run per class").type(int.class).setDefault(1000);
+        parser.addArgument("-metric").help("error metric (allowed: \"mean\", \"p<percentile>\", e.g. \"p50\")");
+        parser.addArgument("-weight").help("weight function (allowed: \"uniform\")");
 
         String directory;
-        long N;
+        long T;
+        String I, V;
+        long R;
         ToDoubleFunction<Statistics> metric;
         ToDoubleFunction<AgeLengthClass> weightFunction;
-        int A, L;
-        int Q;
+        int A, L, Q;
         try {
             Namespace parsed = parser.parseArgs(args);
             directory = parsed.get("directory");
-            N = parsed.get("N");
+            T = parsed.get("T");
+            I = parsed.get("I");
+            V = parsed.get("V");
+            R = parsed.get("R");
+            // we're silently discarding the output of the parse func calls (only doing them to sanity check CLI args)
+            CLIParser.parseInterarrivalDistribution(I);
+            CLIParser.parseValueDistribution(V);
             A = parsed.get("A");
             L = parsed.get("L");
+            Q = parsed.get("Q");
             String metricName = parsed.get("metric");
             String weightFunctionName = parsed.get("weight");
-            if (metricName != null || weightFunctionName != null) {
+            if (metricName != null || weightFunctionName != null) { // TODO? move into CLIParser
                 if (metricName == null || weightFunctionName == null) {
                     throw new IllegalArgumentException("either both metric and weight function should be specified or neither");
                 }
@@ -211,7 +226,6 @@ class CompareWindowingSchemes {
                 metric = null;
                 weightFunction = null;
             }
-            Q = parsed.get("Q");
         } catch (ArgumentParserException | IllegalArgumentException e) {
             System.err.println("ERROR: " + e.getMessage());
             parser.printHelp(new PrintWriter(System.err, true));
@@ -219,7 +233,7 @@ class CompareWindowingSchemes {
             return;
         }
 
-        LinkedHashMap<String, StoreStats> results = computeStatistics(directory, N, A, L, Q, true);
+        LinkedHashMap<String, StoreStats> results = computeStatistics(directory, T, I, V, R, A, L, Q, true);
 
         if (metric != null) {
             System.out.println("#decay\tstore size (bytes)\tcost");
