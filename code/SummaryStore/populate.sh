@@ -4,7 +4,7 @@ then
 	echo "SYNTAX: $0 <directory> <T>"
 	exit 2
 fi
-Xmx=10G
+Xmx=`./xmx.sh`
 cp=".:target/SummaryStore-1.0-SNAPSHOT.jar"
 for jar in target/lib/*
 do
