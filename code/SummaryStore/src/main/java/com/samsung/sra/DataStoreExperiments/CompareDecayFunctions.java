@@ -1,6 +1,5 @@
 package com.samsung.sra.DataStoreExperiments;
 
-import com.samsung.sra.DataStore.QueryType;
 import com.samsung.sra.DataStore.SummaryStore;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.*;
@@ -9,10 +8,7 @@ import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.Serializable;
+import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,19 +42,6 @@ class CompareDecayFunctions {
         return stores;
     }
 
-    private static class Query {
-        final long l, r;
-        final QueryType type;
-        final Object[] params;
-
-        Query(long l, long r, QueryType type, Object[] params) {
-            this.l = l;
-            this.r = r;
-            this.type = type;
-            this.params = params;
-        }
-    }
-
     private static class StoreStats implements Serializable {
         final long sizeInBytes;
         final LinkedHashMap<AgeLengthClass, Statistics> queryStats;
@@ -79,8 +62,8 @@ class CompareDecayFunctions {
         String memoFile = memoize ? String.format("%s/T%d.I%s.V%s.R%d.A%d.L%d.Q%d.profile", directory,
                 T, I, V, R, A, L, Q) : null;
         if (memoize) {
-            try {
-                return (LinkedHashMap<String, StoreStats>) SerializationUtils.deserialize(Files.newInputStream(Paths.get(memoFile)));
+            try (InputStream is = Files.newInputStream(Paths.get(memoFile))){
+                return (LinkedHashMap<String, StoreStats>) SerializationUtils.deserialize(is);
             } catch (NoSuchFileException e) {
                 logger.info("memoized results not found, running experiment");
             } catch (IOException | ClassCastException e) {
@@ -92,21 +75,11 @@ class CompareDecayFunctions {
         if (stores.isEmpty()) {
             throw new IllegalArgumentException(String.format("no stores found with T, I, V, R = %d, %s, %s, %d", T, I, V, R));
         }
-        List<AgeLengthClass> alClasses = AgeLengthSampler.getAgeLengthClasses(T, T, A, L);
-
-        Map<AgeLengthClass, List<Query>> workload = new ConcurrentHashMap<>();
-        Random random = new Random();
-        for (AgeLengthClass alClass : alClasses) {
-            List<Query> queries = new ArrayList<>();
-            for (int q = 0; q < Q; ++q) {
-                Pair<Long> ageLength = alClass.sample(random);
-                long age = ageLength.first(), length = ageLength.second();
-                long l = T - length + 1 - age, r = T - age;
-                if (0 <= l && r < T) {
-                    queries.add(new Query(l, r, QueryType.COUNT, null));
-                }
+        ConcurrentHashMap<AgeLengthClass, List<GenerateWorkload.Query<Long>>> workload = readWorkload(directory, T, I, V, R, A, L, Q);
+        if (logger.isDebugEnabled()) {
+            for (Map.Entry<AgeLengthClass, List<GenerateWorkload.Query<Long>>> entry : workload.entrySet()) {
+                logger.debug("{}, {}", entry.getKey(), entry.getValue().size());
             }
-            workload.put(alClass, queries);
         }
 
         HashMap<String, StoreStats> unsorted = new HashMap<>();
@@ -117,14 +90,15 @@ class CompareDecayFunctions {
             try (SummaryStore store = new SummaryStore(entry.getValue(), T)) {
                 store.warmupCache();
 
+                List<AgeLengthClass> alClasses = new ArrayList<>(workload.keySet());
                 storeStats = new StoreStats(store.getStoreSizeInBytes(), alClasses);
-                final Set<AgeLengthClass> pending = Collections.synchronizedSet(new LinkedHashSet<>(alClasses));
+                final Set<AgeLengthClass> pending = Collections.synchronizedSet(new HashSet<>(alClasses));
                 alClasses.parallelStream().forEach(alClass -> {
                     Statistics stats = storeStats.queryStats.get(alClass);
                     workload.get(alClass).parallelStream().forEach(q -> {
                         try {
                             logger.trace("Running query [{}, {}]", q.l, q.r);
-                            double trueCount = q.r - q.l + 1;
+                            double trueCount = q.trueAnswer;
                             double estCount = (long) store.query(streamID, q.l, q.r, q.type, q.params);
                             stats.addObservation(estCount / trueCount - 1);
                         } catch (Exception e) {
@@ -161,6 +135,15 @@ class CompareDecayFunctions {
         return sorted;
     }
 
+    private static ConcurrentHashMap<AgeLengthClass, List<GenerateWorkload.Query<Long>>> readWorkload(
+            String directory, long T, String I, String V, long R, int A, int L, int Q) throws IOException {
+        String infile = String.format("%s/T%d.I%s.V%s.R%d.A%d.L%d.Q%d.workload", directory, T, I, V, R, A, L, Q);
+        try (InputStream is = Files.newInputStream(Paths.get(infile))) {
+            return (ConcurrentHashMap<AgeLengthClass, List<GenerateWorkload.Query<Long>>>)
+                    SerializationUtils.deserialize(is);
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         ArgumentParser parser = ArgumentParsers.newArgumentParser("CompareDecayFunctions", false).
                 description("compute statistics for each decay function and age length class, " +
@@ -168,7 +151,7 @@ class CompareDecayFunctions {
                 defaultHelp(true);
         ArgumentType<Long> CommaSeparatedLong = (ArgumentParser argParser, Argument arg, String value) ->
                 Long.valueOf(value.replace(",", ""));
-        parser.addArgument("directory").help("directory containing input SummaryStores; also where output profile will be written");
+        parser.addArgument("directory").help("input/output directory");
         parser.addArgument("T").help("size of stream").type(CommaSeparatedLong);
         parser.addArgument("-I")
                 .help("interarrival distribution [" + CLIParser.getValidInterarrivalDistributions() + "]")

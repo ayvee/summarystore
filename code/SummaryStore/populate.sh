@@ -4,6 +4,7 @@ then
 	echo "SYNTAX: $0 <directory> <T>"
 	exit 2
 fi
+Xmx=10G
 cp=".:target/SummaryStore-1.0-SNAPSHOT.jar"
 for jar in target/lib/*
 do
@@ -21,5 +22,6 @@ done
 
 for D in $Ds
 do
-	java -Xmx10G -cp $cp com.samsung.sra.DataStoreExperiments.PopulateData $outdir $T $D -cachesize 10,000,000
+	java -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.PopulateData $outdir $T $D -cachesize 10,000,000
 done
+java -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.GenerateWorkload $outdir $T
