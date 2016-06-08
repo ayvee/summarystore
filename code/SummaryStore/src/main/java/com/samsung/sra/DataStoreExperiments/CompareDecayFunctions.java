@@ -57,9 +57,10 @@ class CompareDecayFunctions {
      * Compute stats for each store. Results will be memoized to disk if the argument is true
      */
     private static LinkedHashMap<String, StoreStats> computeStatistics(
-            String directory, long T, String I, String V, long R, int A, int L, int Q,
+            String directory, String prefix,
+            long T, String I, String V, long R, int A, int L, int Q,
             boolean memoize) throws Exception {
-        String memoFile = memoize ? String.format("%s/T%d.I%s.V%s.R%d.A%d.L%d.Q%d.profile", directory,
+        String memoFile = memoize ? String.format("%s/%sT%d.I%s.V%s.R%d.A%d.L%d.Q%d.profile", directory, prefix,
                 T, I, V, R, A, L, Q) : null;
         if (memoize) {
             try (InputStream is = Files.newInputStream(Paths.get(memoFile))){
@@ -73,9 +74,9 @@ class CompareDecayFunctions {
 
         Map<String, String> stores = discoverStores(directory, T, I, V, R);
         if (stores.isEmpty()) {
-            throw new IllegalArgumentException(String.format("no stores found with T, I, V, R = %d, %s, %s, %d", T, I, V, R));
+            throw new IllegalArgumentException(String.format("no stores found with prefix, T, I, V, R = %s, %d, %s, %s, %d", prefix, T, I, V, R));
         }
-        ConcurrentHashMap<AgeLengthClass, List<GenerateWorkload.Query<Long>>> workload = readWorkload(directory, T, I, V, R, A, L, Q);
+        ConcurrentHashMap<AgeLengthClass, List<GenerateWorkload.Query<Long>>> workload = readWorkload(directory, prefix, T, I, V, R, A, L, Q);
         if (logger.isDebugEnabled()) {
             for (Map.Entry<AgeLengthClass, List<GenerateWorkload.Query<Long>>> entry : workload.entrySet()) {
                 logger.debug("{}, {}", entry.getKey(), entry.getValue().size());
@@ -136,8 +137,8 @@ class CompareDecayFunctions {
     }
 
     private static ConcurrentHashMap<AgeLengthClass, List<GenerateWorkload.Query<Long>>> readWorkload(
-            String directory, long T, String I, String V, long R, int A, int L, int Q) throws IOException {
-        String infile = String.format("%s/T%d.I%s.V%s.R%d.A%d.L%d.Q%d.workload", directory, T, I, V, R, A, L, Q);
+            String directory, String prefix, long T, String I, String V, long R, int A, int L, int Q) throws IOException {
+        String infile = String.format("%s/%sT%d.I%s.V%s.R%d.A%d.L%d.Q%d.workload", directory, prefix, T, I, V, R, A, L, Q);
         try (InputStream is = Files.newInputStream(Paths.get(infile))) {
             return (ConcurrentHashMap<AgeLengthClass, List<GenerateWorkload.Query<Long>>>)
                     SerializationUtils.deserialize(is);
@@ -165,6 +166,7 @@ class CompareDecayFunctions {
         parser.addArgument("-Q").help("number of random queries to run per class").type(int.class).setDefault(1000);
         parser.addArgument("-metric").help("error metric (allowed: \"mean\", \"p<percentile>\", e.g. \"p50\")");
         parser.addArgument("-weight").help("weight function (allowed: \"uniform\")");
+        parser.addArgument("-prefix").help("optional prefix to add to every input/output file").setDefault("");
 
         String directory;
         long T;
@@ -173,6 +175,7 @@ class CompareDecayFunctions {
         ToDoubleFunction<Statistics> metric;
         ToDoubleFunction<AgeLengthClass> weightFunction;
         int A, L, Q;
+        String prefix;
         try {
             Namespace parsed = parser.parseArgs(args);
             directory = parsed.get("directory");
@@ -209,6 +212,7 @@ class CompareDecayFunctions {
                 metric = null;
                 weightFunction = null;
             }
+            prefix = parsed.get("prefix");
         } catch (ArgumentParserException | IllegalArgumentException e) {
             System.err.println("ERROR: " + e.getMessage());
             parser.printHelp(new PrintWriter(System.err, true));
@@ -216,7 +220,7 @@ class CompareDecayFunctions {
             return;
         }
 
-        LinkedHashMap<String, StoreStats> results = computeStatistics(directory, T, I, V, R, A, L, Q, true);
+        LinkedHashMap<String, StoreStats> results = computeStatistics(directory, prefix, T, I, V, R, A, L, Q, true);
 
         if (metric != null) {
             System.out.println("#decay\tstore size (bytes)\tcost");

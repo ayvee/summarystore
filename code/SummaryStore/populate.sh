@@ -1,5 +1,5 @@
 #!/bin/bash
-if [ $# -ne 2 ]
+if [ $# -lt 2 ]
 then
 	echo "SYNTAX: $0 <directory> <T>"
 	exit 2
@@ -13,7 +13,9 @@ done
 
 set -e
 outdir=$1
-T=$2
+shift
+T=$1
+shift
 Ds="exponential2"
 for p in 1 2 3 4 5 6 7 8 9 11 13 15 18 21 24 28 32
 do
@@ -22,6 +24,6 @@ done
 
 for D in $Ds
 do
-	java -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.PopulateData $outdir $T $D -cachesize 10,000,000
+	java -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.PopulateData $outdir $T $D -cachesize 10,000,000 $*
 done
-java -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.GenerateWorkload $outdir $T
+java -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.GenerateWorkload $outdir $T $*

@@ -28,6 +28,7 @@ public class PopulateData {
         parser.addArgument("-cachesize")
                 .help("number of buckets per stream to cache in main memory").metavar("CS")
                 .type(CommaSeparatedLong).setDefault(0L);
+        parser.addArgument("-prefix").help("optional prefix to add to every input/output file").setDefault("");
 
         String outdir;
         long T;
@@ -37,6 +38,7 @@ public class PopulateData {
         Windowing windowing;
         long R;
         long cacheSize;
+        String prefix;
         try {
             Namespace parsed = parser.parseArgs(args);
             outdir = parsed.get("outdir");
@@ -52,6 +54,7 @@ public class PopulateData {
             windowing = CLIParser.parseDecayFunction(D);
             cacheSize = parsed.get("cachesize");
             R = parsed.get("R");
+            prefix = parsed.get("prefix");
         } catch (ArgumentParserException | IllegalArgumentException e) {
             System.err.println("ERROR: " + e.getMessage());
             parser.printHelp(new PrintWriter(System.err, true));
@@ -59,7 +62,7 @@ public class PopulateData {
             return;
         }
 
-        String outprefix = String.format("%s/T%d.I%s.V%s.R%d.D%s", outdir, T, I, V, R, D);
+        String outprefix = String.format("%s/%sT%d.I%s.V%s.R%d.D%s", outdir, prefix, T, I, V, R, D);
         StreamGenerator generator = new StreamGenerator(interarrivals, values, R);
         populateData(outprefix, generator, T, windowing, cacheSize);
     }

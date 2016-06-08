@@ -135,6 +135,7 @@ public class GenerateWorkload {
         parser.addArgument("-A").help("number of age classes").type(int.class).setDefault(8);
         parser.addArgument("-L").help("number of length classes").type(int.class).setDefault(8);
         parser.addArgument("-Q").help("number of random queries to run per class").type(int.class).setDefault(1000);
+        parser.addArgument("-prefix").help("optional prefix to add to every input/output file").setDefault("");
 
         String outdir;
         long T;
@@ -143,6 +144,7 @@ public class GenerateWorkload {
         ValueDistribution values;
         long R;
         int A, L, Q;
+        String prefix;
         try {
             Namespace parsed = parser.parseArgs(args);
             outdir = parsed.get("outdir");
@@ -158,6 +160,7 @@ public class GenerateWorkload {
             A = parsed.get("A");
             L = parsed.get("L");
             Q = parsed.get("Q");
+            prefix = parsed.get("prefix");
         } catch (ArgumentParserException | IllegalArgumentException e) {
             System.err.println("ERROR: " + e.getMessage());
             parser.printHelp(new PrintWriter(System.err, true));
@@ -166,7 +169,7 @@ public class GenerateWorkload {
         }
 
         ConcurrentHashMap<AgeLengthClass, List<Query<Long>>> workload = generate(T, interarrivals, values, R, A, L, Q);
-        String outfile = String.format("%s/T%d.I%s.V%s.R%d.A%d.L%d.Q%d.workload", outdir, T, I, V, R, A, L, Q);
+        String outfile = String.format("%s/%sT%d.I%s.V%s.R%d.A%d.L%d.Q%d.workload", outdir, prefix, T, I, V, R, A, L, Q);
         try (FileOutputStream fos = new FileOutputStream(outfile)) {
             SerializationUtils.serialize(workload, fos);
         }
