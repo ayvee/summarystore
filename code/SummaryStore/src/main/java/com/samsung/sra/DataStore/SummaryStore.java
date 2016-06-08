@@ -125,7 +125,7 @@ public class SummaryStore implements DataStore {
         streamInfo.lock.readLock().lock();
         try {
             if (t1 > streamInfo.lastValueTimestamp) {
-                throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
+                t1 = streamInfo.lastValueTimestamp;
             }
             //BTreeMap<Long, Long> index = streamInfo.temporalIndex;
             TreeMap<Long, Long> index = streamInfo.temporalIndex;

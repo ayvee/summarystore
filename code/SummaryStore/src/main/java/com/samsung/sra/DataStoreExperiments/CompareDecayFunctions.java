@@ -25,16 +25,16 @@ class CompareDecayFunctions {
      * Returns (decay function name) -> (store location prefix) mapping for all stores in the directory
      * with the specified N
      */
-    private static Map<String, String> discoverStores(String directory, long T, String I, String V, long R) throws IOException, RocksDBException {
-        Pattern pattern = Pattern.compile(String.format("(.*T%d\\.I%s\\.V%s\\.R%d\\.D([^\\.]+))\\.bucketStore.*", T, I, V, R));
+    private static Map<String, String> discoverStores(String directory, String prefix, long T, String I, String V, long R) throws IOException, RocksDBException {
+        Pattern pattern = Pattern.compile(String.format("(.*%sT%d\\.I%s\\.V%s\\.R%d\\.D([^\\.]+))\\.bucketStore.*", prefix, T, I, V, R));
         Map<String, String> stores = new LinkedHashMap<>();
-        try (DirectoryStream<Path> paths = Files.newDirectoryStream(Paths.get(directory), "T*.bucketStore")) {
+        try (DirectoryStream<Path> paths = Files.newDirectoryStream(Paths.get(directory), "*.bucketStore")) {
             for (Path path : paths) {
                 if (Files.isDirectory(path)) {
                     Matcher matcher = pattern.matcher(path.toString());
                     if (matcher.matches()) {
-                        String prefix = matcher.group(1), decay = matcher.group(2);
-                        stores.put(decay, prefix);
+                        String pathPrefix = matcher.group(1), decay = matcher.group(2);
+                        stores.put(decay, pathPrefix);
                     }
                 }
             }
@@ -72,7 +72,7 @@ class CompareDecayFunctions {
             }
         }
 
-        Map<String, String> stores = discoverStores(directory, T, I, V, R);
+        Map<String, String> stores = discoverStores(directory, prefix, T, I, V, R);
         if (stores.isEmpty()) {
             throw new IllegalArgumentException(String.format("no stores found with prefix, T, I, V, R = %s, %d, %s, %s, %d", prefix, T, I, V, R));
         }
@@ -101,7 +101,7 @@ class CompareDecayFunctions {
                             logger.trace("Running query [{}, {}]", q.l, q.r);
                             double trueCount = q.trueAnswer;
                             double estCount = (long) store.query(streamID, q.l, q.r, q.type, q.params);
-                            stats.addObservation(estCount / trueCount - 1);
+                            stats.addObservation(Math.abs(estCount - trueCount) / trueCount);
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
