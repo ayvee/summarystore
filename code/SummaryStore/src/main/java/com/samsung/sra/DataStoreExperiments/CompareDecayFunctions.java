@@ -98,10 +98,12 @@ class CompareDecayFunctions {
                     Statistics stats = storeStats.queryStats.get(alClass);
                     workload.get(alClass).parallelStream().forEach(q -> {
                         try {
-                            logger.trace("Running query [{}, {}]", q.l, q.r);
-                            double trueCount = q.trueAnswer;
-                            double estCount = (long) store.query(streamID, q.l, q.r, q.type, q.params);
-                            stats.addObservation(Math.abs(estCount - trueCount) / trueCount);
+                            logger.trace("Running query [{}, {}], true answer = {}", q.l, q.r, q.trueAnswer);
+                            long trueCount = q.trueAnswer;
+                            long estCount = (long) store.query(streamID, q.l, q.r, q.type, q.params);
+                            double error = (trueCount == estCount) ? 0 :
+                                    Math.abs(estCount - trueCount) / (double)trueCount;
+                            stats.addObservation(error);
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }

@@ -124,7 +124,9 @@ public class SummaryStore implements DataStore {
         }
         streamInfo.lock.readLock().lock();
         try {
-            if (t1 > streamInfo.lastValueTimestamp) {
+            if (t0 > streamInfo.lastValueTimestamp) {
+                return 0L; // FIXME
+            } else if (t1 > streamInfo.lastValueTimestamp) {
                 t1 = streamInfo.lastValueTimestamp;
             }
             //BTreeMap<Long, Long> index = streamInfo.temporalIndex;
