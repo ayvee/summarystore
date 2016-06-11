@@ -8,12 +8,16 @@ import org.rocksdb.RocksDBException;
  *   EnumeratedStore: stores all values explicitly enumerated
  */
 public interface DataStore extends AutoCloseable {
-    // TODO: allow configuring the choice of bucket data structure for each stream (set at registration time)
+    void registerStream(long streamID,
+                        WindowingMechanism windowingMechanism,
+                        WindowOperator operators[]) throws StreamException, RocksDBException;
 
-    // provide list of class names for desired AggrOperators
-    void registerStream(long streamID, WindowingMechanism windowingMechanism) throws StreamException, RocksDBException;
+    /** Query the last operator in operators[] that supports the requested queryType */
+    //Object query(long streamID, long t0, long t1, String queryType, Object... queryParams)
+    //        throws StreamException, QueryException, RocksDBException;
 
-    Object query(long streamID, long t0, long t1, QueryType queryType, Object... queryParams)
+    /** Query operators[operatorNumber] */
+    Object query(long streamID, long t0, long t1, int operatorNumber, Object... queryParams)
             throws StreamException, QueryException, RocksDBException;
 
     void append(long streamID, long timestamp, Object value) throws StreamException, RocksDBException;

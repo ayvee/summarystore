@@ -100,7 +100,7 @@ class CompareDecayFunctions {
                         try {
                             logger.trace("Running query [{}, {}], true answer = {}", q.l, q.r, q.trueAnswer);
                             long trueCount = q.trueAnswer;
-                            long estCount = (long) store.query(streamID, q.l, q.r, q.type, q.params);
+                            long estCount = (long) store.query(streamID, q.l, q.r, 0, q.params);
                             double error = (trueCount == estCount) ? 0 :
                                     Math.abs(estCount - trueCount) / (double)trueCount;
                             stats.addObservation(error);

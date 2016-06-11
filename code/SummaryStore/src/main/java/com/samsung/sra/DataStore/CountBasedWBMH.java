@@ -16,7 +16,6 @@ import java.util.HashMap;
  */
 public class CountBasedWBMH implements WindowingMechanism {
     private static Logger logger = LoggerFactory.getLogger(CountBasedWBMH.class);
-    private final long streamID;
     private final Windowing windowing;
 
     private long lastBucketID = -1;
@@ -30,14 +29,20 @@ public class CountBasedWBMH implements WindowingMechanism {
      * https://gabormakrai.wordpress.com/2015/02/11/experimenting-with-dijkstras-algorithm/
      */
     private final FibonacciHeap<Long, Long> mergeCounts = new FibonacciHeap<>();
-    private final HashMap<Long, Heap.Entry<Long, Long>> heapEntries = new HashMap<>();
+    transient private HashMap<Long, Heap.Entry<Long, Long>> heapEntries = new HashMap<>();
 
 
-    public CountBasedWBMH(long streamID, Windowing windowing) {
-        this.streamID = streamID;
+    public CountBasedWBMH(Windowing windowing) {
         this.windowing = windowing;
     }
 
+    @Override
+    public void populateTransientFields() {
+        heapEntries = new HashMap<>();
+        for (Heap.Entry<Long, Long> entry: mergeCounts) {
+            heapEntries.put(entry.getValue(), entry);
+        }
+    }
 
     /**
      * Update the priority queue's entry for the merge pair (b0, b1)
@@ -55,7 +60,7 @@ public class CountBasedWBMH implements WindowingMechanism {
     }
 
     @Override
-    public void append(SummaryStore store, long ts, Object value) throws RocksDBException {
+    public void append(StreamManager streamManager, long ts, Object value) throws RocksDBException {
         if (logger.isDebugEnabled() && N % 1_000_000 == 0) {
             logger.debug("N = {}, mergeCounts.size = {}", N, mergeCounts.getSize());
         }
@@ -65,15 +70,15 @@ public class CountBasedWBMH implements WindowingMechanism {
             Heap.Entry<Long, Long> entry = mergeCounts.extractMinimum();
             Heap.Entry<Long, Long> removed = heapEntries.remove(entry.getValue());
             assert removed == entry;
-            Bucket b0 = store.getBucket(streamID, entry.getValue());
+            Bucket b0 = streamManager.getBucket(entry.getValue());
             // We will now merge b0's successor b1 into b0. We also need to update b{-1}'s and
             // b2's prev and next pointers and b{-1} and b0's heap entries
             assert b0.nextBucketID != -1;
-            Bucket b1 = store.getBucket(streamID, b0.nextBucketID, true); // note: this deletes b1 from bucketStore
-            Bucket b2 = b1.nextBucketID == -1 ? null : store.getBucket(streamID, b1.nextBucketID);
-            Bucket bm1 = b0.prevBucketID == -1 ? null : store.getBucket(streamID, b0.prevBucketID); // b{-1}
+            Bucket b1 = streamManager.getBucket(b0.nextBucketID, true); // note: this deletes b1 from RocksDB
+            Bucket b2 = b1.nextBucketID == -1 ? null : streamManager.getBucket(b1.nextBucketID);
+            Bucket bm1 = b0.prevBucketID == -1 ? null : streamManager.getBucket(b0.prevBucketID); // b{-1}
 
-            b0.merge(b1);
+            streamManager.mergeBuckets(b0, b1);
 
             if (bm1 != null) bm1.nextBucketID = b0.thisBucketID;
             b0.nextBucketID = b1.nextBucketID;
@@ -85,28 +90,28 @@ public class CountBasedWBMH implements WindowingMechanism {
             updateMergeCountFor(bm1, b0);
             updateMergeCountFor(b0, b2);
 
-            if (bm1 != null) store.putBucket(streamID, bm1.thisBucketID, bm1);
-            store.putBucket(streamID, b0.thisBucketID, b0);
-            if (b2 != null) store.putBucket(streamID, b2.thisBucketID, b2);
+            if (bm1 != null) streamManager.putBucket(bm1.thisBucketID, bm1);
+            streamManager.putBucket(b0.thisBucketID, b0);
+            if (b2 != null) streamManager.putBucket(b2.thisBucketID, b2);
         }
 
-        Bucket lastBucket = lastBucketID == -1 ? null : store.getBucket(streamID, lastBucketID);
+        Bucket lastBucket = lastBucketID == -1 ? null : streamManager.getBucket(lastBucketID);
         if (lastBucket != null && lastBucket.cEnd - lastBucket.cStart + 1 < windowing.getSizeOfFirstWindow()) {
             // last bucket isn't yet full; insert new value into it
             lastBucket.cEnd = N-1;
             lastBucket.tEnd = ts;
-            lastBucket.insertValue(ts, value);
-            store.putBucket(streamID, lastBucketID, lastBucket);
+            streamManager.insertValueIntoBucket(lastBucket, ts, value);
+            streamManager.putBucket(lastBucketID, lastBucket);
         } else {
             // create new bucket holding the latest element
             long newBucketID = lastBucketID + 1;
-            Bucket newBucket = new Bucket(lastBucketID, newBucketID, -1, ts, ts, N-1, N-1);
-            newBucket.insertValue(ts, value);
-            store.putBucket(streamID, newBucketID, newBucket);
+            Bucket newBucket = streamManager.createEmptyBucket(lastBucketID, newBucketID, -1, ts, ts, N-1, N-1);
+            streamManager.insertValueIntoBucket(newBucket, ts, value);
+            streamManager.putBucket(newBucketID, newBucket);
             if (lastBucket != null) {
                 lastBucket.nextBucketID = newBucketID;
                 updateMergeCountFor(lastBucket, newBucket);
-                store.putBucket(streamID, lastBucketID, lastBucket);
+                streamManager.putBucket(lastBucketID, lastBucket);
             }
             lastBucketID = newBucketID;
         }

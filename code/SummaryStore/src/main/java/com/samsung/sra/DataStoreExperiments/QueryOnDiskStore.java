@@ -1,6 +1,5 @@
 package com.samsung.sra.DataStoreExperiments;
 
-import com.samsung.sra.DataStore.QueryType;
 import com.samsung.sra.DataStore.SummaryStore;
 
 public class QueryOnDiskStore {
@@ -38,6 +37,6 @@ public class QueryOnDiskStore {
         store.printBucketState(streamID);
         System.out.println(
                 "Store size = " + store.getStoreSizeInBytes() + " bytes; " +
-                "COUNT[" + l + ":" + r + "] = " + store.query(streamID, l, r, QueryType.COUNT, null));
+                "COUNT[" + l + ":" + r + "] = " + store.query(streamID, l, r, 0, null));
     }
 }

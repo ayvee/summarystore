@@ -1,0 +1,155 @@
+package com.samsung.sra.DataStore;
+
+import org.apache.commons.lang.NotImplementedException;
+import org.rocksdb.RocksDBException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.Serializable;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
+import java.util.stream.Stream;
+
+/**
+ * Handles all operations on a particular stream, both the low-level Bucket get, create
+ * and merge operations initiated by WBMH as well as the high-level append() and query()
+ * operations initiated by clients via SummaryStore. Stores aggregate per-stream information
+ * as well as in-memory indexes. The buckets themselves are not stored directly here, they
+ * go into the underlying bucketStore.
+ *
+ * StreamManagers do not handle synchronization, callers are expected to manage the lock
+ * object here.
+ */
+class StreamManager implements Serializable {
+    private static Logger logger = LoggerFactory.getLogger(StreamManager.class);
+    final long streamID;
+    final WindowOperator[] operators;
+
+    // How many values have we inserted so far?
+    long numValues = 0;
+    // What was the timestamp of the latest value appended?
+    long lastValueTimestamp = -1;
+
+    final ReadWriteLock lock = new ReentrantReadWriteLock();
+
+    /** Read index, maps bucket.tStart -> bucketID. Used to answer queries */
+    final TreeMap<Long, Long> temporalIndex = new TreeMap<>();
+    //transient BTreeMap<Long, Long> temporalIndex;
+
+    /** WindowingMechanism object. Maintains write indexes internally, which SummaryStore
+     * will persist to disk along with the rest of StreamManager */
+    final WindowingMechanism windowingMechanism;
+
+    final int bytesPerBucket;
+
+    transient BucketStore bucketStore;
+
+    void populateTransientFields(BucketStore bucketStore) {
+        this.bucketStore = bucketStore;
+        windowingMechanism.populateTransientFields();
+    }
+
+    StreamManager(BucketStore bucketStore, long streamID,
+                  WindowingMechanism windowingMechanism, WindowOperator... operators) {
+        this.streamID = streamID;
+        this.bucketStore = bucketStore;
+        this.windowingMechanism = windowingMechanism;
+        this.operators = operators;
+        bytesPerBucket = Bucket.METADATA_BYTECOUNT +
+                Stream.of(operators).mapToInt(WindowOperator::getBytecount).sum();
+    }
+
+    // TODO: add assertions
+
+    void append(long ts, Object value) throws RocksDBException, StreamException {
+        if (ts <= lastValueTimestamp) throw new StreamException("out-of-order insert in stream " + streamID);
+        windowingMechanism.append(this, ts, value);
+        ++numValues;
+        lastValueTimestamp = ts;
+    }
+
+    Object query(int operatorNum, long t0, long t1, Object[] queryParams) throws RocksDBException {
+        if (t0 > lastValueTimestamp) {
+            return operators[operatorNum].getEmptyQueryResult();
+        } else if (t1 > lastValueTimestamp) {
+            t1 = lastValueTimestamp;
+        }
+        //BTreeMap<Long, Long> index = streamManager.temporalIndex;
+        Long l = temporalIndex.floorKey(t0); // first bucket with tStart <= t0
+        Long r = temporalIndex.higherKey(t1); // first bucket with tStart > t1
+        if (r == null) {
+            r = temporalIndex.lastKey() + 1;
+        }
+        logger.trace("Overapproximated time range = [{}, {}]", l, r);
+        // Query on all buckets with l <= tStart < r
+        SortedMap<Long, Long> spanningBucketsIDs = temporalIndex.subMap(l, true, r, false);
+        Stream<Bucket> buckets = spanningBucketsIDs.values().stream().map(bucketID -> {
+            try {
+                return bucketStore.getBucket(streamID, bucketID, false);
+            } catch (RocksDBException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        try {
+            Function<Bucket, Object> retriever = b -> b.aggregates[operatorNum];
+            return operators[operatorNum].query(buckets, retriever, t0, t1, queryParams);
+        } catch (RuntimeException e) {
+            if (e.getCause() instanceof RocksDBException) {
+                throw (RocksDBException)e.getCause();
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    void insertValueIntoBucket(Bucket bucket, long ts, Object value) {
+        assert bucket.tStart <= ts && (bucket.tEnd == -1 || ts <= bucket.tEnd) && operators.length == bucket.aggregates.length;
+        for (int i = 0; i < operators.length; ++i) {
+            bucket.aggregates[i] = operators[i].insert(bucket.aggregates[i], ts, value);
+        }
+    }
+
+    /** Replace buckets[0] with union(buckets) */
+    void mergeBuckets(Bucket... buckets) {
+        if (buckets.length == 0) return;
+        buckets[0].cEnd = buckets[buckets.length - 1].cEnd;
+        buckets[0].tEnd = buckets[buckets.length - 1].tEnd;
+        for (int opNum = 0; opNum < operators.length; ++opNum) {
+            final int i = opNum; // work around Java dumbness re stream.map arguments
+            buckets[0].aggregates[i] = operators[i].merge(Stream.of(buckets).map(b -> b.aggregates[i]));
+        }
+    }
+
+    Bucket createEmptyBucket(long prevBucketID, long thisBucketID, long nextBucketID,
+                             long tStart, long tEnd, long cStart, long cEnd) {
+        return new Bucket(operators, prevBucketID, thisBucketID, nextBucketID, tStart, tEnd, cStart, cEnd);
+    }
+
+    Bucket getBucket(long bucketID, boolean delete) throws RocksDBException {
+        Bucket bucket = bucketStore.getBucket(streamID, bucketID, delete);
+        if (delete) {
+            temporalIndex.remove(bucket.tStart);
+        }
+        return bucket;
+    }
+
+    Bucket getBucket(long bucketID) throws RocksDBException {
+        return getBucket(bucketID, false);
+    }
+
+    void putBucket(long bucketID, Bucket bucket) throws RocksDBException {
+        temporalIndex.put(bucket.tStart, bucketID);
+        bucketStore.putBucket(streamID, bucketID, bucket);
+    }
+
+    byte[] serializeBucket(Bucket bucket) {
+        throw new NotImplementedException();
+    }
+
+    Bucket deserializeBucket(byte[] bytes) {
+        throw new NotImplementedException();
+    }
+}

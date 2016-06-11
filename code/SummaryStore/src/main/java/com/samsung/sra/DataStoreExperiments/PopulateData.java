@@ -1,6 +1,7 @@
 package com.samsung.sra.DataStoreExperiments;
 
 import com.samsung.sra.DataStore.*;
+import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.*;
 import org.slf4j.Logger;
@@ -69,7 +70,7 @@ public class PopulateData {
 
     private static void populateData(String prefix, StreamGenerator streamGenerator, long T, Windowing windowing, long cacheSize) throws Exception {
         SummaryStore store = new SummaryStore(prefix, cacheSize);
-        store.registerStream(streamID, new CountBasedWBMH(streamID, windowing));
+        store.registerStream(streamID, new CountBasedWBMH(windowing), new SimpleCountOperator());
         streamGenerator.reset();
         streamGenerator.generate(T, (t, v) -> {
             try {

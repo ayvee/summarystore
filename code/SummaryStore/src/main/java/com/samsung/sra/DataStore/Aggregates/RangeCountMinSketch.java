@@ -1,4 +1,4 @@
-package com.samsung.sra.Misc;
+package com.samsung.sra.DataStore.Aggregates;
 
 import com.clearspring.analytics.stream.frequency.CountMinSketch;
 

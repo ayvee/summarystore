@@ -1,5 +1,6 @@
 package com.samsung.sra.DataStore;
 
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.commons.lang.SerializationUtils;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
@@ -14,6 +15,7 @@ public class RocksDBBucketStore implements BucketStore {
     private final RocksDB rocksDB;
     private final Options rocksDBOptions;
     private final long cacheSizePerStream;
+    // TODO: use a LinkedHashMap in LRU mode
     private final ConcurrentHashMap<Long, ConcurrentHashMap<Long, Bucket>> cache; // map streamID -> bucketID -> bucket
 
     /**
@@ -58,7 +60,7 @@ public class RocksDBBucketStore implements BucketStore {
     }
 
     private static final int KEY_SIZE = 16;
-    private static final int VALUE_SIZE = Bucket.BYTE_COUNT;
+    private static final int VALUE_SIZE = Bucket.METADATA_BYTECOUNT;
 
     /**
      * RocksDB key = <streamID, bucketID>. Since we ensure bucketIDs are assigned in increasing
@@ -81,22 +83,18 @@ public class RocksDBBucketStore implements BucketStore {
 
     private byte[] bucketToByteArray(Bucket bucket) {
         byte[] valueArray = new byte[VALUE_SIZE];
-        longToByteArray(bucket.count, valueArray, 0);
-        longToByteArray(bucket.sum, valueArray, 8);
-        longToByteArray(bucket.prevBucketID, valueArray, 16);
-        longToByteArray(bucket.thisBucketID, valueArray, 24);
-        longToByteArray(bucket.nextBucketID, valueArray, 32);
-        longToByteArray(bucket.tStart, valueArray, 40);
-        longToByteArray(bucket.tEnd, valueArray, 48);
-        longToByteArray(bucket.cStart, valueArray, 56);
-        longToByteArray(bucket.cEnd, valueArray, 64);
+        longToByteArray(bucket.prevBucketID, valueArray, 0);
+        longToByteArray(bucket.thisBucketID, valueArray, 8);
+        longToByteArray(bucket.nextBucketID, valueArray, 16);
+        longToByteArray(bucket.tStart, valueArray, 24);
+        longToByteArray(bucket.tEnd, valueArray, 32);
+        longToByteArray(bucket.cStart, valueArray, 40);
+        longToByteArray(bucket.cEnd, valueArray, 48);
         return valueArray;
     }
 
     private Bucket byteArrayToBucket(byte[] array) {
         assert array.length == VALUE_SIZE;
-        long count = byteArrayToLong(array, 0);
-        long sum = byteArrayToLong(array, 8);
         long prevBucketID = byteArrayToLong(array, 16);
         long thisBucketID = byteArrayToLong(array, 24);
         long nextBucketID = byteArrayToLong(array, 32);
@@ -104,7 +102,8 @@ public class RocksDBBucketStore implements BucketStore {
         long tEnd = byteArrayToLong(array, 48);
         long cStart = byteArrayToLong(array, 56);
         long cEnd = byteArrayToLong(array, 64);
-        return new Bucket(count, sum, prevBucketID, thisBucketID, nextBucketID, tStart, tEnd, cStart, cEnd);
+        throw new NotImplementedException();
+        //return new Bucket(prevBucketID, thisBucketID, nextBucketID, tStart, tEnd, cStart, cEnd);
     }
 
     /**
@@ -163,6 +162,7 @@ public class RocksDBBucketStore implements BucketStore {
         }
     }
 
+    @Override
     public void warmupCache() throws RocksDBException {
         if (cache == null) return;
 

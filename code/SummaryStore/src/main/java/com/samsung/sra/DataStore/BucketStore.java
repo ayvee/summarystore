@@ -22,6 +22,8 @@ interface BucketStore extends AutoCloseable {
 
     void putMetadata(Serializable indexes) throws RocksDBException;
 
+    default void warmupCache() throws RocksDBException {}
+
     @Override
     void close() throws RocksDBException;
 }

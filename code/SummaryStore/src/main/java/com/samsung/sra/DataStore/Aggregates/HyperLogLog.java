@@ -1,19 +1,15 @@
-package com.samsung.sra.Misc;
+package com.samsung.sra.DataStore.Aggregates;
 
 import com.clearspring.analytics.hash.MurmurHash;
-import com.samsung.sra.DataStore.WindowAggrOperator;
-import com.samsung.sra.DataStore.WindowAggrOperatorTypes;
 import com.samsung.sra.DataStore.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 
-/**
- * Created by n.agrawal1 on 5/27/16.
- */
-public class HyperLogLogAggrOperator extends WindowAggrOperator<HyperLogLogAggrOperator, Double> implements ProbCounter {
-
+public class HyperLogLog {
     /** configuration for HLL estimation; these are applicable to all instances
      * of the HLL windows, and shouldn't be modified, hence static final.
      */
@@ -29,14 +25,18 @@ public class HyperLogLogAggrOperator extends WindowAggrOperator<HyperLogLogAggrO
     private static int maxlZero;
 
     private int[] estimateBuckets;
-    private static Logger logger = LoggerFactory.getLogger(HyperLogLogAggrOperator.class);
+    private static Logger logger = LoggerFactory.getLogger(HyperLogLog.class);
 
-    public HyperLogLogAggrOperator(int opType) {
+    public HyperLogLog() {
         //super(opType);
         maxlZero=0;
         estimate=0;
         estimateBuckets = new int[numRegisters];
-        //System.out.println("Currently registered operators: " + WindowAggrOperator.returnAggrOperatorTypes().size());
+        //System.out.println("Currently registered operators: " + WindowOperator.returnAggrOperatorTypes().size());
+    }
+
+    public static List<QueryType> getSupportedQueries() {
+        return Collections.singletonList(QueryType.COUNT);
     }
 
     protected static double getAlphaMM(final int p, final int m) {
@@ -55,7 +55,6 @@ public class HyperLogLogAggrOperator extends WindowAggrOperator<HyperLogLogAggrO
         }
     }
 
-    @Override
     public double getEstimate() {
 
         estimate=0;
@@ -78,28 +77,18 @@ public class HyperLogLogAggrOperator extends WindowAggrOperator<HyperLogLogAggrO
         return Math.ceil(estimate);
     }
 
-    @Override
-    public Double getError(long tStart, long tEnd) {
-        return 0.0;
-    }
+    // TODO: operator
+    public HyperLogLog merge(HyperLogLog... hyperLogLogAggrOperators) {
+        HyperLogLog mergedResult = new HyperLogLog();
 
-    public HyperLogLogAggrOperator merge(HyperLogLogAggrOperator... hyperLogLogAggrOperators) {
-
-        HyperLogLogAggrOperator mergedResult = new
-                HyperLogLogAggrOperator(WindowAggrOperatorTypes.AggrOpTypes.HLL.ordinal());
-
-        for (HyperLogLogAggrOperator o:hyperLogLogAggrOperators) {
-
+        for (HyperLogLog o:hyperLogLogAggrOperators) {
             mergedResult.estimate+= o.estimate;
-
         }
 
         return mergedResult;
-
     }
 
-    @Override
-    public void insert(int value) {
+    public void insert(Integer value) {
         insertHashed(MurmurHash.hash(value));
     }
 
@@ -128,20 +117,6 @@ public class HyperLogLogAggrOperator extends WindowAggrOperator<HyperLogLogAggrO
         estimateBuckets[indexBits]=estimateBuckets[indexBits]>lZero?estimateBuckets[indexBits]:lZero;
     }
 
-    @Override
-    public Double read() {
-        return this.getEstimate();
-    }
-
-    @Override
-    public ValueError<Double> readRange(long tStart, long tEnd) {
-
-        ValueError<Double> ve = new ValueError<>();
-        ve.value = this.getEstimate();
-        ve.error = getError(tStart,tEnd);
-        return ve;
-    }
-
     public static void main(String[] args) {
 
         // Test the cardinality estimation
@@ -149,7 +124,7 @@ public class HyperLogLogAggrOperator extends WindowAggrOperator<HyperLogLogAggrO
         int numInts = 1<<(Integer.SIZE*8);
         Random r = new Random();
         int trueCount = r.nextInt(boundTrueCount);
-        HyperLogLogAggrOperator hll = new HyperLogLogAggrOperator(WindowAggrOperatorTypes.AggrOpTypes.HLL.ordinal());
+        HyperLogLog hll = new HyperLogLog();
 
         // insert a bunch of values
         for (int i=0; i<trueCount; i++) {

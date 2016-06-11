@@ -24,7 +24,7 @@ public class MeasureThroughput {
 
         LinkedHashMap<String, SummaryStore> stores = new LinkedHashMap<>();
         System.out.println("Testing a store with " + T + " elements and constant size 1 bucketing (0% storage savings)");
-        registerStore(stores, "linearstore", new CountBasedWBMH(streamID, new RationalPowerWindowing(1, 0)));
+        registerStore(stores, "linearstore", new CountBasedWBMH(new RationalPowerWindowing(1, 0)));
 
         StreamGenerator generator = new StreamGenerator(interarrivals, values, 0);
         long w0 = System.currentTimeMillis();
@@ -43,7 +43,7 @@ public class MeasureThroughput {
         SummaryStore store = stores.get("linearstore");
 
         long f0 = System.currentTimeMillis();
-        store.query(streamID, 0, T-1, QueryType.COUNT, null);
+        store.query(streamID, 0, T-1, 0, null);
         long fe = System.currentTimeMillis();
         System.out.println("Time to run longest query, spanning [0, T) = " + ((fe - f0) / 1000d) + " sec");
     }
