@@ -4,9 +4,6 @@ import java.io.Serializable;
 
 /** All the code creating, manipulating, and querying buckets is in StreamManager */
 public class Bucket implements Serializable {
-    // data
-    public Object[] aggregates;
-
     // metadata
     /* We use longs for bucket IDs, timestamps, and count markers. Valid values should be
        non-negative (all three are 0-indexed), and use "-1" to indicate null values. */
@@ -14,6 +11,9 @@ public class Bucket implements Serializable {
     public long prevBucketID, thisBucketID, nextBucketID;
     public long tStart, tEnd;
     public long cStart, cEnd;
+
+    // data
+    public Object[] aggregates;
 
     public static final int METADATA_BYTECOUNT = 7 * 8;
 

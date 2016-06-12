@@ -1,6 +1,7 @@
 package com.samsung.sra.DataStoreExperiments;
 
 import com.samsung.sra.DataStore.SummaryStore;
+import com.samsung.sra.DataStore.ResultError;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.*;
 import org.apache.commons.lang.SerializationUtils;
@@ -100,7 +101,7 @@ class CompareDecayFunctions {
                         try {
                             logger.trace("Running query [{}, {}], true answer = {}", q.l, q.r, q.trueAnswer);
                             long trueCount = q.trueAnswer;
-                            long estCount = (long) store.query(streamID, q.l, q.r, 0, q.params);
+                            long estCount = ((ResultError<Long, Long>)store.query(streamID, q.l, q.r, 0, q.params)).result;
                             double error = (trueCount == estCount) ? 0 :
                                     Math.abs(estCount - trueCount) / (double)trueCount;
                             stats.addObservation(error);

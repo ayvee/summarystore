@@ -10,17 +10,17 @@ public class MainMemoryBucketStore implements BucketStore {
     private Map<Long, Map<Long, Bucket>> buckets = new HashMap<>();
 
     @Override
-    public Bucket getBucket(long streamID, long bucketID, boolean delete) throws RocksDBException {
+    public Bucket getBucket(StreamManager streamManager, long bucketID, boolean delete) throws RocksDBException {
         return delete ?
-                buckets.get(streamID).remove(bucketID) :
-                buckets.get(streamID).get(bucketID);
+                buckets.get(streamManager.streamID).remove(bucketID) :
+                buckets.get(streamManager.streamID).get(bucketID);
     }
 
     @Override
-    public void putBucket(long streamID, long bucketID, Bucket bucket) throws RocksDBException {
-        Map<Long, Bucket> stream = buckets.get(streamID);
+    public void putBucket(StreamManager streamManager, long bucketID, Bucket bucket) throws RocksDBException {
+        Map<Long, Bucket> stream = buckets.get(streamManager.streamID);
         if (stream == null) {
-            buckets.put(streamID, (stream = new HashMap<>()));
+            buckets.put(streamManager.streamID, (stream = new HashMap<>()));
         }
         stream.put(bucketID, bucket);
     }

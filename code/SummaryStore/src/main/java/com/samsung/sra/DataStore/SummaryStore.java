@@ -102,12 +102,12 @@ public class SummaryStore implements DataStore {
     }
 
     public void printBucketState(long streamID, boolean printPerBucketState) throws RocksDBException {
-        StreamManager streamInfo = streamManagers.get(streamID);
-        System.out.println("Stream " + streamID + " with " + streamInfo.numValues + " elements in " +
-                streamInfo.temporalIndex.size() + " windows");
+        StreamManager streamManager = streamManagers.get(streamID);
+        System.out.println("Stream " + streamID + " with " + streamManager.numValues + " elements in " +
+                streamManager.temporalIndex.size() + " windows");
         if (printPerBucketState) {
-            for (Object bucketID : streamInfo.temporalIndex.values()) {
-                System.out.println("\t" + bucketStore.getBucket(streamID, (long) bucketID));
+            for (Object bucketID : streamManager.temporalIndex.values()) {
+                System.out.println("\t" + bucketStore.getBucket(streamManager, (long) bucketID));
             }
         }
     }
@@ -117,14 +117,19 @@ public class SummaryStore implements DataStore {
     }
 
     public void warmupCache() throws RocksDBException {
-        bucketStore.warmupCache();
+        bucketStore.warmupCache(streamManagers);
     }
 
+    @Override
     public void close() throws RocksDBException {
         synchronized (streamManagers) {
             // wait for all in-process writes and reads to finish, and seal read index
             for (StreamManager streamManager: streamManagers.values()) {
                 streamManager.lock.writeLock().lock();
+                //streamManager.temporalIndex.close();
+            }
+            for (StreamManager streamManager: streamManagers.values()) {
+                bucketStore.flushCache(streamManager);
                 //streamManager.temporalIndex.close();
             }
             // at this point all operations on existing streams will be blocked
@@ -185,10 +190,10 @@ public class SummaryStore implements DataStore {
     public static void main(String[] args) {
         SummaryStore store = null;
         try {
-            //String storeLoc = "/tmp/tdstore";
-            //Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + storeLoc + "*"}).waitFor();
-            //store = new SummaryStore(storeLoc);
-            store = new SummaryStore(null);
+            String storeLoc = "/tmp/tdstore";
+            Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + storeLoc + "*"}).waitFor();
+            store = new SummaryStore(storeLoc);
+            //store = new SummaryStore(null);
             long streamID = 0;
             if (!store.streamManagers.containsKey(streamID)) {
                 //store.registerStream(streamID, new CountBasedWBMH(streamID, new GenericWindowing(new ExponentialWindowLengths(2))));

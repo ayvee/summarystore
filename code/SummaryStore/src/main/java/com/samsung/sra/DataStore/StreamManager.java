@@ -1,6 +1,5 @@
 package com.samsung.sra.DataStore;
 
-import org.apache.commons.lang.NotImplementedException;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -88,7 +87,7 @@ class StreamManager implements Serializable {
         SortedMap<Long, Long> spanningBucketsIDs = temporalIndex.subMap(l, true, r, false);
         Stream<Bucket> buckets = spanningBucketsIDs.values().stream().map(bucketID -> {
             try {
-                return bucketStore.getBucket(streamID, bucketID, false);
+                return bucketStore.getBucket(this, bucketID, false);
             } catch (RocksDBException e) {
                 throw new RuntimeException(e);
             }
@@ -129,7 +128,7 @@ class StreamManager implements Serializable {
     }
 
     Bucket getBucket(long bucketID, boolean delete) throws RocksDBException {
-        Bucket bucket = bucketStore.getBucket(streamID, bucketID, delete);
+        Bucket bucket = bucketStore.getBucket(this, bucketID, delete);
         if (delete) {
             temporalIndex.remove(bucket.tStart);
         }
@@ -142,14 +141,45 @@ class StreamManager implements Serializable {
 
     void putBucket(long bucketID, Bucket bucket) throws RocksDBException {
         temporalIndex.put(bucket.tStart, bucketID);
-        bucketStore.putBucket(streamID, bucketID, bucket);
+        bucketStore.putBucket(this, bucketID, bucket);
     }
 
     byte[] serializeBucket(Bucket bucket) {
-        throw new NotImplementedException();
+        byte[] bytes = new byte[bytesPerBucket];
+        // metadata
+        Utilities.longToByteArray(bucket.prevBucketID, bytes, 0);
+        Utilities.longToByteArray(bucket.thisBucketID, bytes, 8);
+        Utilities.longToByteArray(bucket.nextBucketID, bytes, 16);
+        Utilities.longToByteArray(bucket.tStart, bytes, 24);
+        Utilities.longToByteArray(bucket.tEnd, bytes, 32);
+        Utilities.longToByteArray(bucket.cStart, bytes, 40);
+        Utilities.longToByteArray(bucket.cEnd, bytes, 48);
+        int pos = 56;
+        for (int op = 0; op < operators.length; ++op) {
+            operators[op].serialize(bucket.aggregates[op], bytes, pos);
+            pos += operators[op].getBytecount();
+        }
+        assert pos == bytesPerBucket;
+        return bytes;
     }
 
     Bucket deserializeBucket(byte[] bytes) {
-        throw new NotImplementedException();
+        assert bytes.length == bytesPerBucket;
+        Bucket bucket = new Bucket();
+        bucket.prevBucketID = Utilities.byteArrayToLong(bytes, 0);
+        bucket.thisBucketID = Utilities.byteArrayToLong(bytes, 8);
+        bucket.nextBucketID = Utilities.byteArrayToLong(bytes, 16);
+        bucket.tStart = Utilities.byteArrayToLong(bytes, 24);
+        bucket.tEnd = Utilities.byteArrayToLong(bytes, 32);
+        bucket.cStart = Utilities.byteArrayToLong(bytes, 40);
+        bucket.cEnd = Utilities.byteArrayToLong(bytes, 48);
+        bucket.aggregates = new Object[operators.length];
+        int pos = 56;
+        for (int op = 0; op < operators.length; ++op) {
+            bucket.aggregates[op] = operators[op].deserialize(bytes, pos);
+            pos += operators[op].getBytecount();
+        }
+        assert pos == bytesPerBucket;
+        return bucket;
     }
 }

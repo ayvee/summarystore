@@ -1,8 +1,5 @@
 package com.samsung.sra.DataStore;
 
-/**
- * Created by n.agrawal1 on 5/31/16.
- */
 public class ResultError<R, E> {
     public final R result;
     public final E error;
@@ -29,5 +26,10 @@ public class ResultError<R, E> {
         int result = this.result != null ? this.result.hashCode() : 0;
         result = 31 * result + (error != null ? error.hashCode() : 0);
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("<%s, %s>", result, error);
     }
 }

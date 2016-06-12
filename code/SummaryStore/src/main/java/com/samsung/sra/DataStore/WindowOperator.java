@@ -1,5 +1,6 @@
 package com.samsung.sra.DataStore;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -11,7 +12,7 @@ import java.util.stream.Stream;
  * (i.e. a BloomFilterOperator object only creates, updates and queries Bloom filters; it is not
  * a Bloom filter itself and does not have an internal bit-array)
  */
-public interface WindowOperator<A, V, R, E> {
+public interface WindowOperator<A, V, R, E> extends Serializable {
     List<String> getSupportedQueryTypes();
 
     /** Create an empty aggregate (containing zero elements) */

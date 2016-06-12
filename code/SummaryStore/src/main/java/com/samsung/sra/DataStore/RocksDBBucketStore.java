@@ -1,6 +1,5 @@
 package com.samsung.sra.DataStore;
 
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.commons.lang.SerializationUtils;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
@@ -34,33 +33,7 @@ public class RocksDBBucketStore implements BucketStore {
         RocksDB.loadLibrary();
     }
 
-    /** stuff val into array[startPos], array[startPos+1], ..., array[startPos+7] */
-    void longToByteArray(long val, byte[] array, int startPos) {
-        array[startPos    ] = (byte) ((val >> 56) & 0xFFL);
-        array[startPos + 1] = (byte) ((val >> 48) & 0xFFL);
-        array[startPos + 2] = (byte) ((val >> 40) & 0xFFL);
-        array[startPos + 3] = (byte) ((val >> 32) & 0xFFL);
-        array[startPos + 4] = (byte) ((val >> 24) & 0xFFL);
-        array[startPos + 5] = (byte) ((val >> 16) & 0xFFL);
-        array[startPos + 6] = (byte) ((val >> 8)  & 0xFFL);
-        array[startPos + 7] = (byte)  (val        & 0xFFL);
-    }
-
-    /** return the long represented by array[startPos], array[startPos+1], ..., array[startPos+7] */
-    long byteArrayToLong(byte[] array, int startPos) {
-        return
-                (((long) array[startPos    ] & 0xFFL) << 56) |
-                (((long) array[startPos + 1] & 0xFFL) << 48) |
-                (((long) array[startPos + 2] & 0xFFL) << 40) |
-                (((long) array[startPos + 3] & 0xFFL) << 32) |
-                (((long) array[startPos + 4] & 0xFFL) << 24) |
-                (((long) array[startPos + 5] & 0xFFL) << 16) |
-                (((long) array[startPos + 6] & 0xFFL) << 8) |
-                ((long)  array[startPos + 7] & 0xFFL);
-    }
-
     private static final int KEY_SIZE = 16;
-    private static final int VALUE_SIZE = Bucket.METADATA_BYTECOUNT;
 
     /**
      * RocksDB key = <streamID, bucketID>. Since we ensure bucketIDs are assigned in increasing
@@ -68,66 +41,41 @@ public class RocksDBBucketStore implements BucketStore {
      */
     private byte[] getRocksDBKey(long streamID, long bucketID) {
         byte[] keyArray = new byte[KEY_SIZE];
-        longToByteArray(streamID, keyArray, 0);
-        longToByteArray(bucketID, keyArray, 8);
+        Utilities.longToByteArray(streamID, keyArray, 0);
+        Utilities.longToByteArray(bucketID, keyArray, 8);
         return keyArray;
     }
 
     private long parseRocksDBKeyStreamID(byte[] keyArray) {
-        return byteArrayToLong(keyArray, 0);
+        return Utilities.byteArrayToLong(keyArray, 0);
     }
 
     private long parseRocksDBKeyBucketID(byte[] keyArray) {
-        return byteArrayToLong(keyArray, 8);
-    }
-
-    private byte[] bucketToByteArray(Bucket bucket) {
-        byte[] valueArray = new byte[VALUE_SIZE];
-        longToByteArray(bucket.prevBucketID, valueArray, 0);
-        longToByteArray(bucket.thisBucketID, valueArray, 8);
-        longToByteArray(bucket.nextBucketID, valueArray, 16);
-        longToByteArray(bucket.tStart, valueArray, 24);
-        longToByteArray(bucket.tEnd, valueArray, 32);
-        longToByteArray(bucket.cStart, valueArray, 40);
-        longToByteArray(bucket.cEnd, valueArray, 48);
-        return valueArray;
-    }
-
-    private Bucket byteArrayToBucket(byte[] array) {
-        assert array.length == VALUE_SIZE;
-        long prevBucketID = byteArrayToLong(array, 16);
-        long thisBucketID = byteArrayToLong(array, 24);
-        long nextBucketID = byteArrayToLong(array, 32);
-        long tStart = byteArrayToLong(array, 40);
-        long tEnd = byteArrayToLong(array, 48);
-        long cStart = byteArrayToLong(array, 56);
-        long cEnd = byteArrayToLong(array, 64);
-        throw new NotImplementedException();
-        //return new Bucket(prevBucketID, thisBucketID, nextBucketID, tStart, tEnd, cStart, cEnd);
+        return Utilities.byteArrayToLong(keyArray, 8);
     }
 
     /**
      * Insert value into cache, evicting another cached entry if necessary
      */
-    private void insertIntoCache(Map<Long, Bucket> streamCache, long streamID, long bucketID, Bucket bucket) throws RocksDBException {
+    private void insertIntoCache(Map<Long, Bucket> streamCache, StreamManager streamManager, long bucketID, Bucket bucket) throws RocksDBException {
         assert streamCache != null;
         if (streamCache.size() >= cacheSizePerStream) { // evict something
             Map.Entry<Long, Bucket> evicted = streamCache.entrySet().iterator().next();
-            byte[] evictedKey = getRocksDBKey(streamID, evicted.getKey());
-            byte[] evictedValue = bucketToByteArray(evicted.getValue());
+            byte[] evictedKey = getRocksDBKey(streamManager.streamID, evicted.getKey());
+            byte[] evictedValue = streamManager.serializeBucket(evicted.getValue());
             rocksDB.put(evictedKey, evictedValue);
         }
         streamCache.put(bucketID, bucket);
     }
 
     @Override
-    public Bucket getBucket(long streamID, long bucketID, boolean delete) throws RocksDBException {
+    public Bucket getBucket(StreamManager streamManager, long bucketID, boolean delete) throws RocksDBException {
         ConcurrentHashMap<Long, Bucket> streamCache;
         if (cache == null) {
             streamCache = null;
         } else {
-            streamCache = cache.get(streamID);
-            if (streamCache == null) cache.put(streamID, streamCache = new ConcurrentHashMap<>());
+            streamCache = cache.get(streamManager.streamID);
+            if (streamCache == null) cache.put(streamManager.streamID, streamCache = new ConcurrentHashMap<>());
         }
 
         Bucket bucket = streamCache != null ? streamCache.get(bucketID) : null;
@@ -135,35 +83,35 @@ public class RocksDBBucketStore implements BucketStore {
             if (delete) streamCache.remove(bucketID);
             return bucket;
         } else { // either no cache or cache miss; read-through from RocksDB
-            byte[] rocksKey = getRocksDBKey(streamID, bucketID);
+            byte[] rocksKey = getRocksDBKey(streamManager.streamID, bucketID);
             byte[] rocksValue = rocksDB.get(rocksKey);
-            bucket = byteArrayToBucket(rocksValue);
+            bucket = streamManager.deserializeBucket(rocksValue);
             if (delete) {
                 rocksDB.remove(rocksKey);
             }
             if (streamCache != null) {
-                insertIntoCache(streamCache, streamID, bucketID, bucket);
+                insertIntoCache(streamCache, streamManager, bucketID, bucket);
             }
             return bucket;
         }
     }
 
     @Override
-    public void putBucket(long streamID, long bucketID, Bucket bucket) throws RocksDBException {
+    public void putBucket(StreamManager streamManager, long bucketID, Bucket bucket) throws RocksDBException {
         if (cache != null) {
-            ConcurrentHashMap<Long, Bucket> streamCache = cache.get(streamID);
-            if (streamCache == null) cache.put(streamID, streamCache = new ConcurrentHashMap<>());
+            ConcurrentHashMap<Long, Bucket> streamCache = cache.get(streamManager.streamID);
+            if (streamCache == null) cache.put(streamManager.streamID, streamCache = new ConcurrentHashMap<>());
 
-            insertIntoCache(streamCache, streamID, bucketID, bucket);
+            insertIntoCache(streamCache, streamManager, bucketID, bucket);
         } else {
-            byte[] key = getRocksDBKey(streamID, bucketID);
-            byte[] value = bucketToByteArray(bucket);
+            byte[] key = getRocksDBKey(streamManager.streamID, bucketID);
+            byte[] value = streamManager.serializeBucket(bucket);
             rocksDB.put(key, value);
         }
     }
 
     @Override
-    public void warmupCache() throws RocksDBException {
+    public void warmupCache(Map<Long, StreamManager> streamManagers) throws RocksDBException {
         if (cache == null) return;
 
         RocksIterator iter = null;
@@ -173,6 +121,8 @@ public class RocksDBBucketStore implements BucketStore {
                 byte[] keyArray = iter.key();
                 if (keyArray.length != KEY_SIZE) continue; // ignore metadataSpecialKey
                 long streamID = parseRocksDBKeyStreamID(keyArray);
+                StreamManager streamManager = streamManagers.get(streamID);
+                assert streamManager != null;
                 ConcurrentHashMap<Long, Bucket> streamCache = cache.get(streamID);
                 if (streamCache == null) {
                     cache.put(streamID, streamCache = new ConcurrentHashMap<>());
@@ -180,11 +130,26 @@ public class RocksDBBucketStore implements BucketStore {
                     continue;
                 }
                 long bucketID = parseRocksDBKeyBucketID(keyArray);
-                Bucket bucket = byteArrayToBucket(iter.value());
+                Bucket bucket = streamManager.deserializeBucket(iter.value());
                 streamCache.put(bucketID, bucket);
             }
         } finally {
             if (iter != null) iter.dispose();
+        }
+    }
+
+    @Override
+    public void flushCache(StreamManager streamManager) throws RocksDBException {
+        if (cache == null) return;
+        Map<Long, Bucket> streamCache = cache.get(streamManager.streamID);
+        if (streamCache != null) {
+            for (Map.Entry<Long, Bucket> bucketEntry : streamCache.entrySet()) {
+                long bucketID = bucketEntry.getKey();
+                Bucket bucket = bucketEntry.getValue();
+                byte[] rocksKey = getRocksDBKey(streamManager.streamID, bucketID);
+                byte[] rocksValue = streamManager.serializeBucket(bucket);
+                rocksDB.put(rocksKey, rocksValue);
+            }
         }
     }
 
@@ -209,20 +174,6 @@ public class RocksDBBucketStore implements BucketStore {
     @Override
     public void close() throws RocksDBException {
         if (rocksDB != null) {
-            if (cache != null) {
-                // flush cache to disk
-                for (ConcurrentHashMap.Entry<Long, ConcurrentHashMap<Long, Bucket>> streamEntry : cache.entrySet()) {
-                    long streamID = streamEntry.getKey();
-                    for (Map.Entry<Long, Bucket> bucketEntry : streamEntry.getValue().entrySet()) {
-                        long bucketID = bucketEntry.getKey();
-                        Bucket bucket = bucketEntry.getValue();
-                        byte[] rocksKey = getRocksDBKey(streamID, bucketID);
-                        byte[] rocksValue = bucketToByteArray(bucket);
-                        rocksDB.put(rocksKey, rocksValue);
-                    }
-                }
-                cache.clear(); // to free up memory
-            }
             rocksDB.close();
         }
         rocksDBOptions.dispose();

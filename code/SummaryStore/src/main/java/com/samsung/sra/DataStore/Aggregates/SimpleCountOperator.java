@@ -2,8 +2,8 @@ package com.samsung.sra.DataStore.Aggregates;
 
 import com.samsung.sra.DataStore.Bucket;
 import com.samsung.sra.DataStore.ResultError;
+import com.samsung.sra.DataStore.Utilities;
 import com.samsung.sra.DataStore.WindowOperator;
-import org.apache.commons.lang.NotImplementedException;
 
 import java.util.Collections;
 import java.util.List;
@@ -51,11 +51,11 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Long, Lon
 
     @Override
     public void serialize(Long aggr, byte[] array, int startIndex) {
-        throw new NotImplementedException();
+        Utilities.longToByteArray(aggr, array, startIndex);
     }
 
     @Override
     public Long deserialize(byte[] array, int startIndex) {
-        throw new NotImplementedException();
+        return Utilities.byteArrayToLong(array, startIndex);
     }
 }
