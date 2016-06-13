@@ -12,8 +12,6 @@ import java.util.HashMap;
 public class SummaryStore implements DataStore {
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(SummaryStore.class);
 
-    private final String filePrefix;
-
     private final BucketStore bucketStore;
 
     private final HashMap<Long, StreamManager> streamManagers;
@@ -27,7 +25,6 @@ public class SummaryStore implements DataStore {
      * start with filePrefix. To store everything in-memory use a null filePrefix
      */
     public SummaryStore(String filePrefix, long cacheSizePerStream) throws RocksDBException {
-        this.filePrefix = filePrefix;
         this.bucketStore = filePrefix != null ?
                 new RocksDBBucketStore(filePrefix + ".bucketStore", cacheSizePerStream) :
                 new MainMemoryBucketStore();

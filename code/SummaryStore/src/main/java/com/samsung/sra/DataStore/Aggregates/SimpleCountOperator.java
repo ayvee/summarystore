@@ -79,7 +79,7 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Long, Lon
     private static long getProportional(long qt0, long qt1, long bt0, long bt1, long bCount) {
         // the intersection of [a, b] and [p, q] is [max(a, p), min(b, q)]
         long l = Math.max(qt0, bt0), r = Math.min(qt1, bt1);
-        assert r - l <= bt1 - bt0;
+        assert r >= l && r - l <= bt1 - bt0;
         return bCount * (r - l + 1) / (bt1 - bt0 + 1); // TODO: check for int overflow issues
     }
 

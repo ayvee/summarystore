@@ -103,7 +103,7 @@ class CompareDecayFunctions {
                             long trueCount = q.trueAnswer;
                             long estCount = ((ResultError<Long, Long>)store.query(streamID, q.l, q.r, 0, q.params)).result;
                             double error = (trueCount == estCount) ? 0 :
-                                    Math.abs(estCount - trueCount) / (double)trueCount;
+                                    Math.abs(estCount - trueCount) / (1d + trueCount);
                             stats.addObservation(error);
                         } catch (Exception e) {
                             throw new RuntimeException(e);
