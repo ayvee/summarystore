@@ -1,9 +1,7 @@
 package com.samsung.sra.DataStoreExperiments;
 
-import com.samsung.sra.DataStore.ExponentialWindowLengths;
-import com.samsung.sra.DataStore.GenericWindowing;
-import com.samsung.sra.DataStore.RationalPowerWindowing;
-import com.samsung.sra.DataStore.Windowing;
+import com.samsung.sra.DataStore.*;
+import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
 
 /**
  * Helper class, constructs appropriate InterarrivalDistribution, ValueDistribution etc
@@ -60,5 +58,19 @@ class CLIParser {
             throw new IllegalArgumentException("unrecognized decay function " + name);
         }
 
+    }
+
+    static String getValidOperators() {
+        return "simplecountALGORITHM";
+    }
+
+    static WindowOperator parseOperator(String name) {
+        if (name == null) {
+            throw new IllegalArgumentException("expect non-null operator spec");
+        } else if (name.startsWith("simplecount")) {
+            return new SimpleCountOperator(SimpleCountOperator.Algorithm.valueOf(name.substring("simplecount".length())));
+        } else {
+            throw new IllegalArgumentException("unrecognized window operator " + name);
+        }
     }
 }

@@ -1,7 +1,7 @@
 #!/bin/bash
-if [ $# -lt 2 ]
+if [ $# -lt 3 ]
 then
-	echo "SYNTAX: $0 <directory> <T>"
+	echo "SYNTAX: $0 directory T operator [operator ...]"
 	exit 2
 fi
 Xmx=`./xmx.sh`
@@ -24,6 +24,6 @@ done
 
 for D in $Ds
 do
-	java -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.PopulateData $outdir $T $D -cachesize 10,000,000 $*
+	java -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.PopulateData -cachesize 10,000,000 $outdir $T $D $*
 done
 java -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.GenerateWorkload $outdir $T $*

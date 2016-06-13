@@ -14,9 +14,4 @@ done
 className=$1
 shift
 java -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.$className $*
-#java -cp $cp com.samsung.sra.DataStoreExperiments.AgeLengthEffect > age-length-matrix.tsv 2> age-length-scatter.tsv
 #java -cp $cp com.samsung.sra.WindowingOptimizer.UpperBoundOptimizer 2> opt.log | tee opt.tsv
-
-#./plot.sh
-#gnuplot age-length.gp
-#gnuplot opt.gp

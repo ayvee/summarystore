@@ -1,13 +1,19 @@
 package com.samsung.sra.DataStoreExperiments;
 
-import com.samsung.sra.DataStore.*;
-import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
+import com.samsung.sra.DataStore.CountBasedWBMH;
+import com.samsung.sra.DataStore.SummaryStore;
+import com.samsung.sra.DataStore.WindowOperator;
+import com.samsung.sra.DataStore.Windowing;
 import net.sourceforge.argparse4j.ArgumentParsers;
-import net.sourceforge.argparse4j.inf.*;
+import net.sourceforge.argparse4j.inf.ArgumentParser;
+import net.sourceforge.argparse4j.inf.ArgumentParserException;
+import net.sourceforge.argparse4j.inf.ArgumentType;
+import net.sourceforge.argparse4j.inf.Namespace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.PrintWriter;
+import java.util.ArrayList;
 
 public class PopulateData {
     private static final long streamID = 0;
@@ -19,6 +25,7 @@ public class PopulateData {
         parser.addArgument("outdir").help("output directory");
         parser.addArgument("T").help("size of stream to generate").type(CommaSeparatedLong);
         parser.addArgument("D").help("decay function [" + CLIParser.getValidDecayFunctions() + "]");
+        parser.addArgument("operator").nargs("+").help("window operators [" + CLIParser.getValidOperators() + "]");
         parser.addArgument("-I")
                 .help("interarrival distribution [" + CLIParser.getValidInterarrivalDistributions() + "]")
                 .setDefault("fixed1");
@@ -34,6 +41,7 @@ public class PopulateData {
         String outdir;
         long T;
         String I, V, D;
+        ArrayList<WindowOperator> operators = new ArrayList<>();
         InterarrivalDistribution interarrivals;
         ValueDistribution values;
         Windowing windowing;
@@ -53,6 +61,9 @@ public class PopulateData {
             values = CLIParser.parseValueDistribution(V);
             D = parsed.get("D");
             windowing = CLIParser.parseDecayFunction(D);
+            for (String opName: parsed.<String>getList("operator")) {
+                operators.add(CLIParser.parseOperator(opName));
+            }
             cacheSize = parsed.get("cachesize");
             R = parsed.get("R");
             prefix = parsed.get("prefix");
@@ -65,12 +76,13 @@ public class PopulateData {
 
         String outprefix = String.format("%s/%sT%d.I%s.V%s.R%d.D%s", outdir, prefix, T, I, V, R, D);
         StreamGenerator generator = new StreamGenerator(interarrivals, values, R);
-        populateData(outprefix, generator, T, windowing, cacheSize);
+        populateData(outprefix, generator, T, windowing, operators.toArray(new WindowOperator[0]), cacheSize);
     }
 
-    private static void populateData(String prefix, StreamGenerator streamGenerator, long T, Windowing windowing, long cacheSize) throws Exception {
+    private static void populateData(String prefix, StreamGenerator streamGenerator,
+                                     long T, Windowing windowing, WindowOperator[] operators, long cacheSize) throws Exception {
         SummaryStore store = new SummaryStore(prefix, cacheSize);
-        store.registerStream(streamID, new CountBasedWBMH(windowing), new SimpleCountOperator());
+        store.registerStream(streamID, new CountBasedWBMH(windowing), operators);
         streamGenerator.reset();
         streamGenerator.generate(T, (t, v) -> {
             try {

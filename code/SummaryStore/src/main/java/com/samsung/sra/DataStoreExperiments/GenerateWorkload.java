@@ -125,6 +125,7 @@ public class GenerateWorkload {
                 Long.valueOf(value.replace(",", ""));
         parser.addArgument("outdir").help("output directory");
         parser.addArgument("T").help("size of stream").type(CommaSeparatedLong);
+        parser.addArgument("operator").nargs("+").help("window operators [" + CLIParser.getValidOperators() + "]");
         parser.addArgument("-I")
                 .help("interarrival distribution [" + CLIParser.getValidInterarrivalDistributions() + "]")
                 .setDefault("fixed1");
