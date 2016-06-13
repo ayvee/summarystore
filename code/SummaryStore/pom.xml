@@ -24,11 +24,6 @@
             <artifactId>rocksdbjni</artifactId>
             <version>4.4</version>
         </dependency>
-        <dependency>
-            <groupId>de.ruedigermoeller</groupId>
-            <artifactId>fst</artifactId>
-            <version>2.42</version>
-        </dependency>
 		<dependency>
             <groupId>com.clearspring.analytics</groupId>
             <artifactId>stream</artifactId>
@@ -118,6 +113,4 @@
             </plugin>
         </plugins>
     </build>
-
-
 </project>
