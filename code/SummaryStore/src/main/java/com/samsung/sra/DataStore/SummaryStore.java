@@ -197,7 +197,7 @@ public class SummaryStore implements DataStore {
                 Windowing windowing
                         = new GenericWindowing(new ExponentialWindowLengths(2));
                         //= new RationalPowerWindowing(1, 1);
-                store.registerStream(streamID, new CountBasedWBMH(windowing), new SimpleCountOperator(SimpleCountOperator.Algorithm.UPPER_BOUND));
+                store.registerStream(streamID, new CountBasedWBMH(windowing), new SimpleCountOperator(SimpleCountOperator.Estimator.UPPER_BOUND));
                 for (long i = 0; i < 1023; ++i) {
                     store.append(streamID, i, i + 1);
                     store.printBucketState(streamID, true);

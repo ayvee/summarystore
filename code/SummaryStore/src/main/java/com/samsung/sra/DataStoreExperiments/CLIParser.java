@@ -61,14 +61,14 @@ class CLIParser {
     }
 
     static String getValidOperators() {
-        return "simplecountALGORITHM";
+        return "simplecountESTIMATOR";
     }
 
     static WindowOperator parseOperator(String name) {
         if (name == null) {
             throw new IllegalArgumentException("expect non-null operator spec");
         } else if (name.startsWith("simplecount")) {
-            return new SimpleCountOperator(SimpleCountOperator.Algorithm.valueOf(name.substring("simplecount".length())));
+            return new SimpleCountOperator(SimpleCountOperator.Estimator.valueOf(name.substring("simplecount".length())));
         } else {
             throw new IllegalArgumentException("unrecognized window operator " + name);
         }
