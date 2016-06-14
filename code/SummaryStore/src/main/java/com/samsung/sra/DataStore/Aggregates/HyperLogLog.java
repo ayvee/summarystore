@@ -1,12 +1,9 @@
 package com.samsung.sra.DataStore.Aggregates;
 
 import com.clearspring.analytics.hash.MurmurHash;
-import com.samsung.sra.DataStore.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Random;
 
 public class HyperLogLog {
@@ -21,7 +18,7 @@ public class HyperLogLog {
     private static final int leadingZeroBits = (1<<regWidth) - 1; // 15 for this config
     private static final int ignoreBits = hashSize - indexSize - leadingZeroBits; // number of msb that are ignored for leading zero counting
 
-    private double estimate;
+    double estimate;
     private static int maxlZero;
 
     private int[] estimateBuckets;
@@ -33,10 +30,6 @@ public class HyperLogLog {
         estimate=0;
         estimateBuckets = new int[numRegisters];
         //System.out.println("Currently registered operators: " + WindowOperator.returnAggrOperatorTypes().size());
-    }
-
-    public static List<QueryType> getSupportedQueries() {
-        return Collections.singletonList(QueryType.COUNT);
     }
 
     protected static double getAlphaMM(final int p, final int m) {
@@ -77,7 +70,6 @@ public class HyperLogLog {
         return Math.ceil(estimate);
     }
 
-    // TODO: operator
     public HyperLogLog merge(HyperLogLog... hyperLogLogAggrOperators) {
         HyperLogLog mergedResult = new HyperLogLog();
 
