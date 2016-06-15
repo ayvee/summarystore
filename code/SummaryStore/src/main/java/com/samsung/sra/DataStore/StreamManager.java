@@ -122,6 +122,14 @@ class StreamManager implements Serializable {
         }
     }
 
+    //void merge(Bucket bucket, long tEnd, Object value, long cEnd) {
+    //    bucket.count += 1;
+    //    bucket.sum += (long)value;
+    //    bucket.tEnd = tEnd;
+    //    bucket.cEnd = cEnd;
+    //}
+
+
     Bucket createEmptyBucket(long prevBucketID, long thisBucketID, long nextBucketID,
                              long tStart, long tEnd, long cStart, long cEnd) {
         return new Bucket(operators, prevBucketID, thisBucketID, nextBucketID, tStart, tEnd, cStart, cEnd);

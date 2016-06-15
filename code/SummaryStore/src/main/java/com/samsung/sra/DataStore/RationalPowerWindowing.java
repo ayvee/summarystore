@@ -90,4 +90,18 @@ public class RationalPowerWindowing implements Windowing {
     public long getSizeOfFirstWindow() {
         return S;
     }
+
+    @Override
+    public long getWindowLength(int index) {
+        return 0;
+    }
+
+    @Override
+    public long getTotalWindowLength(int numWindow) {
+        return 0;
+    }
+
+
+
+
 }

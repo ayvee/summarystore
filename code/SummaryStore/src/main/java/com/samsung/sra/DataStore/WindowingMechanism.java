@@ -21,4 +21,10 @@ public interface WindowingMechanism extends Serializable {
 
     // deserialization hook
     default void populateTransientFields() {}
+
+    /**
+     * insert the latest items into the ingest buffer.
+     */
+    void appendBuf(StreamManager streamManager, long ts, Object value) throws RocksDBException;
+
 }

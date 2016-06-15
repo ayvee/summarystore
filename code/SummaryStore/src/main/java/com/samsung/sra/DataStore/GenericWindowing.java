@@ -84,4 +84,15 @@ public class GenericWindowing implements Windowing {
     public long getSizeOfFirstWindow() {
         return firstWindowLength;
     }
+
+    @Override
+    public long getWindowLength(int index) {
+        return windowLengths.getLength(index);
+    }
+
+    @Override
+    public long getTotalWindowLength(int numWindow) {
+        return windowLengths.getTotalLength(numWindow);
+    }
+
 }

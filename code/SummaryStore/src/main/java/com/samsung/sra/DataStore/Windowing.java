@@ -17,4 +17,10 @@ public interface Windowing extends Serializable {
 
     // FIXME?  Strictly, unnecessary; can replace with getFirstContainingTime(T-k, T, T+1) == 0
     long getSizeOfFirstWindow();
+
+    long getWindowLength(int index);
+
+    long getTotalWindowLength(int numWindow);
+
+
 }
