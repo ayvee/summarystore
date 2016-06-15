@@ -86,7 +86,7 @@ public class PopulateData {
         streamGenerator.reset();
         streamGenerator.generate(T, (t, v) -> {
             try {
-                store.appendBuf(streamID, t, v);
+                store.append(streamID, t, v);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

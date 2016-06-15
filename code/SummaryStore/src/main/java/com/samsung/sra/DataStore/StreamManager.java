@@ -70,14 +70,6 @@ class StreamManager implements Serializable {
         lastValueTimestamp = ts;
     }
 
-    void appendBuf(long ts, Object value) throws RocksDBException, StreamException {
-        if (ts <= lastValueTimestamp) throw new StreamException("out-of-order insert in stream " + streamID);
-        windowingMechanism.appendBuf(this, ts, value);
-        ++numValues;
-        lastValueTimestamp = ts;
-    }
-
-
     Object query(int operatorNum, long t0, long t1, Object[] queryParams) throws RocksDBException {
         if (t0 > lastValueTimestamp) {
             return operators[operatorNum].getEmptyQueryResult();
@@ -129,14 +121,6 @@ class StreamManager implements Serializable {
             buckets[0].aggregates[i] = operators[i].merge(Stream.of(buckets).map(b -> b.aggregates[i]));
         }
     }
-
-    //void merge(Bucket bucket, long tEnd, Object value, long cEnd) {
-    //    bucket.count += 1;
-    //    bucket.sum += (long)value;
-    //    bucket.tEnd = tEnd;
-    //    bucket.cEnd = cEnd;
-    //}
-
 
     Bucket createEmptyBucket(long prevBucketID, long thisBucketID, long nextBucketID,
                              long tStart, long tEnd, long cStart, long cEnd) {

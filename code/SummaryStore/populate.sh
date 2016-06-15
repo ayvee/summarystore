@@ -17,10 +17,10 @@ shift
 T=$1
 shift
 Ds="exponential2"
-#for p in 1 2 3 4 5 6 7 8 9 11 13 15 18 21 24 28 32
-#do
-#	Ds="$Ds rationalPower$p,1"
-#done
+for p in 1 2 3 4 5 6 7 8 9 11 13 15 18 21 24 28 32
+do
+	Ds="$Ds rationalPower$p,1"
+done
 
 for D in $Ds
 do

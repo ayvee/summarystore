@@ -98,26 +98,6 @@ public class SummaryStore implements DataStore {
         }
     }
 
-    public void appendBuf(long streamID, long ts, Object value) throws StreamException, RocksDBException {
-        final StreamManager streamManager;
-        synchronized (streamManagers) {
-            if (!streamManagers.containsKey(streamID)) {
-                throw new StreamException("attempting to append to unregistered stream " + streamID);
-            } else {
-                streamManager = streamManagers.get(streamID);
-            }
-        }
-
-        streamManager.lock.writeLock().lock();
-        try {
-            streamManager.appendBuf(ts, value);
-        } finally {
-            streamManager.lock.writeLock().unlock();
-        }
-    }
-
-
-
     public void printBucketState(long streamID, boolean printPerBucketState) throws RocksDBException {
         StreamManager streamManager = streamManagers.get(streamID);
         System.out.println("Stream " + streamID + " with " + streamManager.numValues + " elements in " +
