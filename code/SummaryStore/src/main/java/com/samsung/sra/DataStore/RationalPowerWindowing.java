@@ -93,11 +93,19 @@ public class RationalPowerWindowing implements Windowing {
 
     @Override
     public long getWindowLength(int index) {
+	/*
+	 * to do
+	 */
+	System.err.println("getWindowLength in RationalPowerWindowing is not implemented yet");
         return 0;
     }
 
     @Override
     public long getTotalWindowLength(int numWindow) {
+	/*
+	 * to do
+	 */
+	System.err.println("getTotalWindowLength in RationalPowerWindowing is not implemented yet");
         return 0;
     }
 
