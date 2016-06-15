@@ -70,6 +70,19 @@ public class CountBasedWBMH implements WindowingMechanism {
         }
     }
 
+    private void updateMergeCountForBatch(Bucket b0, Bucket b1, long newN) {
+        if (b0 == null || b1 == null) return;
+
+        Heap.Entry<Long, Long> existingEntry = heapEntries.remove(b0.thisBucketID);
+        if (existingEntry != null) mergeCounts.delete(existingEntry);
+
+        long newMergeCount = windowing.getFirstContainingTime(b0.cStart, b1.cEnd, newN);
+        if (newMergeCount != -1) {
+            heapEntries.put(b0.thisBucketID, mergeCounts.insert(newMergeCount, b0.thisBucketID));
+        }
+    }
+
+
 
     private void updateMergeCountForBuf(Bucket b0, long cEnd, long cnt) {
         if (b0 == null) return;
@@ -191,7 +204,7 @@ public class CountBasedWBMH implements WindowingMechanism {
 		    if(curBucket.nextBucketID != -1) {
 		        Bucket nextBucket = streamManager.getBucket(curBucket.nextBucketID);
 			System.out.println("update merge count");
-		        updateMergeCountFor(curBucket, nextBucket);
+		        updateMergeCountForBatch(curBucket, nextBucket, curN + bufSize);
 			curBucketID = curBucket.nextBucketID;
 		    }
 		    else{ 
@@ -224,8 +237,8 @@ public class CountBasedWBMH implements WindowingMechanism {
 
                 Heap.Entry<Long, Long> b1entry = heapEntries.remove(b1.thisBucketID);
                 if (b1entry != null) mergeCounts.delete(b1entry);
-                updateMergeCountFor(bm1, b0);
-                updateMergeCountFor(b0, b2);
+                updateMergeCountForBatch(bm1, b0, curN + bufSize);
+                updateMergeCountForBatch(b0, b2, curN + bufSize);
 
                 if (bm1 != null) streamManager.putBucket(bm1.thisBucketID, bm1);
                 streamManager.putBucket(b0.thisBucketID, b0);
@@ -423,7 +436,10 @@ public class CountBasedWBMH implements WindowingMechanism {
 	    }
 
 	    if(lastBucketID >= 0) {
-		processMergeQueue(streamManager, lastNBeforeMerge, totalBucketInBuf);
+		/**
+		  * call this for one by one merge
+		  */
+		processMergeQueue(streamManager, lastNBeforeMerge, bufSize);
 	
 		long tmpLastBucketID = lastBucketID;	
 		Bucket lastBucket = streamManager.getBucket(lastBucketID);
@@ -436,6 +452,10 @@ public class CountBasedWBMH implements WindowingMechanism {
 		    streamManager.putBucket(headBucketID, headBucket);
 	            lastBucketID = lastBucketIDBeforeMerge;	
 		}
+
+		/**
+		  * call this for batch merge
+		  */
 	        //processMergeQueueForBuf(streamManager, lastNBeforeMerge, tmpLastBucketID);
 
             }
