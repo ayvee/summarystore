@@ -1,5 +1,6 @@
 package com.samsung.sra.DataStore;
 
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -92,24 +93,7 @@ public class RationalPowerWindowing implements Windowing {
     }
 
     @Override
-    public long getWindowLength(int index) {
-	/*
-	 * to do
-	 */
-	System.err.println("getWindowLength in RationalPowerWindowing is not implemented yet");
-        return 0;
+    public List<Long> getSizeOfFirstKWindows(int k) {
+        throw new UnsupportedOperationException();
     }
-
-    @Override
-    public long getTotalWindowLength(int numWindow) {
-	/*
-	 * to do
-	 */
-	System.err.println("getTotalWindowLength in RationalPowerWindowing is not implemented yet");
-        return 0;
-    }
-
-
-
-
 }

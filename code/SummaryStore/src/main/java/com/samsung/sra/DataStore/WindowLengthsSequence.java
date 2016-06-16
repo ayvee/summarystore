@@ -12,9 +12,4 @@ public interface WindowLengthsSequence extends Serializable {
     default long maxWindowSize() {
         return Long.MAX_VALUE;
     }
-
-    long getLength(int index);
-
-    long getTotalLength(int numWindow);
-
 }

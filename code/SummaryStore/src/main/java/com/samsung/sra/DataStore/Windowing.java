@@ -1,6 +1,7 @@
 package com.samsung.sra.DataStore;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * These are the two properties of a window sequence that WBMH actually needs to know.
@@ -18,9 +19,5 @@ public interface Windowing extends Serializable {
     // FIXME?  Strictly, unnecessary; can replace with getFirstContainingTime(T-k, T, T+1) == 0
     long getSizeOfFirstWindow();
 
-    long getWindowLength(int index);
-
-    long getTotalWindowLength(int numWindow);
-
-
+    List<Long> getSizeOfFirstKWindows(int k);
 }

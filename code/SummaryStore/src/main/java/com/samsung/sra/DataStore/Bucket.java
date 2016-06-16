@@ -39,7 +39,8 @@ public class Bucket implements Serializable {
     public String toString() {
         String ret = "<bucket " + thisBucketID;
         ret += ", time range [" + tStart + ":" + tEnd + "]";
-        ret += ", count range [" + cStart + ":" + cEnd + "]>";
+        ret += ", count range [" + cStart + ":" + cEnd + "]";
+        ret += ", count = " + (cEnd - cStart + 1) + ">";
         return ret;
     }
 }

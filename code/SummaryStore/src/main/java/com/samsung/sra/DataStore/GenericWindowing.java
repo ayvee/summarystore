@@ -1,7 +1,6 @@
 package com.samsung.sra.DataStore;
 
-import java.util.TreeMap;
-import java.util.TreeSet;
+import java.util.*;
 
 public class GenericWindowing implements Windowing {
     private final WindowLengthsSequence windowLengths;
@@ -52,6 +51,13 @@ public class GenericWindowing implements Windowing {
         }
     }
 
+    /** Add windows until we have at least the specified count */
+    private void addWindowsUntilCount(int count) {
+        while (windowStartMarkers.size() < count) {
+            addWindow(windowLengths.nextWindowLength());
+        }
+    }
+
     @Override
     public long getFirstContainingTime(long Tl, long Tr, long T) {
         assert 0 <= Tl && Tl <= Tr && Tr < T;
@@ -86,13 +92,23 @@ public class GenericWindowing implements Windowing {
     }
 
     @Override
-    public long getWindowLength(int index) {
-        return windowLengths.getLength(index);
+    public List<Long> getSizeOfFirstKWindows(int k) {
+        addWindowsUntilCount(k);
+        List<Long> ret = new ArrayList<>();
+        long prevMarker = -1;
+        for (long currMarker: windowStartMarkers) {
+            if (prevMarker != -1) {
+                ret.add(currMarker - prevMarker);
+                if (ret.size() == k) break;
+            }
+            prevMarker = currMarker;
+        }
+        if (ret.size() == k - 1) {
+            assert prevMarker == lastWindowStart;
+            ret.add(lastWindowLength);
+        } else {
+            assert ret.size() == k;
+        }
+        return ret;
     }
-
-    @Override
-    public long getTotalWindowLength(int numWindow) {
-        return windowLengths.getTotalLength(numWindow);
-    }
-
 }

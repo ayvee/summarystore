@@ -127,6 +127,7 @@ public class SummaryStore implements DataStore {
             }
             for (StreamManager streamManager: streamManagers.values()) {
                 bucketStore.flushCache(streamManager);
+                streamManager.windowingMechanism.close(streamManager);
                 //streamManager.temporalIndex.close();
             }
             // at this point all operations on existing streams will be blocked
@@ -202,7 +203,6 @@ public class SummaryStore implements DataStore {
                     store.append(streamID, i, i + 1);
                     store.printBucketState(streamID, true);
                 }
-                //((RationalPowerWindowing) windowing).printDebug();
             } else {
                 store.printBucketState(streamID);
             }

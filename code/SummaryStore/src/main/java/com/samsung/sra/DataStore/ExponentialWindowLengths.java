@@ -17,27 +17,4 @@ public class ExponentialWindowLengths implements WindowLengthsSequence {
         next *= base;
         return (long)Math.ceil(prev);
     }
-
-    @Override
-    public long getLength(int index) {
-        double start = 1;
-
-        for(int i = 0; i < index; i++){
-            start *= base;
-        }
-        return (long)Math.ceil(start);
-    }
-
-    @Override
-    public long getTotalLength(int numWindow) {
-        double start = 1;
-        double sum = start;
-
-        for(int i = 0; i < numWindow - 1; i++){
-            start *= base;
-            sum += start;
-        }
-        return (long)Math.ceil(sum);
-    }
-
 }
