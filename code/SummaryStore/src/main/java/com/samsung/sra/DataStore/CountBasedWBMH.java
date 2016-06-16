@@ -196,6 +196,7 @@ public class CountBasedWBMH implements WindowingMechanism {
 		Object iValue;
 		Map.Entry<Long, Object> entry;
 		long lastBucketIDBeforeMerge = lastBucketID;
+		long lastNBeforeMerge = N;
 
 		long headBucketID = 0;
 
@@ -257,6 +258,8 @@ public class CountBasedWBMH implements WindowingMechanism {
                 streamManager.putBucket(headBucketID, headBucket);
                 lastBucketID = lastBucketIDBeforeMerge;
             }
+
+			processMergeQueueForBuf(streamManager, lastNBeforeMerge, tmpLastBucketID);
         } else {
             lastBucketID = lastBucketIDBeforeMerge;
         }
