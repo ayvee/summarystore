@@ -98,7 +98,7 @@ public class CountBasedWBMH implements WindowingMechanism {
 
 	@Override
 	public void close(StreamManager manager) throws RocksDBException {
-		flushBuffer(manager);
+		if (bufferSize > 0) flushBuffer(manager);
 	}
 
 	public void appendUnbuffered(StreamManager streamManager, long ts, Object value) throws RocksDBException {
@@ -180,7 +180,6 @@ public class CountBasedWBMH implements WindowingMechanism {
 
 
 	void flushBuffer(StreamManager manager) throws RocksDBException {
-		if (bufferSize <= 0) return;
 		if (buffer.size() == bufferSize) {
 			flushFullBuffer(manager);
 		} else { // append elements one by one
