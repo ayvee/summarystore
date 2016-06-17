@@ -42,8 +42,6 @@ public class CountBasedWBMH implements WindowingMechanism {
 	 * numWindowsToBuffer argument is specified and positive, buffer the newest
 	 * numWindows buckets in memory, and only flush them to disk and update the
 	 * windowing once they're all full.
-	 *
-	 * TODO: flush buffer when stream is closed
      */
 	public CountBasedWBMH(Windowing windowing, int numWindowsToBuffer) {
 		this.windowing = windowing;
@@ -70,23 +68,6 @@ public class CountBasedWBMH implements WindowingMechanism {
 		}
 	}
 
-	/**
-	 * Set mergeCounts[(b1, b2)] = first N' >= N such that (b0, b1) will need to be
-	 *                             merged after N' elements have been inserted
-     */
-	private void updateMergeCountFor(Bucket b0, Bucket b1, long N) {
-		if (b0 == null || b1 == null) return;
-
-		Heap.Entry<Long, Long> existingEntry = heapEntries.remove(b0.thisBucketID);
-		if (existingEntry != null) mergeCounts.delete(existingEntry);
-
-		long newMergeCount = windowing.getFirstContainingTime(b0.cStart, b1.cEnd, N);
-		if (newMergeCount != -1) {
-			heapEntries.put(b0.thisBucketID, mergeCounts.insert(newMergeCount, b0.thisBucketID));
-		}
-	}
-
-
 	@Override
 	public void append(StreamManager streamManager, long ts, Object value) throws RocksDBException {
 		if (numWindowsInBuffer == 0) {
@@ -95,6 +76,7 @@ public class CountBasedWBMH implements WindowingMechanism {
 			appendBuffered(streamManager, ts, value);
 		}
 	}
+
 
 	@Override
 	public void close(StreamManager manager) throws RocksDBException {
@@ -134,6 +116,46 @@ public class CountBasedWBMH implements WindowingMechanism {
 		++N;
 	}
 
+	public void appendBuffered(StreamManager streamManager, long ts, Object value) throws RocksDBException{
+		if (logger.isDebugEnabled() && N % 1_000_000 == 0) {
+			logger.debug("N = {}, mergeCounts.size = {}", N, mergeCounts.getSize());
+		}
+
+		assert buffer.size() < bufferSize;
+		buffer.add(new AbstractMap.SimpleEntry<>(ts, value));
+		if (buffer.size() == bufferSize) { // buffer is full, flush
+			flushFullBuffer(streamManager);
+		}
+	}
+
+	void flushBuffer(StreamManager manager) throws RocksDBException {
+		if (buffer.size() == bufferSize) {
+			flushFullBuffer(manager);
+		} else { // append elements one by one
+			for (Map.Entry<Long, Object> entry: buffer) {
+				appendUnbuffered(manager, entry.getKey(), entry.getValue());
+			}
+			buffer.clear();
+		}
+	}
+
+	/**
+	 * Set mergeCounts[(b1, b2)] = first N' >= N such that (b0, b1) will need to be
+	 *                             merged after N' elements have been inserted
+	 */
+	private void updateMergeCountFor(Bucket b0, Bucket b1, long N) {
+		if (b0 == null || b1 == null) return;
+
+		Heap.Entry<Long, Long> existingEntry = heapEntries.remove(b0.thisBucketID);
+		if (existingEntry != null) mergeCounts.delete(existingEntry);
+
+		long newMergeCount = windowing.getFirstContainingTime(b0.cStart, b1.cEnd, N);
+		if (newMergeCount != -1) {
+			heapEntries.put(b0.thisBucketID, mergeCounts.insert(newMergeCount, b0.thisBucketID));
+		}
+	}
+
+
 	/** Advance count marker to N, apply the WBMH test, process any merges that result */
 	private void processMergesUntil(StreamManager streamManager, long N) throws RocksDBException {
 		while (!mergeCounts.isEmpty() && mergeCounts.getMinimum().getKey() <= N) {
@@ -163,30 +185,6 @@ public class CountBasedWBMH implements WindowingMechanism {
 			if (bm1 != null) streamManager.putBucket(bm1.thisBucketID, bm1);
 			streamManager.putBucket(b0.thisBucketID, b0);
 			if (b2 != null) streamManager.putBucket(b2.thisBucketID, b2);
-		}
-	}
-
-	public void appendBuffered(StreamManager streamManager, long ts, Object value) throws RocksDBException{
-		if (logger.isDebugEnabled() && N % 1_000_000 == 0) {
-			logger.debug("N = {}, mergeCounts.size = {}", N, mergeCounts.getSize());
-		}
-
-		assert buffer.size() < bufferSize;
-		buffer.add(new AbstractMap.SimpleEntry<>(ts, value));
-		if (buffer.size() == bufferSize) { // buffer is full, flush
-			flushFullBuffer(streamManager);
-		}
-	}
-
-
-	void flushBuffer(StreamManager manager) throws RocksDBException {
-		if (buffer.size() == bufferSize) {
-			flushFullBuffer(manager);
-		} else { // append elements one by one
-			for (Map.Entry<Long, Object> entry: buffer) {
-				appendUnbuffered(manager, entry.getKey(), entry.getValue());
-			}
-			buffer.clear();
 		}
 	}
 
