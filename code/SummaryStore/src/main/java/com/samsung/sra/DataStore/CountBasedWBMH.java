@@ -196,7 +196,7 @@ public class CountBasedWBMH implements WindowingMechanism {
 		Object iValue;
 		Map.Entry<Long, Object> entry;
 		long lastBucketIDBeforeMerge = lastBucketID;
-		long lastNBeforeMerge = N;
+		long lastNBeforeMerge = N + 1;
 
 		long headBucketID = 0;
 
