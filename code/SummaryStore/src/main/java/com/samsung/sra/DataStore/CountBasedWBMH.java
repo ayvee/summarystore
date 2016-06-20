@@ -249,80 +249,79 @@ public class CountBasedWBMH implements WindowingMechanism {
 		long headBucketID = 0;
 
 		for(int i = numWindowsInBuffer - 1; i >= 0; i--) {
-            Bucket lastBucket;
-            if(i == (numWindowsInBuffer - 1)) {
-                lastBucket = null;
-                headBucketID = lastBucketIDBeforeMerge + 1;
-            }
-            else {
-                lastBucket = streamManager.getBucket(lastBucketIDBeforeMerge);
-            }
+                    Bucket lastBucket;
+                    if(i == (numWindowsInBuffer - 1)) {
+                        lastBucket = null;
+                        headBucketID = lastBucketIDBeforeMerge + 1;
+                    }
+                    else {
+                        lastBucket = streamManager.getBucket(lastBucketIDBeforeMerge);
+                    }
 
-            Bucket[] bucketList = new Bucket[bufferedWindowLengths.get(i)];
+                    Bucket[] bucketList = new Bucket[bufferedWindowLengths.get(i)];
 
-            long newBucketID = lastBucketIDBeforeMerge + 1;
-            entry = buffer.get(processedItem);
-            iTs = entry.getKey();
-            iValue = entry.getValue();
-            ++N;
-            Bucket newBucket = streamManager.createEmptyBucket(lastBucketIDBeforeMerge, newBucketID, -1, iTs, iTs, N-1, N-1);
-            streamManager.insertValueIntoBucket(newBucket, iTs, iValue);
-            processedItem++;
+                    long newBucketID = lastBucketIDBeforeMerge + 1;
+                    entry = buffer.get(processedItem);
+                    iTs = entry.getKey();
+                    iValue = entry.getValue();
+                    ++N;
+                    Bucket newBucket = streamManager.createEmptyBucket(lastBucketIDBeforeMerge, newBucketID, -1, iTs, iTs, N-1, N-1);
+                    streamManager.insertValueIntoBucket(newBucket, iTs, iValue);
+                    processedItem++;
 
-            bucketList[0] = newBucket;
+                    bucketList[0] = newBucket;
 
-            for(int j = 1; j < bufferedWindowLengths.get(i); j++) {
-                entry = buffer.get(processedItem);
-                iTs = entry.getKey();
-                iValue = entry.getValue();
-                ++N;
-                Bucket tmpBucket = streamManager.createEmptyBucket(-1, -1, -1, iTs, iTs, N-1, N-1);
-                streamManager.insertValueIntoBucket(tmpBucket, iTs, iValue);
-                bucketList[j] = tmpBucket;
-                processedItem++;
-            }
+                    for(int j = 1; j < bufferedWindowLengths.get(i); j++) {
+                        entry = buffer.get(processedItem);
+                        iTs = entry.getKey();
+                        iValue = entry.getValue();
+                        ++N;
+                        Bucket tmpBucket = streamManager.createEmptyBucket(-1, -1, -1, iTs, iTs, N-1, N-1);
+                        streamManager.insertValueIntoBucket(tmpBucket, iTs, iValue);
+                        bucketList[j] = tmpBucket;
+                        processedItem++;
+                    }
 
-            streamManager.mergeBuckets(bucketList);
+                    streamManager.mergeBuckets(bucketList);
 
-            streamManager.putBucket(newBucketID, newBucket);
+                    streamManager.putBucket(newBucketID, newBucket);
 
-            if(lastBucket != null) {
-                lastBucket.nextBucketID = newBucketID;
-                streamManager.putBucket(lastBucketIDBeforeMerge, lastBucket);
-            }
-            lastBucketIDBeforeMerge = newBucketID;
+                    if(lastBucket != null) {
+                        lastBucket.nextBucketID = newBucketID;
+                        streamManager.putBucket(lastBucketIDBeforeMerge, lastBucket);
+                    }
+                    lastBucketIDBeforeMerge = newBucketID;
 
-        }
+              }
 
-		if(lastBucketID >= 0) {
-            long tmpLastBucketID = lastBucketID;
-            Bucket lastBucket = streamManager.getBucket(lastBucketID);
-            Bucket headBucket = streamManager.getBucket(headBucketID);
+	      if(lastBucketID >= 0) {
+                  long tmpLastBucketID = lastBucketID;
+                  Bucket lastBucket = streamManager.getBucket(lastBucketID);
+                  Bucket headBucket = streamManager.getBucket(headBucketID);
 
-            if(lastBucket != null && headBucket != null){
-                lastBucket.nextBucketID = headBucketID;
-                headBucket.prevBucketID = lastBucketID;
-                streamManager.putBucket(lastBucketID, lastBucket);
-                streamManager.putBucket(headBucketID, headBucket);
-                lastBucketID = lastBucketIDBeforeMerge;
-            }
+                  if(lastBucket != null && headBucket != null){
+                      lastBucket.nextBucketID = headBucketID;
+                      headBucket.prevBucketID = lastBucketID;
+                      streamManager.putBucket(lastBucketID, lastBucket);
+                      streamManager.putBucket(headBucketID, headBucket);
+                      lastBucketID = lastBucketIDBeforeMerge;
+                  }
 
-			processMergeQueueForBuf(streamManager, lastNBeforeMerge, tmpLastBucketID);
-        } else {
-            lastBucketID = lastBucketIDBeforeMerge;
-        }
+	          processMergeQueueForBuf(streamManager, lastNBeforeMerge, tmpLastBucketID);
+              } else {
+                  lastBucketID = lastBucketIDBeforeMerge;
+              }
 
-		// print out the list of windows
-		long prevBucketID = lastBucketID;
+	      // print out the list of windows
+	      long prevBucketID = lastBucketID;
 
-		do{
-            Bucket curBucket = streamManager.getBucket(prevBucketID);
-            prevBucketID = curBucket.prevBucketID;
-            //System.out.println(curBucket.count);
+	      do{
+                  Bucket curBucket = streamManager.getBucket(prevBucketID);
+                  prevBucketID = curBucket.prevBucketID;
+            	  //System.out.println(curBucket.count);
+              } while(prevBucketID != -1);
 
-        } while(prevBucketID != -1);
-
-		buffer.clear();
+	      buffer.clear();
 	}
 
 	private void processMergeQueueForBuf(StreamManager streamManager, long curN, long headBucketID) throws RocksDBException {
