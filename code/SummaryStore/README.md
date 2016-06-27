@@ -26,12 +26,12 @@ Each experiment runs in three phases:
      decay function, i.e. a storage vs accuracy plot. Error profiles are cached on disk, so trying alternate weight and
      metric combinations (after CompareDecayFunctions has been run once) shouldn't take much time.
 
-Run any class with -h (e.g. ./run.sh PopulateData -h) to see supported operations.
+Run any class with -h (e.g. ./run.sh PopulateData -h) to see supported parameters.
 
 Quickstart (more detailed instructions later):
 
     mkdir datasets
-    export T=1,000,000 (say)
+    export T=1,000,000 # (say)
     ./populate.sh $T datasets simplecountUPPER_BOUND # runs PopulateData and GenerateWorkload
     ./run.sh CompareDecayFunctions datasets $T
 
