@@ -13,8 +13,8 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
- * Handles all operations on a particular stream, both the low-level Bucket get, create
- * and merge operations initiated by WBMH as well as the high-level append() and query()
+ * Handles all operations on a particular stream, both the southbound Bucket get, create
+ * and merge operations initiated by WBMH as well as the northbound append() and query()
  * operations initiated by clients via SummaryStore. Stores aggregate per-stream information
  * as well as in-memory indexes. The buckets themselves are not stored directly here, they
  * go into the underlying bucketStore.

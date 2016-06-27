@@ -3,7 +3,6 @@ package com.samsung.sra.DataStoreExperiments;
 import com.changingbits.Builder;
 import com.changingbits.LongRange;
 import com.changingbits.LongRangeMultiSet;
-import com.samsung.sra.DataStore.QueryType;
 import com.samsung.sra.DataStore.StreamException;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.*;
@@ -25,21 +24,21 @@ public class GenerateWorkload {
 
     public static class Query<R> implements Serializable {
         long l, r;
-        QueryType type;
+        int operatorNum;
         Object[] params;
         R trueAnswer;
 
-        public Query(long l, long r, QueryType type, Object[] params, R trueAnswer) {
+        public Query(long l, long r, int operatorNum, Object[] params, R trueAnswer) {
             this.l = l;
             this.r = r;
-            this.type = type;
+            this.operatorNum = operatorNum;
             this.params = params;
             this.trueAnswer = trueAnswer;
         }
 
         @Override
         public String toString() {
-            return type + "[" + l + ", " + r + "] = " + trueAnswer;
+            return "trueAnswer[" + l + ", " + r + "] = " + trueAnswer;
         }
     }
 
@@ -60,7 +59,7 @@ public class GenerateWorkload {
                     long age = al.first(), length = al.second();
                     long l = T - length + 1 - age, r = T - age;
                     if (0 <= l && r < T) {
-                        Query<Long> query = new Query<>(l, r, QueryType.COUNT, null, 0L);
+                        Query<Long> query = new Query<>(l, r, 0, null, 0L);
                         thisClassQueries.add(query);
                         allQueries.add(query);
                         queryIntervals.add(new LongRange(l + ":" + r, l, true, r, true));
@@ -90,7 +89,6 @@ public class GenerateWorkload {
             int matchCount = lrms.lookup(t, matchedIndexes);
             for (int i = 0; i < matchCount; ++i) {
                 Query<Long> q = queries.get(matchedIndexes[i]);
-                assert q.type == QueryType.COUNT;
                 ++q.trueAnswer;
             }
         });
@@ -108,7 +106,7 @@ public class GenerateWorkload {
             long a = Math.floorMod(random.nextLong(), T), b = Math.floorMod(random.nextLong(), T);
             long l = Math.min(a, b), r = Math.max(a, b);
             intervals.add(new LongRange(l + ":" + r, l , true, r, true));
-            queries.add(new Query<>(l, r, QueryType.COUNT, null, 0L));
+            queries.add(new Query<>(l, r, 0, null, 0L));
         }
         computeTrueAnswers(T, streamGenerator, intervals, queries);
         for (Query<Long> q: queries) {

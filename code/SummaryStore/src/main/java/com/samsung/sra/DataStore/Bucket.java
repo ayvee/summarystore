@@ -2,11 +2,11 @@ package com.samsung.sra.DataStore;
 
 import java.io.Serializable;
 
-/** All the code creating, manipulating, and querying buckets is in StreamManager */
+/** Dumb structs. All the code creating, manipulating, and querying buckets is in StreamManager */
 public class Bucket implements Serializable {
     // metadata
     /* We use longs for bucket IDs, timestamps, and count markers. Valid values should be
-       non-negative (all three are 0-indexed), and use "-1" to indicate null values. */
+       non-negative (all three are 0-indexed); use "-1" to indicate null values. */
     // TODO: weaken access modifiers
     public long prevBucketID, thisBucketID, nextBucketID;
     public long tStart, tEnd;

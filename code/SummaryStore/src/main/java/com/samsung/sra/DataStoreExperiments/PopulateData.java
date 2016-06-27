@@ -25,7 +25,7 @@ public class PopulateData {
         parser.addArgument("outdir").help("output directory");
         parser.addArgument("T").help("size of stream to generate").type(CommaSeparatedLong);
         parser.addArgument("D").help("decay function [" + CLIParser.getValidDecayFunctions() + "]");
-        parser.addArgument("operator").nargs("+").help("window operators [" + CLIParser.getValidOperators() + "]");
+        parser.addArgument("operator").nargs("+").help("window operator [" + CLIParser.getValidOperators() + "]");
         parser.addArgument("-I")
                 .help("interarrival distribution [" + CLIParser.getValidInterarrivalDistributions() + "]")
                 .setDefault("fixed1");
