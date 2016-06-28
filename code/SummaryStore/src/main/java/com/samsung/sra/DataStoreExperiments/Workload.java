@@ -4,7 +4,15 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class Workload<T> extends ConcurrentHashMap<String, List<Workload.Query<T>>> {
+/**
+ * A "workload" is a binned list of queries, essentially {
+ *      name of 1st query class -> list of all queries belonging to 1st query class,
+ *      name of 2nd query class -> list of all queries belonging to 2nd query class,
+ *      ...
+ * }
+ * @param <R>    query result type
+ */
+public class Workload<R> extends ConcurrentHashMap<String, List<Workload.Query<R>>> {
     public static class Query<R> implements Serializable {
         long l, r;
         int operatorNum;

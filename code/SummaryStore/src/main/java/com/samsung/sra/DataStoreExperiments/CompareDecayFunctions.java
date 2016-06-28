@@ -56,13 +56,11 @@ class CompareDecayFunctions {
     /**
      * Compute stats for each store. Results will be memoized to disk if the argument is true
      */
-    private static LinkedHashMap<String, StoreStats> computeStatistics(
+    private static <R extends Number> Map<String, StoreStats> computeStatistics(
             String directory, String prefix,
-            long T, String I, String V, long R, int A, int L, int Q,
-            boolean memoize) throws Exception {
-        String memoFile = memoize ? String.format("%s/%sT%d.I%s.V%s.R%d.A%d.L%d.Q%d.profile", directory, prefix,
-                T, I, V, R, A, L, Q) : null;
-        if (memoize) {
+            long T, String I, String V, long R,
+            String workloadFile, String memoFile) throws Exception {
+        if (memoFile != null) {
             try (InputStream is = Files.newInputStream(Paths.get(memoFile))){
                 return (LinkedHashMap<String, StoreStats>) SerializationUtils.deserialize(is);
             } catch (NoSuchFileException e) {
@@ -76,9 +74,9 @@ class CompareDecayFunctions {
         if (stores.isEmpty()) {
             throw new IllegalArgumentException(String.format("no stores found with prefix, T, I, V, R = %s, %d, %s, %s, %d", prefix, T, I, V, R));
         }
-        Workload<Long> workload = readWorkload(directory, prefix, T, I, V, R, A, L, Q);
+        Workload<R> workload = readWorkload(workloadFile);
         if (logger.isDebugEnabled()) {
-            for (Map.Entry<String, List<Workload.Query<Long>>> entry : workload.entrySet()) {
+            for (Map.Entry<String, List<Workload.Query<R>>> entry : workload.entrySet()) {
                 logger.debug("{}, {}", entry.getKey(), entry.getValue().size());
             }
         }
@@ -99,10 +97,10 @@ class CompareDecayFunctions {
                     workload.get(queryClass).parallelStream().forEach(q -> {
                         try {
                             logger.trace("Running query [{}, {}], true answer = {}", q.l, q.r, q.trueAnswer);
-                            long trueCount = q.trueAnswer;
-                            long estCount = ((ResultError<Long, Long>)store.query(streamID, q.l, q.r, q.operatorNum, q.params)).result;
-                            double error = (trueCount == estCount) ? 0 :
-                                    Math.abs(estCount - trueCount) / (1d + trueCount);
+                            long trueAnswer = (Long)q.trueAnswer;
+                            long estimate = ((ResultError<Long, Long>)store.query(streamID, q.l, q.r, q.operatorNum, q.params)).result;
+                            double error = (trueAnswer == estimate) ? 0 :
+                                    Math.abs(estimate - trueAnswer) / (1d + trueAnswer);
                             stats.addObservation(error);
                         } catch (Exception e) {
                             throw new RuntimeException(e);
@@ -127,7 +125,7 @@ class CompareDecayFunctions {
                 sorted(Comparator.comparing(e -> e.getValue().sizeInBytes)).
                 forEach(e -> sorted.put(e.getKey(), e.getValue()));
 
-        if (memoize) {
+        if (memoFile != null) {
             try (FileOutputStream fos = new FileOutputStream(memoFile)) {
                 SerializationUtils.serialize(sorted, fos);
             } catch (IOException e) {
@@ -138,11 +136,9 @@ class CompareDecayFunctions {
         return sorted;
     }
 
-    private static Workload<Long> readWorkload(
-            String directory, String prefix, long T, String I, String V, long R, int A, int L, int Q) throws IOException {
-        String infile = String.format("%s/%sT%d.I%s.V%s.R%d.A%d.L%d.Q%d.workload", directory, prefix, T, I, V, R, A, L, Q);
-        try (InputStream is = Files.newInputStream(Paths.get(infile))) {
-            return (Workload<Long>)
+    private static <R> Workload<R> readWorkload(String workloadFile) throws IOException {
+        try (InputStream is = Files.newInputStream(Paths.get(workloadFile))) {
+            return (Workload<R>)
                     SerializationUtils.deserialize(is);
         }
     }
@@ -167,7 +163,7 @@ class CompareDecayFunctions {
         parser.addArgument("-L").help("number of length classes").type(int.class).setDefault(8);
         parser.addArgument("-Q").help("number of random queries to run per class").type(int.class).setDefault(1000);
         parser.addArgument("-metric").help("error metric (allowed: \"mean\", \"p<percentile>\", e.g. \"p50\")");
-        parser.addArgument("-weight").help("weight function (allowed: \"uniform\")");
+        parser.addArgument("-weight").help("function assigning weights to each query class (allowed: \"uniform\")");
         parser.addArgument("-prefix").help("optional prefix to add to every input/output file").setDefault("");
 
         String directory;
@@ -222,7 +218,9 @@ class CompareDecayFunctions {
             return;
         }
 
-        LinkedHashMap<String, StoreStats> results = computeStatistics(directory, prefix, T, I, V, R, A, L, Q, true);
+        String workloadFile = String.format("%s/%sT%d.I%s.V%s.R%d.A%d.L%d.Q%d.workload", directory, prefix, T, I, V, R, A, L, Q);
+        String memoFile = String.format("%s/%sT%d.I%s.V%s.R%d.A%d.L%d.Q%d.profile", directory, prefix, T, I, V, R, A, L, Q);
+        Map<String, StoreStats> results = computeStatistics(directory, prefix, T, I, V, R, workloadFile, memoFile);
 
         if (metric != null) {
             System.out.println("#decay\tstore size (bytes)\tcost");
