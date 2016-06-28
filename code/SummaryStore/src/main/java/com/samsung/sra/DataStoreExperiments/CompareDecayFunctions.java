@@ -1,7 +1,7 @@
 package com.samsung.sra.DataStoreExperiments;
 
-import com.samsung.sra.DataStore.SummaryStore;
 import com.samsung.sra.DataStore.ResultError;
+import com.samsung.sra.DataStore.SummaryStore;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.*;
 import org.apache.commons.lang.SerializationUtils;
@@ -12,7 +12,6 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ToDoubleFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -45,12 +44,12 @@ class CompareDecayFunctions {
 
     private static class StoreStats implements Serializable {
         final long sizeInBytes;
-        final LinkedHashMap<AgeLengthClass, Statistics> queryStats;
+        final LinkedHashMap<String, Statistics> queryStats;
 
-        StoreStats(long sizeInBytes, Collection<AgeLengthClass> alClasses) {
+        StoreStats(long sizeInBytes, Collection<String> queryClasses) {
             this.sizeInBytes = sizeInBytes;
             queryStats = new LinkedHashMap<>();
-            alClasses.forEach(alClass -> queryStats.put(alClass, new Statistics(true)));
+            queryClasses.forEach(qClass -> queryStats.put(qClass, new Statistics(true)));
         }
     }
 
@@ -77,9 +76,9 @@ class CompareDecayFunctions {
         if (stores.isEmpty()) {
             throw new IllegalArgumentException(String.format("no stores found with prefix, T, I, V, R = %s, %d, %s, %s, %d", prefix, T, I, V, R));
         }
-        ConcurrentHashMap<AgeLengthClass, List<GenerateWorkload.Query<Long>>> workload = readWorkload(directory, prefix, T, I, V, R, A, L, Q);
+        Workload<Long> workload = readWorkload(directory, prefix, T, I, V, R, A, L, Q);
         if (logger.isDebugEnabled()) {
-            for (Map.Entry<AgeLengthClass, List<GenerateWorkload.Query<Long>>> entry : workload.entrySet()) {
+            for (Map.Entry<String, List<Workload.Query<Long>>> entry : workload.entrySet()) {
                 logger.debug("{}, {}", entry.getKey(), entry.getValue().size());
             }
         }
@@ -92,12 +91,12 @@ class CompareDecayFunctions {
             try (SummaryStore store = new SummaryStore(entry.getValue(), T)) {
                 store.warmupCache();
 
-                List<AgeLengthClass> alClasses = new ArrayList<>(workload.keySet());
-                storeStats = new StoreStats(store.getStoreSizeInBytes(), alClasses);
-                final Set<AgeLengthClass> pending = Collections.synchronizedSet(new HashSet<>(alClasses));
-                alClasses.parallelStream().forEach(alClass -> {
-                    Statistics stats = storeStats.queryStats.get(alClass);
-                    workload.get(alClass).parallelStream().forEach(q -> {
+                List<String> queryClasses = new ArrayList<>(workload.keySet());
+                storeStats = new StoreStats(store.getStoreSizeInBytes(), queryClasses);
+                final Set<String> pending = Collections.synchronizedSet(new HashSet<>(queryClasses));
+                queryClasses.parallelStream().forEach(queryClass -> {
+                    Statistics stats = storeStats.queryStats.get(queryClass);
+                    workload.get(queryClass).parallelStream().forEach(q -> {
                         try {
                             logger.trace("Running query [{}, {}], true answer = {}", q.l, q.r, q.trueAnswer);
                             long trueCount = q.trueAnswer;
@@ -109,12 +108,12 @@ class CompareDecayFunctions {
                             throw new RuntimeException(e);
                         }
                     });
-                    pending.remove(alClass);
+                    pending.remove(queryClass);
                     synchronized (pending) {
                         if (logger.isInfoEnabled()) {
                             logger.info("pending({}):", decay);
-                            for (AgeLengthClass pendingALClass : pending) {
-                                System.out.println("\t\t" + pendingALClass);
+                            for (String pendingQueryClass : pending) {
+                                System.out.println("\t\t" + pendingQueryClass);
                             }
                         }
                     }
@@ -139,18 +138,18 @@ class CompareDecayFunctions {
         return sorted;
     }
 
-    private static ConcurrentHashMap<AgeLengthClass, List<GenerateWorkload.Query<Long>>> readWorkload(
+    private static Workload<Long> readWorkload(
             String directory, String prefix, long T, String I, String V, long R, int A, int L, int Q) throws IOException {
         String infile = String.format("%s/%sT%d.I%s.V%s.R%d.A%d.L%d.Q%d.workload", directory, prefix, T, I, V, R, A, L, Q);
         try (InputStream is = Files.newInputStream(Paths.get(infile))) {
-            return (ConcurrentHashMap<AgeLengthClass, List<GenerateWorkload.Query<Long>>>)
+            return (Workload<Long>)
                     SerializationUtils.deserialize(is);
         }
     }
 
     public static void main(String[] args) throws Exception {
         ArgumentParser parser = ArgumentParsers.newArgumentParser("CompareDecayFunctions", false).
-                description("compute statistics for each decay function and age length class, " +
+                description("compute statistics for each decay function and query class, " +
                         "and optionally print weighted stats if a weight function and metric are specified").
                 defaultHelp(true);
         ArgumentType<Long> CommaSeparatedLong = (ArgumentParser argParser, Argument arg, String value) ->
@@ -176,7 +175,7 @@ class CompareDecayFunctions {
         String I, V;
         long R;
         ToDoubleFunction<Statistics> metric;
-        ToDoubleFunction<AgeLengthClass> weightFunction;
+        ToDoubleFunction<String> weightFunction;
         int A, L, Q;
         String prefix;
         try {

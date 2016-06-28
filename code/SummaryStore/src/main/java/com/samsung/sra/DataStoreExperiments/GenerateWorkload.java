@@ -13,69 +13,47 @@ import org.slf4j.LoggerFactory;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class GenerateWorkload {
     private static Logger logger = LoggerFactory.getLogger(GenerateWorkload.class);
 
-    public static class Query<R> implements Serializable {
-        long l, r;
-        int operatorNum;
-        Object[] params;
-        R trueAnswer;
-
-        public Query(long l, long r, int operatorNum, Object[] params, R trueAnswer) {
-            this.l = l;
-            this.r = r;
-            this.operatorNum = operatorNum;
-            this.params = params;
-            this.trueAnswer = trueAnswer;
-        }
-
-        @Override
-        public String toString() {
-            return "trueAnswer[" + l + ", " + r + "] = " + trueAnswer;
-        }
-    }
-
-    public static ConcurrentHashMap<AgeLengthClass, List<Query<Long>>> generate(
-            long T, InterarrivalDistribution I, ValueDistribution V, long R,
+    public static Workload<Long> generate(
+            long T, StreamGenerator streamGenerator,
             int A, int L, int Q) throws StreamException {
-        ConcurrentHashMap<AgeLengthClass, List<Query<Long>>> ret = new ConcurrentHashMap<>();
+        Workload<Long> ret = new Workload<>();
         ArrayList<LongRange> queryIntervals = new ArrayList<>();
-        ArrayList<Query<Long>> allQueries = new ArrayList<>();
+        ArrayList<Workload.Query<Long>> allQueries = new ArrayList<>();
 
         {
             Random random = new Random(0);
             List<AgeLengthClass> alClasses = AgeLengthSampler.getAgeLengthClasses(T, T, A, L);
             for (AgeLengthClass alClass: alClasses) {
-                List<Query<Long>> thisClassQueries = new ArrayList<>();
+                List<Workload.Query<Long>> thisClassQueries = new ArrayList<>();
                 for (int q = 0; q < Q; ++q) {
                     Pair<Long> al = alClass.sample(random);
                     long age = al.first(), length = al.second();
                     long l = T - length + 1 - age, r = T - age;
                     if (0 <= l && r < T) {
-                        Query<Long> query = new Query<>(l, r, 0, null, 0L);
+                        Workload.Query<Long> query = new Workload.Query<>(l, r, 0, null, 0L);
                         thisClassQueries.add(query);
                         allQueries.add(query);
                         queryIntervals.add(new LongRange(l + ":" + r, l, true, r, true));
                     }
                 }
-                ret.put(alClass, thisClassQueries);
+                ret.put(alClass.toString(), thisClassQueries);
             }
         }
 
-        computeTrueAnswers(T, new StreamGenerator(I, V, R), queryIntervals, allQueries);
+        computeTrueAnswers(T, streamGenerator, queryIntervals, allQueries);
 
         return ret;
     }
 
     private static void computeTrueAnswers(long T, StreamGenerator streamGenerator,
-                                           ArrayList<LongRange> intervals, ArrayList<Query<Long>> queries) {
+                                           ArrayList<LongRange> intervals, ArrayList<Workload.Query<Long>> queries) {
         assert intervals.size() == queries.size();
         int Q = queries.size();
         Builder builder = new Builder(intervals.toArray(new LongRange[Q]), 0, T);
@@ -88,7 +66,7 @@ public class GenerateWorkload {
             }
             int matchCount = lrms.lookup(t, matchedIndexes);
             for (int i = 0; i < matchCount; ++i) {
-                Query<Long> q = queries.get(matchedIndexes[i]);
+                Workload.Query<Long> q = queries.get(matchedIndexes[i]);
                 ++q.trueAnswer;
             }
         });
@@ -100,16 +78,16 @@ public class GenerateWorkload {
         StreamGenerator streamGenerator = new StreamGenerator(new FixedInterarrival(1), new UniformValues(0, 100), 0);
 
         ArrayList<LongRange> intervals = new ArrayList<>();
-        ArrayList<Query<Long>> queries = new ArrayList<>();
+        ArrayList<Workload.Query<Long>> queries = new ArrayList<>();
         Random random = new Random(0);
         for (int q = 0; q < Q; ++q) {
             long a = Math.floorMod(random.nextLong(), T), b = Math.floorMod(random.nextLong(), T);
             long l = Math.min(a, b), r = Math.max(a, b);
             intervals.add(new LongRange(l + ":" + r, l , true, r, true));
-            queries.add(new Query<>(l, r, 0, null, 0L));
+            queries.add(new Workload.Query<>(l, r, 0, null, 0L));
         }
         computeTrueAnswers(T, streamGenerator, intervals, queries);
-        for (Query<Long> q: queries) {
+        for (Workload.Query<Long> q: queries) {
             assert q.r - q.l + 1 == q.trueAnswer;
         }
     }
@@ -167,7 +145,8 @@ public class GenerateWorkload {
             return;
         }
 
-        ConcurrentHashMap<AgeLengthClass, List<Query<Long>>> workload = generate(T, interarrivals, values, R, A, L, Q);
+        StreamGenerator streamGenerator = new StreamGenerator(interarrivals, values, R);
+        Workload<Long> workload = generate(T, streamGenerator, A, L, Q);
         String outfile = String.format("%s/%sT%d.I%s.V%s.R%d.A%d.L%d.Q%d.workload", outdir, prefix, T, I, V, R, A, L, Q);
         try (FileOutputStream fos = new FileOutputStream(outfile)) {
             SerializationUtils.serialize(workload, fos);
