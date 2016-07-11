@@ -1,6 +1,6 @@
 package com.samsung.sra.DataStore;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -95,10 +95,17 @@ public class RationalPowerWindowing implements Windowing {
 
     @Override
     public List<Long> getSizeOfFirstKWindows(int k) {
-        if (k == 0) {
-            return Collections.emptyList();
-        } else {
-            throw new UnsupportedOperationException();
+        List<Long> ret = new ArrayList<>();
+        for (long b = 1; ; ++b) {
+            long count = (long)Math.pow(b, p-1) * R;
+            long size = (long)Math.pow(b, q) * S;
+            for (long i = 0; i < count; ++i) {
+                if (ret.size() >= k) {
+                    return ret;
+                } else {
+                    ret.add(size);
+                }
+            }
         }
     }
 }
