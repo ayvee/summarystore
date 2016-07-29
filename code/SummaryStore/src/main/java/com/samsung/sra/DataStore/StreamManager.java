@@ -26,11 +26,7 @@ class StreamManager implements Serializable {
     private static Logger logger = LoggerFactory.getLogger(StreamManager.class);
     final long streamID;
     final WindowOperator[] operators;
-
-    // How many values have we inserted so far?
-    long numValues = 0;
-    // What was the timestamp of the latest value appended?
-    long lastValueTimestamp = -1;
+    final StreamStatistics stats;
 
     final ReadWriteLock lock = new ReentrantReadWriteLock();
 
@@ -57,6 +53,7 @@ class StreamManager implements Serializable {
         this.bucketStore = bucketStore;
         this.windowingMechanism = windowingMechanism;
         this.operators = operators;
+        this.stats = new StreamStatistics();
         bytesPerBucket = Bucket.METADATA_BYTECOUNT +
                 Stream.of(operators).mapToInt(WindowOperator::getBytecount).sum();
     }
@@ -64,17 +61,16 @@ class StreamManager implements Serializable {
     // TODO: add assertions
 
     void append(long ts, Object value) throws RocksDBException, StreamException {
-        if (ts <= lastValueTimestamp) throw new StreamException("out-of-order insert in stream " + streamID);
+        if (ts <= stats.lastArrivalTimestamp) throw new StreamException("out-of-order insert in stream " + streamID);
+        stats.append(ts, value);
         windowingMechanism.append(this, ts, value);
-        ++numValues;
-        lastValueTimestamp = ts;
     }
 
     Object query(int operatorNum, long t0, long t1, Object[] queryParams) throws RocksDBException {
-        if (t0 > lastValueTimestamp) {
+        if (t0 > stats.lastArrivalTimestamp) {
             return operators[operatorNum].getEmptyQueryResult();
-        } else if (t1 > lastValueTimestamp) {
-            t1 = lastValueTimestamp;
+        } else if (t1 > stats.lastArrivalTimestamp) {
+            t1 = stats.lastArrivalTimestamp;
         }
         //BTreeMap<Long, Long> index = streamManager.temporalIndex;
         Long l = temporalIndex.floorKey(t0); // first bucket with tStart <= t0

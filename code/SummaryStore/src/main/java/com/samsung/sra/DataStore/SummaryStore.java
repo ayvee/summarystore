@@ -100,7 +100,7 @@ public class SummaryStore implements DataStore {
 
     public void printBucketState(long streamID, boolean printPerBucketState) throws RocksDBException {
         StreamManager streamManager = streamManagers.get(streamID);
-        System.out.println("Stream " + streamID + " with " + streamManager.numValues + " elements in " +
+        System.out.println("Stream " + streamID + " with " + streamManager.stats.numValues + " elements in " +
                 streamManager.temporalIndex.size() + " windows");
         if (printPerBucketState) {
             for (Object bucketID : streamManager.temporalIndex.values()) {
@@ -162,7 +162,7 @@ public class SummaryStore implements DataStore {
         }
         streamManager.lock.readLock().lock();
         try {
-            return streamManager.lastValueTimestamp;
+            return streamManager.stats.lastArrivalTimestamp;
         } finally {
             streamManager.lock.readLock().unlock();
         }
@@ -179,7 +179,7 @@ public class SummaryStore implements DataStore {
         }
         streamManager.lock.readLock().lock();
         try {
-            return streamManager.numValues;
+            return streamManager.stats.numValues;
         } finally {
             streamManager.lock.readLock().unlock();
         }
