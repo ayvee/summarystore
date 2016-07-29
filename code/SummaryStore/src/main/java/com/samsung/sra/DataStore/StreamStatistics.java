@@ -16,7 +16,7 @@ public class StreamStatistics implements Serializable {
             Isqsum += I * I;
         }
         if (value instanceof Number) {
-            double v = (double)value;
+            double v = ((Number) value).doubleValue();
             Vsum += v;
             Vsqsum += v * v;
         }

@@ -2,6 +2,7 @@ package com.samsung.sra.DataStore.Aggregates;
 
 import com.samsung.sra.DataStore.Bucket;
 import com.samsung.sra.DataStore.ResultError;
+import com.samsung.sra.DataStore.StreamStatistics;
 import com.samsung.sra.DataStore.WindowOperator;
 
 import java.util.Collections;
@@ -39,7 +40,7 @@ public class HyperLogLogOperator implements WindowOperator<HyperLogLog, Integer,
     }
 
     @Override
-    public ResultError<Long, Long> query(Stream<Bucket> buckets, Function<Bucket, HyperLogLog> aggregateRetriever, long t0, long t1, Object... params) {
+    public ResultError<Long, Long> query(StreamStatistics streamStats, Stream<Bucket> buckets, Function<Bucket, HyperLogLog> aggregateRetriever, long t0, long t1, Object... params) {
         return new ResultError<>(
                 (long)Math.ceil(buckets.map(aggregateRetriever).mapToDouble(HyperLogLog::getEstimate).sum()),
                 0L);

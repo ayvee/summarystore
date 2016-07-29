@@ -30,7 +30,7 @@ public interface WindowOperator<A, V, R, E> extends Serializable {
      * TODO: pass an additional Function<Bucket, BucketMetadata> metadataRetriever as argument,
      *       instead of letting query() manhandle Bucket objects
      */
-    ResultError<R, E> query(Stream<Bucket> buckets, Function<Bucket, A> aggregateRetriever, long t0, long t1, Object... params);
+    ResultError<R, E> query(StreamStatistics streamStats, Stream<Bucket> buckets, Function<Bucket, A> aggregateRetriever, long t0, long t1, Object... params);
 
     /** Return the default answer to a query on an empty aggregate (containing zero elements) */
     ResultError<R, E> getEmptyQueryResult();

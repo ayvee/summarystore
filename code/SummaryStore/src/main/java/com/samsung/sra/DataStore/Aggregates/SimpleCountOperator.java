@@ -1,9 +1,6 @@
 package com.samsung.sra.DataStore.Aggregates;
 
-import com.samsung.sra.DataStore.Bucket;
-import com.samsung.sra.DataStore.ResultError;
-import com.samsung.sra.DataStore.Utilities;
-import com.samsung.sra.DataStore.WindowOperator;
+import com.samsung.sra.DataStore.*;
 
 import java.util.Collections;
 import java.util.List;
@@ -70,7 +67,7 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Long, Lon
     }
 
     @Override
-    public ResultError<Long, Long> query(Stream<Bucket> buckets, Function<Bucket, Long> countRetriever, long t0, long t1, Object... params) {
+    public ResultError<Long, Long> query(StreamStatistics streamStats, Stream<Bucket> buckets, Function<Bucket, Long> countRetriever, long t0, long t1, Object... params) {
         return new ResultError<>(buckets.map(b ->
                 estimator.estimate(t0, t1, b.tStart, b.tEnd, countRetriever.apply(b))
         ).mapToLong(Long::longValue).sum(), 0L);
