@@ -24,13 +24,13 @@ public interface WindowOperator<A, V, R, E> extends Serializable {
     /** Insert val into aggr and return the updated aggregate */
     A insert(A aggr, long timestamp, V val);
 
-    /** Retrieve aggregates from a set of buckets and do a combined query over them. We pass full
-     * Bucket objects instead of specific Aggregate objects of type A to allow query() to access
-     * Bucket metadata.
+    /** Retrieve aggregates from a set of buckets spanning [T0, T1] and do a combined query over
+     * them. We pass full Bucket objects instead of specific Aggregate objects of type A to allow
+     * query() to access Bucket metadata.
      * TODO: pass an additional Function<Bucket, BucketMetadata> metadataRetriever as argument,
      *       instead of letting query() manhandle Bucket objects
      */
-    ResultError<R, E> query(StreamStatistics streamStats, Stream<Bucket> buckets, Function<Bucket, A> aggregateRetriever, long t0, long t1, Object... params);
+    ResultError<R, E> query(StreamStatistics streamStats, long T0, long T1, Stream<Bucket> buckets, Function<Bucket, A> aggregateRetriever, long t0, long t1, Object... params);
 
     /** Return the default answer to a query on an empty aggregate (containing zero elements) */
     ResultError<R, E> getEmptyQueryResult();

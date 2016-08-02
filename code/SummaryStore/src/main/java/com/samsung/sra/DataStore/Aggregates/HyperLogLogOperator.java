@@ -40,7 +40,7 @@ public class HyperLogLogOperator implements WindowOperator<HyperLogLog, Integer,
     }
 
     @Override
-    public ResultError<Long, Long> query(StreamStatistics streamStats, Stream<Bucket> buckets, Function<Bucket, HyperLogLog> aggregateRetriever, long t0, long t1, Object... params) {
+    public ResultError<Long, Long> query(StreamStatistics streamStats, long T0, long T1, Stream<Bucket> buckets, Function<Bucket, HyperLogLog> aggregateRetriever, long t0, long t1, Object... params) {
         return new ResultError<>(
                 (long)Math.ceil(buckets.map(aggregateRetriever).mapToDouble(HyperLogLog::getEstimate).sum()),
                 0L);

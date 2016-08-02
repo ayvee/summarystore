@@ -90,7 +90,7 @@ class StreamManager implements Serializable {
         });
         try {
             Function<Bucket, Object> retriever = b -> b.aggregates[operatorNum];
-            return operators[operatorNum].query(stats, buckets, retriever, t0, t1, queryParams);
+            return operators[operatorNum].query(stats, l, r, buckets, retriever, t0, t1, queryParams);
         } catch (RuntimeException e) {
             if (e.getCause() instanceof RocksDBException) {
                 throw (RocksDBException)e.getCause();
