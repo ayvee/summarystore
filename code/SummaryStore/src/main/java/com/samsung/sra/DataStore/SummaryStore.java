@@ -200,13 +200,13 @@ public class SummaryStore implements DataStore {
                         //= new RationalPowerWindowing(1, 1);
                 store.registerStream(streamID, new CountBasedWBMH(windowing), new SimpleCountOperator());
                 for (long i = 0; i < 1023; ++i) {
-                    store.append(streamID, 2 * i, i + 1);
+                    store.append(streamID, i, i + 1);
                     store.printBucketState(streamID, true);
                 }
             } else {
                 store.printBucketState(streamID);
             }
-            long t0 = 0, t1 = 4;
+            long t0 = 1, t1 = 511;
             System.out.println(
                     "count[" + t0 + ", " + t1 + "] = " + store.query(streamID, t0, t1, 0, null));
         } catch (Exception e) {

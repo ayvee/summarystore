@@ -78,7 +78,7 @@ class StreamManager implements Serializable {
         if (r == null) {
             r = temporalIndex.lastKey() + 1;
         }
-        logger.trace("Overapproximated time range = [{}, {}]", l, r);
+        logger.trace("Overapproximated time range = [{}, {})", l, r);
         // Query on all buckets with l <= tStart < r
         SortedMap<Long, Long> spanningBucketsIDs = temporalIndex.subMap(l, true, r, false);
         Stream<Bucket> buckets = spanningBucketsIDs.values().stream().map(bucketID -> {
@@ -90,7 +90,7 @@ class StreamManager implements Serializable {
         });
         try {
             Function<Bucket, Object> retriever = b -> b.aggregates[operatorNum];
-            return operators[operatorNum].query(stats, l, r, buckets, retriever, t0, t1, queryParams);
+            return operators[operatorNum].query(stats, l, r-1, buckets, retriever, t0, t1, queryParams);
         } catch (RuntimeException e) {
             if (e.getCause() instanceof RocksDBException) {
                 throw (RocksDBException)e.getCause();

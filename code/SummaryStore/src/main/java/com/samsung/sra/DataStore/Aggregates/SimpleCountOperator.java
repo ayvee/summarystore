@@ -2,6 +2,8 @@ package com.samsung.sra.DataStore.Aggregates;
 
 import com.samsung.sra.DataStore.*;
 import org.apache.commons.math3.util.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.List;
@@ -10,6 +12,8 @@ import java.util.stream.Stream;
 
 /** TODO?: return confidence level along with each CI */
 public class SimpleCountOperator implements WindowOperator<Long, Long, Double, Pair<Double, Double>> {
+    private static Logger logger = LoggerFactory.getLogger(SimpleCountOperator.class);
+
     private static final List<String> supportedQueries = Collections.singletonList("count");
 
     /*public enum EstimationAlgo {
@@ -86,17 +90,20 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
             assert ts <= t0 && (tml == -1 || t0 <= tml) && (tmr == -1 || tmr <= t1) && (t1 <= te);
             double ans, sd;
             double Ctot; // total count, i.e. right endpoint of 100% CI
+            logger.debug("timestamps = [{}, {}, {}, {}], counts = {}, {}, {}", ts, tml, tmr, te, Cl, Cm, Cr);
             if (tmr == -1) { // only one bucket
                 double t = t1 - t0 + 1;
                 double T = te - ts + 1;
+                logger.debug("t = {}, T = {}", t, T);
                 ans = Cl * t/T;
                 sd = cv_t * Math.sqrt((Cl * t/T) * t/T * (1 - t/T));
                 Ctot = Cl;
             } else {
-                double tl = tml - t0 + 1;
-                double Tl = tml - ts + 1;
+                double tl = tml-1 - t0 + 1;
+                double Tl = tml-1 - ts + 1;
                 double tr = t1 - tmr + 1;
                 double Tr = te - tmr + 1;
+                logger.debug("tl = {}, Tl = {}, tr = {}, Tr = {}", tl, Tl, tr, Tr);
                 ans = Cl * tl/Tl + Cm + Cr * tr/Tr;
                 sd = cv_t * Math.sqrt(
                         (Cl * tl/Tl) * tl/Tl * (1 - tl/Tl) +
@@ -129,7 +136,6 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
             }
         });
         if (estimator.tml == estimator.tmr) { // there were <= 2 buckets, i.e. there were no "middle" buckets
-            estimator.tml = -1;
             estimator.Cm = 0;
         } else {
             // the loop above set estimator.Cm = count of all buckets starting from 2nd including last; subtract last now
