@@ -18,36 +18,6 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
 
     private static final List<String> supportedQueries = Collections.singletonList("count");
 
-    /*public enum Estimator {
-        UPPER_BOUND {
-            @Override
-            long estimate(long qt0, long qt1, long bt0, long bt1, long bCount) {
-                return bCount;
-            }
-        },
-        PROPORTIONAL {
-            @Override
-            long estimate(long qt0, long qt1, long bt0, long bt1, long bCount) {
-                // the intersection of [a, b] and [p, q] is [max(a, p), min(b, q)]
-                long l = Math.max(qt0, bt0), r = Math.min(qt1, bt1);
-                assert r >= l && r - l <= bt1 - bt0;
-                return (long)((double)bCount * (r - l + 1d) / (bt1 - bt0 + 1d));
-            }
-        },
-        HALF_BOUND {
-            @Override
-            long estimate(long qt0, long qt1, long bt0, long bt1, long bCount) {
-                if (qt0 <= bt0 && bt1 <= qt1) { // perfect alignment, meaning bCount is the true answer
-                    return bCount;
-                } else {
-                    return bCount / 2;
-                }
-            }
-        };
-
-        abstract long estimate(long qt0, long qt1, long bt0, long bt1, long bCount);
-    }*/
-
     @Override
     public List<String> getSupportedQueryTypes() {
         return supportedQueries;
@@ -68,7 +38,11 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
         return aggr + 1;
     }
 
-    static class Estimator {
+    /**
+     * Given counts for [t0, t1), [t1, t2), ..., [tk, t{k+1}), store count/endpoints of
+     * (first bucket), (all middle buckets), (last bucket)
+     */
+    public static class SimpleCountEstimator implements Estimator<Double, Pair<Double, Double>> {
         private long ts = -1; // start timestamp of first bucket
         private long tml = -1; // 1 + end timestamp of first bucket (= start timestamp of 2nd bucket if there is > 1 bucket)
         private long tmr = -1; // start timestamp of last bucket (if there is > 1 bucket)
@@ -119,7 +93,11 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
             }
         }
 
-        public ResultError<Double, Pair<Double, Double>> estimate(double confidenceLevel, long t0, long t1) {
+        public ResultError<Double, Pair<Double, Double>> estimate(long t0, long t1, Object... params) {
+            double confidenceLevel = 1;
+            if (params != null && params.length > 0) {
+                confidenceLevel = ((Number)params[0]).doubleValue();
+            }
             // Check overlap with each of these intervals:
             //     (-inf, ts-1], [ts, tml-1], [tml, tmr-1], [tmr, te], [te+1, inf)
             // Middle three intervals: we know counts, do a conditional estimate (proportional count)
@@ -151,8 +129,9 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
     }
 
     @Override
-    public ResultError<Double, Pair<Double, Double>> query(StreamStatistics streamStats, long T0, long T1, Stream<Bucket> buckets, Function<Bucket, Long> countRetriever, long t0, long t1, Object... params) {
-        Estimator estimator = new Estimator();
+    public Estimator<Double, Pair<Double, Double>> buildEstimator(StreamStatistics streamStats,
+                                                                  long T0, long T1, Stream<Bucket> buckets, Function<Bucket, Long> countRetriever) {
+        SimpleCountEstimator estimator = new SimpleCountEstimator();
         MutableLong numBuckets = new MutableLong(0L); // not a plain long because of Java Stream limitations
         buckets.forEach(b -> {
             numBuckets.increment();
@@ -186,7 +165,7 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
         }
         estimator.mu_t = streamStats.getMeanInterarrival();
         estimator.sigma_t = streamStats.getSDInterarrival();
-        return estimator.estimate(1, t0, t1);
+        return estimator;
     }
 
     /*@Override

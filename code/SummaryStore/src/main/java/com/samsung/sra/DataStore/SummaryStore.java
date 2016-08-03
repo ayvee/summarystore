@@ -60,7 +60,7 @@ public class SummaryStore implements DataStore {
     }
 
     @Override
-    public Object query(long streamID, long t0, long t1, int aggregateNum, Object[] queryParams) throws StreamException, QueryException, RocksDBException {
+    public Object query(long streamID, long t0, long t1, int aggregateNum, Object... queryParams) throws StreamException, QueryException, RocksDBException {
         if (t0 < 0 || t0 > t1) {
             throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
         }
@@ -208,7 +208,7 @@ public class SummaryStore implements DataStore {
             }
             long t0 = 1, t1 = 511;
             System.out.println(
-                    "count[" + t0 + ", " + t1 + "] = " + store.query(streamID, t0, t1, 0, null));
+                    "count[" + t0 + ", " + t1 + "] = " + store.query(streamID, t0, t1, 0, 0.95));
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
