@@ -12,13 +12,13 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-/** TODO?: return confidence level along with each CI */
+/** TODO?: return confidence level along with each CI? */
 public class SimpleCountOperator implements WindowOperator<Long, Long, Double, Pair<Double, Double>> {
     private static Logger logger = LoggerFactory.getLogger(SimpleCountOperator.class);
 
     private static final List<String> supportedQueries = Collections.singletonList("count");
 
-    /*public enum EstimationAlgo {
+    /*public enum Estimator {
         UPPER_BOUND {
             @Override
             long estimate(long qt0, long qt1, long bt0, long bt1, long bCount) {
@@ -69,26 +69,15 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
     }
 
     static class Estimator {
-        // Number of standard deviations in CI.  We make a normality assumption, so
-        // e.g. numSDs == 2 means 95% CI
-        final double numSDs;
-
         private long ts = -1; // start timestamp of first bucket
-        private long tml = -1; // start timestamp of second bucket
+        private long tml = -1; // 1 + end timestamp of first bucket (= start timestamp of 2nd bucket if there is > 1 bucket)
         private long tmr = -1; // start timestamp of last bucket (if there is > 1 bucket)
         private long te = -1; // end timestamp of last bucket
         private long Cl = -1; // count of first bucket
         private long Cm = -1; // count of all middle buckets (if there are > 2 buckets)
         private long Cr = -1; // count of last bucket (if there is > 1 bucket)
+        // consider getting these at query time instead of storing
         private double sigma_t = 0, mu_t = 0; // mean and variance of interarrival time
-
-        Estimator(double numSDs) {
-            this.numSDs = numSDs;
-        }
-
-        Estimator() {
-            this(2);
-        }
 
         /** What is the length of [l, r]? */
         private static long length(long l, long r) {
@@ -101,53 +90,61 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
         }
 
         /**
-         * Given count[T0, T1] = C, update mean and 1/cv_t * variance for
-         * count(portion of[t0, t1] that intersects [T0, T1])
+         * Given count[T0, T1] = C, update mean, 1/cv_t * variance and 100% confidence bounds
+         * for count(portion of[t0, t1] that intersects [T0, T1])
          */
         private static void conditionalEstimate(MutableDouble mean, MutableDouble var,
+                                                MutableLong lowerbound, MutableLong upperbound,
                                                 long C, long T0, long T1, long t0, long t1) {
             long overlap = overlap(T0, T1, t0, t1);
             if (C != -1 && overlap != 0) {
                 logger.debug("conditional estimate: C = {}, [T0, T1] = [{}, {}], [t0, t1] = [{}, {}], overlap = {}",
                         C, T0, T1, t0, t1, overlap);
-                double ratio = (double)overlap / length(T0, T1);
+                long length = length(T0, T1);
+                if (overlap == length) lowerbound.add(C);
+                upperbound.add(C);
+                double ratio = overlap / (double)length;
                 mean.add(C * ratio);
                 var.add(C * ratio * (1 - ratio));
             }
         }
 
-        private static void unconditionalEstimate(MutableDouble mean, MutableDouble var, long overlap, double mu_t) {
-            assert overlap >= 0;
-            if (overlap > 0) {
-                logger.debug("unconditional estimate: overlap = {}", overlap);
-                mean.add(overlap / mu_t);
-                var.add(overlap / mu_t);
+        /** Unconditional estimate for a time interval of length T */
+        private static void unconditionalEstimate(MutableDouble mean, MutableDouble var, long T, double mu_t) {
+            assert T >= 0;
+            if (T > 0) {
+                logger.debug("unconditional estimate: overlap = {}", T);
+                mean.add(T / mu_t);
+                var.add(T / mu_t);
             }
         }
 
-        public ResultError<Double, Pair<Double, Double>> estimate(long t0, long t1) {
+        public ResultError<Double, Pair<Double, Double>> estimate(double confidenceLevel, long t0, long t1) {
             // Check overlap with each of these intervals:
             //     (-inf, ts-1], [ts, tml-1], [tml, tmr-1], [tmr, te], [te+1, inf)
             // Middle three intervals: we know counts, do a conditional estimate (proportional count)
             // First and last intervals: do an unconditional estimate (T / mu)
             logger.debug("timestamps = [{}, {}, {}, {}], counts = ({}, {}, {})", ts, tml, tmr, te, Cl, Cm, Cr);
             MutableDouble mean = new MutableDouble(0), var = new MutableDouble(0);
+            MutableLong lowerbound = new MutableLong(0), upperbound = new MutableLong(0);
             // FIXME: should we use C/T instead of long-term average mu_t for unconditional?
             unconditionalEstimate(mean, var, overlap(t0, t1, Long.MIN_VALUE, ts-1), mu_t);
-            conditionalEstimate(mean, var, Cl, ts, tml-1, t0, t1);
-            conditionalEstimate(mean, var, Cm, tml, tmr-1, t0, t1);
-            conditionalEstimate(mean, var, Cr, tmr, te, t0, t1);
+            conditionalEstimate(mean, var, lowerbound, upperbound, Cl, ts, tml-1, t0, t1);
+            conditionalEstimate(mean, var, lowerbound, upperbound, Cm, tml, tmr-1, t0, t1);
+            conditionalEstimate(mean, var, lowerbound, upperbound, Cr, tmr, te, t0, t1);
             unconditionalEstimate(mean, var, overlap(t0, t1, te+1, Long.MAX_VALUE), mu_t);
-            double ans = mean.toDouble(), sd = sigma_t / mu_t * Math.sqrt(var.toDouble());
-            double CIl = Math.max(ans - numSDs * sd, 0d), CIr = ans + numSDs * sd;
-            if (ts <= t0) {
-                if (t1 <= tml) {
-                    CIr = Math.min(CIr, Cl);
-                } else if (Cm != -1 && t1 <= tmr) {
-                    CIr = Math.min(CIr, Cl+Cm);
-                } else if (t1 <= te) {
-                    CIr = Math.max(CIr, Cl+Cm+Cr);
-                }
+            double ans = mean.toDouble();
+            double CIl, CIr;
+            if (Math.abs(confidenceLevel - 1) < 1e-7) { // 100% CI
+                CIl = lowerbound.doubleValue();
+                CIr = (ts <= t0 && t1 <= te) ? upperbound.doubleValue() : Double.POSITIVE_INFINITY;
+            } else {
+                assert Math.abs(confidenceLevel - 0.95) < 1e-7; // FIXME
+                double numSDs = 2;
+                double sd = sigma_t / mu_t * Math.sqrt(var.toDouble());
+                CIl = Math.max(ans - numSDs * sd, lowerbound.doubleValue());
+                CIr = ans + numSDs * sd;
+                if (ts <= t0 && t1 <= te) CIr = Math.min(CIr, upperbound.doubleValue());
             }
             return new ResultError<>(ans, new Pair<>(CIl, CIr));
         }
@@ -189,7 +186,7 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
         }
         estimator.mu_t = streamStats.getMeanInterarrival();
         estimator.sigma_t = streamStats.getSDInterarrival();
-        return estimator.estimate(t0, t1);
+        return estimator.estimate(1, t0, t1);
     }
 
     /*@Override
