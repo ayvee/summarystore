@@ -30,8 +30,8 @@ public interface WindowOperator<A, V, R, E> extends Serializable {
      * Estimators are meant for use by a fuzzy query cache. Basic idea: first time you see a
      * query, you retrieve a bunch of buckets spanning its time range, then construct a small
      * object (the Estimator) encoding all the relevant info from those buckets. This
-     * estimator is capable of answering not just the original query [t0, t1], but also
-     * fuzzed queries [t0, t1] +/- delta. Fuzzy caches can choose to store estimators instead
+     * estimator is capable of answering not just the original query [p, q], but also
+     * fuzzed queries [p, q] +/- delta. Fuzzy caches can choose to store estimators instead
      * of just the query answer.
      *
      * See SimpleCountOperator for an example implementation.
@@ -40,7 +40,7 @@ public interface WindowOperator<A, V, R, E> extends Serializable {
         ResultError<R, E> estimate(long t0, long t1, Object... params);
     }
 
-    /** Build an estimator for a set of buckets spanning [T0, t1] */
+    /** Build an estimator for a set of buckets spanning [T0, T1] */
     default Estimator<R, E> buildEstimator(StreamStatistics streamStats,
                                            long T0, long T1, Stream<Bucket> buckets, Function<Bucket, A> aggregateRetriever) {
         return null;
