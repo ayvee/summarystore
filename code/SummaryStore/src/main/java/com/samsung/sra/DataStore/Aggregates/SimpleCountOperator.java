@@ -119,11 +119,11 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
 
             double ans = mean.toDouble();
             double CIl, CIr;
-            if (Math.abs(confidenceLevel - 1) < 1e-7) { // 100% CI
+            double numSDs = Utilities.getNormalQuantile((1 + confidenceLevel) / 2d); // ~150 nanosecs, not a bottleneck
+            if (Double.isInfinite(numSDs)) { // return 100% CI
                 CIl = lowerbound.toDouble();
                 CIr = upperbound.toDouble();
             } else {
-                double numSDs = Utilities.getNormalQuantile((1 + confidenceLevel) / 2d); // ~150 nanosecs, not a bottleneck
                 double sd = sigma_t / mu_t * Math.sqrt(var.toDouble());
                 CIl = Math.max(ans - numSDs * sd, lowerbound.toDouble());
                 CIr = Math.min(ans + numSDs * sd, upperbound.toDouble());
