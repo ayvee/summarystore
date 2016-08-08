@@ -80,7 +80,7 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     @Override
     public void close(StreamManager manager) throws RocksDBException {
-        if (bufferSize > 0) flushBuffer(manager);
+        if (bufferSize > 0) flush(manager);
     }
 
     public void appendUnbuffered(StreamManager streamManager, long ts, Object value) throws RocksDBException {
@@ -117,26 +117,25 @@ public class CountBasedWBMH implements WindowingMechanism {
     }
 
     public void appendBuffered(StreamManager streamManager, long ts, Object value) throws RocksDBException{
-        if (logger.isDebugEnabled() && N % 1_000_000 == 0) {
-            logger.debug("N = {}, mergeCounts.size = {}", N, mergeCounts.getSize());
-        }
-
         assert buffer.size() < bufferSize;
         buffer.add(new AbstractMap.SimpleEntry<>(ts, value));
         if (buffer.size() == bufferSize) { // buffer is full, flush
             flushFullBuffer(streamManager);
+            buffer.clear();
         }
     }
 
-    void flushBuffer(StreamManager manager) throws RocksDBException {
+    @Override
+    public void flush(StreamManager manager) throws RocksDBException {
+        if (numWindowsInBuffer == 0) return;
         if (buffer.size() == bufferSize) {
             flushFullBuffer(manager);
         } else { // append elements one by one
             for (Map.Entry<Long, Object> entry: buffer) {
                 appendUnbuffered(manager, entry.getKey(), entry.getValue());
             }
-            buffer.clear();
         }
+        buffer.clear();
     }
 
     /**
@@ -188,157 +187,60 @@ public class CountBasedWBMH implements WindowingMechanism {
         }
     }
 
-    /** alternate flushFullBuffer code, not yet tested */
-    private void flushFullBufferAlt(StreamManager streamManager) throws RocksDBException {
+    private void flushFullBuffer(StreamManager streamManager) throws RocksDBException {
         assert bufferSize > 0 && buffer.size() == bufferSize;
 
-        // create new buckets and insert them into RocksDB
-        {
-            long prevBucketID = lastBucketID;
-            Bucket prevBucket = lastBucketID == -1 ? null : streamManager.getBucket(lastBucketID);
-            int cStart = 0, cEnd;
-            for (int bucketSize : bufferedWindowLengths) {
-                cEnd = cStart + bucketSize - 1;
-                long currBucketID = prevBucketID + 1;
-                Bucket currBucket = streamManager.createEmptyBucket(prevBucketID, currBucketID, -1,
-                        buffer.get(cStart).getKey(), buffer.get(cEnd).getKey(),
-                        cStart, cEnd);
-                for (int c = cStart; c <= cEnd; ++c) {
-                    Map.Entry<Long, Object> tsValue = buffer.get(c);
-                    streamManager.insertValueIntoBucket(currBucket, tsValue.getKey(), tsValue.getValue());
-                }
+        long lastExtantBucketID = lastBucketID;
+        Bucket lastExtantBucket;
+        if (lastExtantBucketID != -1) {
+            lastExtantBucket = streamManager.getBucket(lastExtantBucketID);
+            lastExtantBucket.nextBucketID = lastExtantBucketID + 1;
+        } else {
+            lastExtantBucket = null;
+        }
+        Bucket[] newBuckets = new Bucket[numWindowsInBuffer];
 
-                if (prevBucket != null) {
-                    prevBucket.nextBucketID = currBucketID;
-                    streamManager.putBucket(prevBucketID, prevBucket);
+        // create new buckets
+        {
+            long cBase = (lastExtantBucket == null) ? 0 : lastExtantBucket.cEnd + 1;
+            int cStartOffset = 0, cEndOffset;
+            for (int bucketNum = 0; bucketNum < numWindowsInBuffer; ++bucketNum) {
+                int bucketSize = bufferedWindowLengths.get(numWindowsInBuffer - 1 - bucketNum);
+                cEndOffset = cStartOffset + bucketSize - 1;
+                Bucket bucket = streamManager.createEmptyBucket(
+                        lastExtantBucketID + bucketNum,
+                        lastExtantBucketID + bucketNum + 1,
+                        ((bucketNum == numWindowsInBuffer - 1) ? -1 : lastExtantBucketID + bucketNum + 2),
+                        buffer.get(cStartOffset).getKey(), buffer.get(cEndOffset).getKey(),
+                        cBase + cStartOffset, cBase + cEndOffset);
+                for (int c = cStartOffset; c <= cEndOffset; ++c) {
+                    Map.Entry<Long, Object> tsValue = buffer.get(c);
+                    streamManager.insertValueIntoBucket(bucket, tsValue.getKey(), tsValue.getValue());
                 }
-                prevBucketID = currBucketID;
-                prevBucket = currBucket;
-                cStart += bucketSize;
+                newBuckets[bucketNum] = bucket;
+
+                cStartOffset += bucketSize;
             }
-            assert prevBucket != null;
-            streamManager.putBucket(prevBucketID, prevBucket);
         }
 
         // update merge counts for the new buckets
-        {
-            long currBucketID = lastBucketID == -1 ? 0 : lastBucketID;
-            Bucket currBucket = streamManager.getBucket(currBucketID);
-            while (currBucket.nextBucketID != -1) {
-                Bucket nextBucket = streamManager.getBucket(currBucket.nextBucketID);
-                updateMergeCountFor(currBucket, nextBucket, N + bufferSize);
-                currBucket = nextBucket;
-            }
+        if (lastExtantBucket != null) updateMergeCountFor(lastExtantBucket, newBuckets[0], N + bufferSize);
+        for (int b = 0; b < numWindowsInBuffer-1; ++b) {
+            updateMergeCountFor(newBuckets[b], newBuckets[b+1], N + bufferSize);
         }
 
-        // process all merges
-        processMergesUntil(streamManager, N + bufferSize);
+        // insert all modified buckets into RocksDB
+        if (lastExtantBucket != null) streamManager.putBucket(lastExtantBucketID, lastExtantBucket);
+        for (int b = 0; b < numWindowsInBuffer; ++b) {
+            assert newBuckets[b].thisBucketID == lastExtantBucketID + b + 1;
+            streamManager.putBucket(newBuckets[b].thisBucketID, newBuckets[b]);
+        }
 
         // insert complete, advance counter
         N += bufferSize;
-    }
+        lastBucketID = lastExtantBucketID + numWindowsInBuffer;
 
-    private void flushFullBuffer(StreamManager streamManager) throws RocksDBException {
-        int processedItem = 0;
-        long iTs;
-        Object iValue;
-        Map.Entry<Long, Object> entry;
-        long lastBucketIDBeforeMerge = lastBucketID;
-        long lastNBeforeMerge = N + 1;
-
-        long headBucketID = 0;
-
-        for(int i = numWindowsInBuffer - 1; i >= 0; i--) {
-            Bucket lastBucket;
-            if(i == (numWindowsInBuffer - 1)) {
-                lastBucket = null;
-                headBucketID = lastBucketIDBeforeMerge + 1;
-            }
-            else {
-                lastBucket = streamManager.getBucket(lastBucketIDBeforeMerge);
-            }
-
-            Bucket[] bucketList = new Bucket[bufferedWindowLengths.get(i)];
-
-            long newBucketID = lastBucketIDBeforeMerge + 1;
-            entry = buffer.get(processedItem);
-            iTs = entry.getKey();
-            iValue = entry.getValue();
-            ++N;
-            Bucket newBucket = streamManager.createEmptyBucket(lastBucketIDBeforeMerge, newBucketID, -1, iTs, iTs, N-1, N-1);
-            streamManager.insertValueIntoBucket(newBucket, iTs, iValue);
-            processedItem++;
-
-            bucketList[0] = newBucket;
-
-            for(int j = 1; j < bufferedWindowLengths.get(i); j++) {
-                entry = buffer.get(processedItem);
-                iTs = entry.getKey();
-                iValue = entry.getValue();
-                ++N;
-                Bucket tmpBucket = streamManager.createEmptyBucket(-1, -1, -1, iTs, iTs, N-1, N-1);
-                streamManager.insertValueIntoBucket(tmpBucket, iTs, iValue);
-                bucketList[j] = tmpBucket;
-                processedItem++;
-            }
-
-            streamManager.mergeBuckets(bucketList);
-
-            streamManager.putBucket(newBucketID, newBucket);
-
-            if(lastBucket != null) {
-                lastBucket.nextBucketID = newBucketID;
-                streamManager.putBucket(lastBucketIDBeforeMerge, lastBucket);
-            }
-            lastBucketIDBeforeMerge = newBucketID;
-
-        }
-
-        if(lastBucketID >= 0) {
-            long tmpLastBucketID = lastBucketID;
-            Bucket lastBucket = streamManager.getBucket(lastBucketID);
-            Bucket headBucket = streamManager.getBucket(headBucketID);
-
-            if(lastBucket != null && headBucket != null){
-                lastBucket.nextBucketID = headBucketID;
-                headBucket.prevBucketID = lastBucketID;
-                streamManager.putBucket(lastBucketID, lastBucket);
-                streamManager.putBucket(headBucketID, headBucket);
-                lastBucketID = lastBucketIDBeforeMerge;
-            }
-
-            processMergeQueueForBuf(streamManager, lastNBeforeMerge, tmpLastBucketID);
-        } else {
-            lastBucketID = lastBucketIDBeforeMerge;
-        }
-
-        // print out the list of windows
-        long prevBucketID = lastBucketID;
-
-        do{
-            Bucket curBucket = streamManager.getBucket(prevBucketID);
-            prevBucketID = curBucket.prevBucketID;
-            //System.out.println(curBucket.count);
-        } while(prevBucketID != -1);
-
-        buffer.clear();
-    }
-
-    private void processMergeQueueForBuf(StreamManager streamManager, long curN, long headBucketID) throws RocksDBException {
-        if(headBucketID == -1) {
-            return;
-        } else {
-            long curBucketID = headBucketID;
-            do{
-                Bucket curBucket = streamManager.getBucket(curBucketID);
-                if(curBucket.nextBucketID != -1) {
-                    Bucket nextBucket = streamManager.getBucket(curBucket.nextBucketID);
-                    updateMergeCountFor(curBucket, nextBucket, curN + bufferSize);
-                }
-                curBucketID = curBucket.nextBucketID;
-            } while(curBucketID != -1);
-        }
-
-        processMergesUntil(streamManager, curN + bufferSize);
+        // process any pending merges (should all be in the older buckets)
+        processMergesUntil(streamManager, N);
     }
 }

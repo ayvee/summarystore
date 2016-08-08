@@ -118,17 +118,34 @@ public class SummaryStore implements DataStore {
     }
 
     @Override
+    public void flush(long streamID) throws RocksDBException, StreamException {
+        final StreamManager streamManager;
+        synchronized (streamManagers) {
+            if (!streamManagers.containsKey(streamID)) {
+                throw new StreamException("attempting to flush unregistered stream " + streamID);
+            } else {
+                streamManager = streamManagers.get(streamID);
+            }
+        }
+
+        streamManager.lock.writeLock().lock();
+        try {
+            streamManager.windowingMechanism.flush(streamManager);
+        } finally {
+            streamManager.lock.writeLock().unlock();
+        }
+    }
+
+    @Override
     public void close() throws RocksDBException {
         synchronized (streamManagers) {
             // wait for all in-process writes and reads to finish, and seal read index
             for (StreamManager streamManager: streamManagers.values()) {
                 streamManager.lock.writeLock().lock();
-                //streamManager.temporalIndex.close();
             }
             for (StreamManager streamManager: streamManagers.values()) {
                 bucketStore.flushCache(streamManager);
                 streamManager.windowingMechanism.close(streamManager);
-                //streamManager.temporalIndex.close();
             }
             // at this point all operations on existing streams will be blocked
             // TODO: lock out creating new streams
@@ -198,11 +215,13 @@ public class SummaryStore implements DataStore {
                 Windowing windowing
                         = new GenericWindowing(new ExponentialWindowLengths(2));
                         //= new RationalPowerWindowing(1, 1);
-                store.registerStream(streamID, new CountBasedWBMH(windowing), new SimpleCountOperator());
-                for (long i = 0; i < 1023; ++i) {
+                store.registerStream(streamID, new CountBasedWBMH(windowing, 5), new SimpleCountOperator());
+                for (long i = 0; i < 1022; ++i) {
                     store.append(streamID, i, i + 1);
                     store.printBucketState(streamID, true);
                 }
+                store.flush(streamID);
+                store.printBucketState(streamID, true);
             } else {
                 store.printBucketState(streamID);
             }

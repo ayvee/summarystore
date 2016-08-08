@@ -1,8 +1,15 @@
 package com.samsung.sra.DataStore;
 
-import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 public class GenericWindowing implements Windowing {
+    private static final Logger logger = LoggerFactory.getLogger(GenericWindowing.class);
     private final WindowLengthsSequence windowLengths;
 
     public GenericWindowing(WindowLengthsSequence windowLengths) {
@@ -68,6 +75,8 @@ public class GenericWindowing implements Windowing {
         }
         long firstMarker = firstWindowOfLength.ceilingEntry(length).getValue();
         if (firstMarker >= l) {
+            /*logger.trace("getFirstContainingTime CASE 1: Tl = {}, Tr = {}, T = {}, [l, r] = [{}, {}], firstMarker = {}: retval = {}",
+                    Tl, Tr, T, l, r, firstMarker, firstMarker + Tr + 1);*/
             // l' == firstMarker, where l' := N'-1 - Tr
             return firstMarker + Tr + 1;
         } else {
@@ -75,6 +84,8 @@ public class GenericWindowing implements Windowing {
             // already in the same window or will be once we move into the next window
             addWindowsPastMarker(l);
             long currWindowL = windowStartMarkers.floor(l), currWindowR = windowStartMarkers.higher(l) - 1;
+            /*logger.trace("getFirstContainingTime CASE 2/3: Tl = {}, Tr = {}, T = {}, [l, r] = [{}, {}], firstMarker = {}, [currWindowL, currWindowR] = [{}, {}]",
+                    Tl, Tr, T, l, r, firstMarker, currWindowL, currWindowR);*/
             if (r <= currWindowR) {
                 // already in same window
                 return T;

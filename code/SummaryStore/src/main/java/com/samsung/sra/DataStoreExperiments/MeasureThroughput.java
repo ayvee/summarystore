@@ -8,7 +8,7 @@ import com.samsung.sra.DataStore.SummaryStore;
 public class MeasureThroughput {
     private static final String loc_prefix = "/tmp/tdstore_";
     private static final long streamID = 0;
-    private static final long T = 10_000_000;
+    private static final long T = 100_000_000;
     private static final InterarrivalDistribution interarrivals = new FixedInterarrival(1);
     private static final ValueDistribution values = new UniformValues(0, 100);
 
@@ -18,7 +18,7 @@ public class MeasureThroughput {
 
         try (SummaryStore store = new SummaryStore(loc_prefix + "throughput")) {
             store.registerStream(streamID,
-                    new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1)),
+                    new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1), 1000),
                     new SimpleCountOperator());
 
             StreamGenerator generator = new StreamGenerator(interarrivals, values, 0);
@@ -30,6 +30,7 @@ public class MeasureThroughput {
                     throw new RuntimeException(e);
                 }
             });
+            store.flush(streamID);
             long we = System.currentTimeMillis();
             System.out.println("Write throughput = " + (T * 1000d / (we - w0)) + " appends/s");
             store.printBucketState(streamID);
