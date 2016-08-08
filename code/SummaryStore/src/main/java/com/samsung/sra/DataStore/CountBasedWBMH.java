@@ -38,22 +38,34 @@ public class CountBasedWBMH implements WindowingMechanism {
 
 
     /**
-     * Do count-based WBMH with the specified windowing scheme. If the optional
-     * numWindowsToBuffer argument is specified and positive, buffer the newest
-     * numWindows buckets in memory, and only flush them to disk and update the
-     * windowing once they're all full.
+     * Do count-based WBMH with the specified windowing scheme. Buffer up to
+     * numValuesToBuffer elements in memory, deferring window merges until either
+     * the buffer fills up or flush() is called
      */
-    public CountBasedWBMH(Windowing windowing, int numWindowsToBuffer) {
+    public CountBasedWBMH(Windowing windowing, int numValuesToBuffer) {
         this.windowing = windowing;
 
-        numWindowsInBuffer = numWindowsToBuffer;
-        if (numWindowsInBuffer <= 0) numWindowsInBuffer = 0;
-        List<Long> windowLengths = windowing.getSizeOfFirstKWindows(numWindowsToBuffer);
-        for(int i = 0; i < numWindowsInBuffer; i++) {
-            int length = windowLengths.get(i).intValue();
-            this.bufferedWindowLengths.add(length);
-            bufferSize += length;
+        // figure out size/shape of buffer
+        for (int K = 1000; K <= numValuesToBuffer; K *= 10) {
+            // iterative deepening search for large enough K so that first K windows cover N elements
+            bufferedWindowLengths.clear();
+            bufferSize = 0;
+            numWindowsInBuffer = 0;
+            List<Long> windowLengths = windowing.getSizeOfFirstKWindows(K);
+            int N = numValuesToBuffer;
+            for (long windowLengthLong: windowLengths) {
+                if (N <= 0) break;
+                int windowLength = (int)windowLengthLong;
+                bufferedWindowLengths.add(windowLength);
+                bufferSize += windowLength;
+                ++numWindowsInBuffer;
+                N -= windowLength;
+            }
+            if (N <= 0) { // we were able to cover all N elements
+                break;
+            }
         }
+        logger.info("Buffer covers {} windows and {} values", numWindowsInBuffer, bufferSize);
     }
 
     public CountBasedWBMH(Windowing windowing) {
