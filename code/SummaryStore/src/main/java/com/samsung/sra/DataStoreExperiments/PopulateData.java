@@ -75,7 +75,7 @@ public class PopulateData {
         }
 
         String outprefix = String.format("%s/%sT%d.I%s.V%s.R%d.D%s", outdir, prefix, T, I, V, R, D);
-        StreamGenerator generator = new StreamGenerator(interarrivals, values, R);
+        StreamGenerator generator = new IVStreamGenerator(interarrivals, values, R);
         populateData(outprefix, generator, T, windowing, operators.toArray(new WindowOperator[0]), cacheSize);
     }
 

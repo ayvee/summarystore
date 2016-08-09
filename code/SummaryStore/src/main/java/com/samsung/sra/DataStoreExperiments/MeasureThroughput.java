@@ -18,10 +18,10 @@ public class MeasureThroughput {
 
         try (SummaryStore store = new SummaryStore(loc_prefix + "throughput")) {
             store.registerStream(streamID,
-                    new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1), 1000),
+                    new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1), 2_000_000),
                     new SimpleCountOperator());
 
-            StreamGenerator generator = new StreamGenerator(interarrivals, values, 0);
+            StreamGenerator generator = new IVStreamGenerator(interarrivals, values, 0);
             long w0 = System.currentTimeMillis();
             generator.generate(T, (t, v) -> {
                 try {
