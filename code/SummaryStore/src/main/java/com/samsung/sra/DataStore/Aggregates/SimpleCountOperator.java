@@ -72,7 +72,7 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
                                                 long C, long T0, long T1, long t0, long t1) {
             long overlap = overlap(T0, T1, t0, t1);
             if (C != -1 && overlap != 0) {
-                logger.debug("conditional estimate: C = {}, [T0, T1] = [{}, {}], [t0, t1] = [{}, {}], overlap = {}",
+                logger.trace("conditional estimate: C = {}, [T0, T1] = [{}, {}], [t0, t1] = [{}, {}], overlap = {}",
                         C, T0, T1, t0, t1, overlap);
                 long length = length(T0, T1);
                 if (overlap == length) lowerbound.add(C);
@@ -89,7 +89,7 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
                                                   long T, double mu_t) {
             assert T >= 0;
             if (T > 0) {
-                logger.debug("unconditional estimate: overlap = {}", T);
+                logger.trace("unconditional estimate: overlap = {}", T);
                 mean.add(T / mu_t);
                 var.add(T / mu_t);
                 upperbound.setValue(Double.POSITIVE_INFINITY);
@@ -106,7 +106,7 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
             //     (-inf, ts-1], [ts, tml-1], [tml, tmr-1], [tmr, te], [te+1, inf)
             // Middle three intervals: we know counts, do a conditional estimate (proportional count)
             // First and last intervals: do an unconditional estimate (T / mu)
-            logger.debug("timestamps = [{}, {}, {}, {}], counts = ({}, {}, {})", ts, tml, tmr, te, Cl, Cm, Cr);
+            logger.trace("timestamps = [{}, {}, {}, {}], counts = ({}, {}, {})", ts, tml, tmr, te, Cl, Cm, Cr);
             MutableDouble
                     mean = new MutableDouble(0), var = new MutableDouble(0),
                     lowerbound = new MutableDouble(0), upperbound = new MutableDouble(0);

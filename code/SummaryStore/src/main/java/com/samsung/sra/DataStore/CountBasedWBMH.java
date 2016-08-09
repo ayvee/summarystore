@@ -92,7 +92,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         this.windowing = windowing;
 
         // figure out size/shape of buffer
-        for (int K = 1000; K <= numValuesToBuffer; K *= 10) {
+        for (int K = 2; K <= numValuesToBuffer; K *= 2) {
             // iterative deepening search for large enough K so that first K windows cover N elements
             bufferWindowLengths.clear();
             bufferSize = 0;

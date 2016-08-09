@@ -22,7 +22,7 @@ public class GenerateWorkload {
 
     public static Workload<Long> generate(
             long T, StreamGenerator streamGenerator,
-            int A, int L, int Q) throws StreamException {
+            int A, int L, int Q) throws StreamException, IOException {
         Workload<Long> ret = new Workload<>();
         ArrayList<LongRange> queryIntervals = new ArrayList<>();
         ArrayList<Workload.Query<Long>> allQueries = new ArrayList<>();
@@ -53,7 +53,7 @@ public class GenerateWorkload {
     }
 
     private static void computeTrueAnswers(long T, StreamGenerator streamGenerator,
-                                           ArrayList<LongRange> intervals, ArrayList<Workload.Query<Long>> queries) {
+                                           ArrayList<LongRange> intervals, ArrayList<Workload.Query<Long>> queries) throws IOException {
         assert intervals.size() == queries.size();
         int Q = queries.size();
         Builder builder = new Builder(intervals.toArray(new LongRange[Q]), 0, T);
@@ -72,7 +72,7 @@ public class GenerateWorkload {
         });
     }
 
-    public static void test() {
+    public static void test() throws IOException {
         long T = 10_000_000;
         int Q = 1000;
         StreamGenerator streamGenerator = new IVStreamGenerator(new FixedInterarrival(1), new UniformValues(0, 100), 0);

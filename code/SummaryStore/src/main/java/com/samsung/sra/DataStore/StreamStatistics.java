@@ -3,14 +3,16 @@ package com.samsung.sra.DataStore;
 import java.io.Serializable;
 
 public class StreamStatistics implements Serializable {
-    long lastArrivalTimestamp = -1;
+    long firstArrivalTimestamp = -1, lastArrivalTimestamp = -1;
     long numValues = 0;
     private double Isum = 0, Isqsum = 0;
     private double Vsum = 0, Vsqsum = 0;
 
     public void append(long ts, Object value) {
         assert ts > lastArrivalTimestamp;
-        if (lastArrivalTimestamp != -1) {
+        if (firstArrivalTimestamp == -1) {
+            firstArrivalTimestamp = ts;
+        } else {
             double I = ts - lastArrivalTimestamp;
             Isum += I;
             Isqsum += I * I;

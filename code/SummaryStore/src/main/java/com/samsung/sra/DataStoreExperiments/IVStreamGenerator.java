@@ -30,7 +30,7 @@ public class IVStreamGenerator implements StreamGenerator {
     }
 
     public static void main(String[] args) {
-        StreamGenerator generator = new IVStreamGenerator(new FixedInterarrival(2), new UniformValues(0, 100), 0);
+        IVStreamGenerator generator = new IVStreamGenerator(new FixedInterarrival(2), new UniformValues(0, 100), 0);
         BiConsumer<Long, Long> printer = (ts, v) -> System.out.println(ts + "\t" + v);
         System.out.println("=====> reset <====");
         generator.generate(10, printer);
