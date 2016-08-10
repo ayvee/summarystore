@@ -8,7 +8,20 @@ public class StreamStatistics implements Serializable {
     private double Isum = 0, Isqsum = 0;
     private double Vsum = 0, Vsqsum = 0;
 
-    public void append(long ts, Object value) {
+    public StreamStatistics() {
+    }
+
+    public StreamStatistics(StreamStatistics that) {
+        this.firstArrivalTimestamp = that.firstArrivalTimestamp;
+        this.lastArrivalTimestamp = that.lastArrivalTimestamp;
+        this.numValues = that.numValues;
+        this.Isum = that.Isum;
+        this.Isqsum = that.Isqsum;
+        this.Vsum = that.Vsum;
+        this.Vsqsum = that.Vsqsum;
+    }
+
+    void append(long ts, Object value) {
         assert ts > lastArrivalTimestamp;
         if (firstArrivalTimestamp == -1) {
             firstArrivalTimestamp = ts;
@@ -24,6 +37,18 @@ public class StreamStatistics implements Serializable {
         }
         ++numValues;
         lastArrivalTimestamp = ts;
+    }
+
+    public long getFirstArrivalTimestamp() {
+        return firstArrivalTimestamp;
+    }
+
+    public long getLastArrivalTimestamp() {
+        return lastArrivalTimestamp;
+    }
+
+    public long getTotalCount() {
+        return numValues;
     }
 
     public double getMeanInterarrival() {

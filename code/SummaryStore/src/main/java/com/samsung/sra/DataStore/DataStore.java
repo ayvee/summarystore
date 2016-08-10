@@ -28,9 +28,8 @@ public interface DataStore extends AutoCloseable {
     @Override
     void close() throws RocksDBException;
 
+    // TODO: move into StreamStatistics
     long getStoreSizeInBytes();
 
-    long getStreamAge(long streamID) throws StreamException;
-
-    long getStreamCount(long streamID) throws StreamException;
+    StreamStatistics getStreamStatistics(long streamID) throws StreamException;
 }

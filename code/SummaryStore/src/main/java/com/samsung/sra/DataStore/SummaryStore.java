@@ -169,7 +169,7 @@ public class SummaryStore implements DataStore {
     }
 
     @Override
-    public long getStreamAge(long streamID) throws StreamException {
+    public StreamStatistics getStreamStatistics(long streamID) throws StreamException {
         StreamManager streamManager;
         synchronized (streamManagers) {
             streamManager = streamManagers.get(streamID);
@@ -179,24 +179,7 @@ public class SummaryStore implements DataStore {
         }
         streamManager.lock.readLock().lock();
         try {
-            return streamManager.stats.lastArrivalTimestamp;
-        } finally {
-            streamManager.lock.readLock().unlock();
-        }
-    }
-
-    @Override
-    public long getStreamCount(long streamID) throws StreamException {
-        StreamManager streamManager;
-        synchronized (streamManagers) {
-            streamManager = streamManagers.get(streamID);
-            if (streamManager == null) {
-                throw new StreamException("attempting to get age of unknown stream " + streamID);
-            }
-        }
-        streamManager.lock.readLock().lock();
-        try {
-            return streamManager.stats.numValues;
+            return new StreamStatistics(streamManager.stats);
         } finally {
             streamManager.lock.readLock().unlock();
         }
