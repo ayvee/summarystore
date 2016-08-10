@@ -5,6 +5,8 @@ import org.rocksdb.RocksDBException;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Time-decayed aggregate storage
@@ -13,6 +15,8 @@ public class SummaryStore implements DataStore {
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(SummaryStore.class);
 
     private final BucketStore bucketStore;
+
+    private final ExecutorService executorService;
 
     private final HashMap<Long, StreamManager> streamManagers;
 
@@ -28,11 +32,12 @@ public class SummaryStore implements DataStore {
         this.bucketStore = filePrefix != null ?
                 new RocksDBBucketStore(filePrefix + ".bucketStore", cacheSizePerStream) :
                 new MainMemoryBucketStore();
+        executorService = Executors.newCachedThreadPool();
         Object uncast = bucketStore.getMetadata();
         if (uncast != null) {
             streamManagers = (HashMap<Long, StreamManager>) uncast;
             for (StreamManager si: streamManagers.values()) {
-                si.populateTransientFields(bucketStore);
+                si.populateTransientFields(bucketStore, executorService);
             }
         } else {
             streamManagers = new HashMap<>();
@@ -54,7 +59,7 @@ public class SummaryStore implements DataStore {
             if (streamManagers.containsKey(streamID)) {
                 throw new StreamException("attempting to register streamID " + streamID + " multiple times");
             } else {
-                streamManagers.put(streamID, new StreamManager(bucketStore, streamID, windowingMechanism, operators));
+                streamManagers.put(streamID, new StreamManager(bucketStore, executorService, streamID, windowingMechanism, operators));
             }
         }
     }

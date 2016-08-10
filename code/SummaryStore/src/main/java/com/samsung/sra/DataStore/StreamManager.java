@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import java.io.Serializable;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
@@ -41,16 +42,20 @@ class StreamManager implements Serializable {
     final int bytesPerBucket;
 
     transient BucketStore bucketStore;
+    transient ExecutorService executorService;
 
-    void populateTransientFields(BucketStore bucketStore) {
+    void populateTransientFields(BucketStore bucketStore, ExecutorService executorService) {
         this.bucketStore = bucketStore;
+        this.executorService = executorService;
         windowingMechanism.populateTransientFields();
     }
 
-    StreamManager(BucketStore bucketStore, long streamID,
+    StreamManager(BucketStore bucketStore, ExecutorService executorService,
+                  long streamID,
                   WindowingMechanism windowingMechanism, WindowOperator... operators) {
         this.streamID = streamID;
         this.bucketStore = bucketStore;
+        this.executorService = executorService;
         this.windowingMechanism = windowingMechanism;
         this.operators = operators;
         this.stats = new StreamStatistics();

@@ -7,7 +7,13 @@ import org.teneighty.heap.FibonacciHeap;
 import org.teneighty.heap.Heap;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * WBMH implementation with
@@ -78,7 +84,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         }
     }
 
-    private IngestBuffer buffer;
+    private final BlockingQueue<IngestBuffer> emptyBuffers;
     private int bufferSize;
     private final ArrayList<Integer> bufferWindowLengths = new ArrayList<>();
 
@@ -110,7 +116,11 @@ public class CountBasedWBMH implements WindowingMechanism {
             }
         }
         if (bufferSize > 0) {
-            buffer = new IngestBuffer(bufferSize);
+            emptyBuffers = new ArrayBlockingQueue<>(2);
+            emptyBuffers.add(new IngestBuffer(bufferSize));
+            emptyBuffers.add(new IngestBuffer(bufferSize));
+        } else {
+            emptyBuffers = new ArrayBlockingQueue<>(0);
         }
         logger.info("Buffer covers {} windows and {} values", bufferWindowLengths.size(), bufferSize);
     }
@@ -175,26 +185,55 @@ public class CountBasedWBMH implements WindowingMechanism {
         ++N;
     }
 
+    IngestBuffer activeBuffer = null;
+    Lock flushLock = new ReentrantLock();
+
     public void appendBuffered(StreamManager streamManager, long ts, Object value) throws RocksDBException{
-        assert !buffer.isFull();
-        buffer.append(ts, value);
-        if (buffer.isFull()) { // buffer is full, flush
-            flushFullBuffer(streamManager);
-            buffer.clear();
+        while (activeBuffer == null) {
+            try {
+                activeBuffer = emptyBuffers.take();
+            } catch (InterruptedException ignored) {
+            }
+        }
+        assert !activeBuffer.isFull();
+        activeBuffer.append(ts, value);
+        if (activeBuffer.isFull()) { // buffer is full, flush
+            // 1. Start flushing current active buffer in a different thread
+            IngestBuffer flushingBuffer = activeBuffer;
+            streamManager.executorService.submit(() -> {
+                flushLock.lock();
+                try {
+                    flushFullBuffer(streamManager, flushingBuffer);
+                    flushingBuffer.clear();
+                    boolean offered = emptyBuffers.offer(flushingBuffer);
+                    assert offered;
+                } catch (RocksDBException e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    flushLock.unlock();
+                }
+            });
+            // 2. Deactivate current buffer. Next call to append() will wait for an empty buffer to activate
+            activeBuffer = null;
         }
     }
 
     @Override
     public void flush(StreamManager manager) throws RocksDBException {
-        if (bufferSize == 0) return;
-        if (buffer.isFull()) {
-            flushFullBuffer(manager);
-        } else { // append elements one by one
-            for (int i = 0; i < buffer.size(); ++i) {
-                appendUnbuffered(manager, buffer.getTimestamp(i), buffer.getValue(i));
+        if (bufferSize == 0 || activeBuffer == null) return;
+        flushLock.lock();
+        try {
+            if (activeBuffer.isFull()) {
+                flushFullBuffer(manager, activeBuffer);
+            } else { // append elements one by one
+                for (int i = 0; i < activeBuffer.size(); ++i) {
+                    appendUnbuffered(manager, activeBuffer.getTimestamp(i), activeBuffer.getValue(i));
+                }
             }
+            activeBuffer.clear();
+        } finally {
+            flushLock.unlock();
         }
-        buffer.clear();
     }
 
     /**
@@ -246,7 +285,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         }
     }
 
-    private void flushFullBuffer(StreamManager streamManager) throws RocksDBException {
+    private void flushFullBuffer(StreamManager streamManager, IngestBuffer buffer) throws RocksDBException {
         assert bufferSize > 0 && buffer.isFull();
 
         long lastExtantBucketID = lastBucketID;
