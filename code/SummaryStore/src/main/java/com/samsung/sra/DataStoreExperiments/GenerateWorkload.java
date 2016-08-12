@@ -75,7 +75,7 @@ public class GenerateWorkload {
     public static void test() throws IOException {
         long T = 10_000_000;
         int Q = 1000;
-        StreamGenerator streamGenerator = new IVStreamGenerator(new FixedInterarrival(1), new UniformValues(0, 100), 0);
+        StreamGenerator streamGenerator = new RandomStreamGenerator(new FixedInterarrival(1), new UniformValues(0, 100), 0);
 
         ArrayList<LongRange> intervals = new ArrayList<>();
         ArrayList<Workload.Query<Long>> queries = new ArrayList<>();
@@ -145,7 +145,7 @@ public class GenerateWorkload {
             return;
         }
 
-        StreamGenerator streamGenerator = new IVStreamGenerator(interarrivals, values, R);
+        StreamGenerator streamGenerator = new RandomStreamGenerator(interarrivals, values, R);
         Workload<Long> workload = generate(T, streamGenerator, A, L, Q);
         String outfile = String.format("%s/%sT%d.I%s.V%s.R%d.A%d.L%d.Q%d.workload", outdir, prefix, T, I, V, R, A, L, Q);
         try (FileOutputStream fos = new FileOutputStream(outfile)) {

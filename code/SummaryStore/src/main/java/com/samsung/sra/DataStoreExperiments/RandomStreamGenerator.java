@@ -3,13 +3,13 @@ package com.samsung.sra.DataStoreExperiments;
 import java.util.Random;
 import java.util.function.BiConsumer;
 
-public class IVStreamGenerator implements StreamGenerator {
+public class RandomStreamGenerator implements StreamGenerator {
     private final InterarrivalDistribution interarrivals;
     private final ValueDistribution values;
     private Random random;
     private final long R;
 
-    public IVStreamGenerator(InterarrivalDistribution interarrivals, ValueDistribution values, long randomSeed) {
+    public RandomStreamGenerator(InterarrivalDistribution interarrivals, ValueDistribution values, long randomSeed) {
         this.interarrivals = interarrivals;
         this.values = values;
         this.R = randomSeed;
@@ -30,7 +30,7 @@ public class IVStreamGenerator implements StreamGenerator {
     }
 
     public static void main(String[] args) {
-        IVStreamGenerator generator = new IVStreamGenerator(new FixedInterarrival(2), new UniformValues(0, 100), 0);
+        RandomStreamGenerator generator = new RandomStreamGenerator(new FixedInterarrival(2), new UniformValues(0, 100), 0);
         BiConsumer<Long, Long> printer = (ts, v) -> System.out.println(ts + "\t" + v);
         System.out.println("=====> reset <====");
         generator.generate(10, printer);
