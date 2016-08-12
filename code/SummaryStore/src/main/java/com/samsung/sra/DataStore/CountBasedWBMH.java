@@ -84,20 +84,26 @@ public class CountBasedWBMH implements WindowingMechanism {
         }
     }
 
-    private final BlockingQueue<IngestBuffer> emptyBuffers;
     private int bufferSize;
     private final ArrayList<Integer> bufferWindowLengths = new ArrayList<>();
 
+    /* We keep two ingest buffers, and at most two active threads at any given point:
+         one thread flushing a full buffer,
+         the other thread appending to the other buffer (until it becomes full)
+     */
+    private final BlockingQueue<IngestBuffer> emptyBuffers;
+    private IngestBuffer activeBuffer = null;
+    private Lock flushLock = new ReentrantLock();
+
 
     /**
-     * Do count-based WBMH with the specified windowing scheme. Buffer up to
-     * numValuesToBuffer elements in memory, deferring window merges until either
-     * the buffer fills up or flush() is called
+     * Buffers up to numValuesToBuffer elements in memory, deferring window merges
+     * until either the buffer fills up or flush() is called
      */
     public CountBasedWBMH(Windowing windowing, int numValuesToBuffer) {
         this.windowing = windowing;
 
-        // figure out size/shape of buffer
+        // figure out size/shape of buffer. FIXME: ugly, can clean this up but will need expanding Windowing API
         for (int K = 2; K <= numValuesToBuffer; K *= 2) {
             // iterative deepening search for large enough K so that first K windows cover N elements
             bufferWindowLengths.clear();
@@ -120,7 +126,7 @@ public class CountBasedWBMH implements WindowingMechanism {
             emptyBuffers.add(new IngestBuffer(bufferSize));
             emptyBuffers.add(new IngestBuffer(bufferSize));
         } else {
-            emptyBuffers = new ArrayBlockingQueue<>(0);
+            emptyBuffers = null;
         }
         logger.info("Buffer covers {} windows and {} values", bufferWindowLengths.size(), bufferSize);
     }
@@ -145,7 +151,6 @@ public class CountBasedWBMH implements WindowingMechanism {
             appendBuffered(streamManager, ts, value);
         }
     }
-
 
     @Override
     public void close(StreamManager manager) throws RocksDBException {
@@ -185,9 +190,8 @@ public class CountBasedWBMH implements WindowingMechanism {
         ++N;
     }
 
-    IngestBuffer activeBuffer = null;
-    Lock flushLock = new ReentrantLock();
-
+    /*NOTE: code here depends on the fact that append() calls are serialized (by StreamManager).
+            Else we would need more careful synchronization */
     public void appendBuffered(StreamManager streamManager, long ts, Object value) throws RocksDBException{
         while (activeBuffer == null) {
             try {
@@ -231,6 +235,8 @@ public class CountBasedWBMH implements WindowingMechanism {
                 }
             }
             activeBuffer.clear();
+            boolean offered = emptyBuffers.offer(activeBuffer);
+            assert offered;
         } finally {
             flushLock.unlock();
         }
