@@ -148,12 +148,12 @@ public class SummaryStore implements DataStore {
             for (StreamManager streamManager: streamManagers.values()) {
                 streamManager.lock.writeLock().lock();
             }
+            // At this point all operations on existing streams will be blocked. New stream
+            // creates are already blocked because we're synchronizing on streamManagers
             for (StreamManager streamManager: streamManagers.values()) {
-                bucketStore.flushCache(streamManager);
                 streamManager.windowingMechanism.close(streamManager);
+                bucketStore.flushCache(streamManager);
             }
-            // at this point all operations on existing streams will be blocked
-            // TODO: lock out creating new streams
             persistStreamsInfo();
             bucketStore.close();
         }
