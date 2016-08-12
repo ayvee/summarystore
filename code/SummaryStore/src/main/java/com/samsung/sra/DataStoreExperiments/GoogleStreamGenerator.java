@@ -1,10 +1,7 @@
 package com.samsung.sra.DataStoreExperiments;
 
+import com.samsung.sra.DataStore.*;
 import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
-import com.samsung.sra.DataStore.CountBasedWBMH;
-import com.samsung.sra.DataStore.ExponentialWindowLengths;
-import com.samsung.sra.DataStore.GenericWindowing;
-import com.samsung.sra.DataStore.SummaryStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,11 +14,12 @@ import java.util.function.BiConsumer;
 /** TODO: turn this into an arbitrary trace player eventually */
 public class GoogleStreamGenerator implements StreamGenerator, AutoCloseable {
     private static Logger logger = LoggerFactory.getLogger(StreamGenerator.class);
-    private static final String traceFile = "/Users/a.vulimiri/samsung/summarystore/code/workloads/google-cluster-data/task_event_count";
+    private final String traceFile;
 
     private BufferedReader traceReader;
 
-    public GoogleStreamGenerator() throws IOException {
+    public GoogleStreamGenerator(String traceFile) throws IOException {
+        this.traceFile = traceFile;
         reset();
     }
 
@@ -73,20 +71,26 @@ public class GoogleStreamGenerator implements StreamGenerator, AutoCloseable {
         Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + prefix + "*"}).waitFor();
         SummaryStore store = new SummaryStore("/tmp/googletrace_test_");
         store.registerStream(streamID,
-                new CountBasedWBMH(new GenericWindowing(new ExponentialWindowLengths(2)), 2_000_000),
+                new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1), 2_000_000),
                 new SimpleCountOperator());
-        StreamGenerator generator = new GoogleStreamGenerator();
+        StreamGenerator generator = new GoogleStreamGenerator(
+                "/Users/a.vulimiri/samsung/summarystore/code/workloads/google-cluster-data/task_event_count");
         long ts = System.currentTimeMillis();
-        generator.generate(Long.MAX_VALUE, (t, v) -> {
-            try {
-                store.append(streamID, t, v);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
+        for (int i = 0; i < 12; ++i) {
+            long baseT = i * 2506199602822L;
+            generator.generate(Long.MAX_VALUE, (t, v) -> {
+                try {
+                    store.append(streamID, baseT + t, v);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            generator.reset();
+        }
         store.flush(streamID);
         long te = System.currentTimeMillis();
-        System.out.println("Write throughput = " + (144e6 * 1000d / (double)(te - ts)) + " per second");
+        System.out.println("Write throughput = " +
+                (store.getStreamStatistics(streamID).getTotalCount() * 1000d / (double)(te - ts)) + " per second");
         store.printBucketState(streamID);
         System.out.println(store.query(streamID, (long)600e6, (long)900e6, 0, 0.95));
     }
