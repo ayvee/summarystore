@@ -17,44 +17,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-public class GenerateWorkload {
-    private static Logger logger = LoggerFactory.getLogger(GenerateWorkload.class);
+public class PopulateWorkload {
+    private static Logger logger = LoggerFactory.getLogger(PopulateWorkload.class);
 
-    public static Workload<Long> generate(
-            long T, StreamGenerator streamGenerator,
-            int A, int L, int Q) throws StreamException, IOException {
-        Workload<Long> ret = new Workload<>();
-        ArrayList<LongRange> queryIntervals = new ArrayList<>();
-        ArrayList<Workload.Query<Long>> allQueries = new ArrayList<>();
-
-        {
-            Random random = new Random(0);
-            List<AgeLengthClass> alClasses = AgeLengthSampler.getAgeLengthClasses(T, T, A, L);
-            for (AgeLengthClass alClass: alClasses) {
-                List<Workload.Query<Long>> thisClassQueries = new ArrayList<>();
-                for (int q = 0; q < Q; ++q) {
-                    Pair<Long> al = alClass.sample(random);
-                    long age = al.first(), length = al.second();
-                    long l = T - length + 1 - age, r = T - age;
-                    if (0 <= l && r < T) {
-                        Workload.Query<Long> query = new Workload.Query<>(l, r, 0, null, 0L);
-                        thisClassQueries.add(query);
-                        allQueries.add(query);
-                        queryIntervals.add(new LongRange(l + ":" + r, l, true, r, true));
-                    }
-                }
-                ret.put(alClass.toString(), thisClassQueries);
+    private static void computeTrueAnswers(long T, StreamGenerator streamGenerator, Workload<Long> workload) throws IOException {
+        ArrayList<LongRange> intervals = new ArrayList<>();
+        ArrayList<Workload.Query<Long>> queries = new ArrayList<>();
+        for (List<Workload.Query<Long>> classQueries: workload.values()) {
+            for (Workload.Query<Long> q: classQueries) {
+                queries.add(q);
+                intervals.add(new LongRange(q.l + ":" + q.r, q.l, true, q.r, true));
             }
         }
-
-        computeTrueAnswers(T, streamGenerator, queryIntervals, allQueries);
-
-        return ret;
-    }
-
-    private static void computeTrueAnswers(long T, StreamGenerator streamGenerator,
-                                           ArrayList<LongRange> intervals, ArrayList<Workload.Query<Long>> queries) throws IOException {
-        assert intervals.size() == queries.size();
         int Q = queries.size();
         Builder builder = new Builder(intervals.toArray(new LongRange[Q]), 0, T);
         LongRangeMultiSet lrms = builder.getMultiSet(false, true);
@@ -77,16 +51,16 @@ public class GenerateWorkload {
         int Q = 1000;
         StreamGenerator streamGenerator = new RandomStreamGenerator(new FixedInterarrival(1), new UniformValues(0, 100), 0);
 
-        ArrayList<LongRange> intervals = new ArrayList<>();
-        ArrayList<Workload.Query<Long>> queries = new ArrayList<>();
+        Workload<Long> workload = new Workload<>();
+        List<Workload.Query<Long>> queries = new ArrayList<>();
+        workload.put("", queries);
         Random random = new Random(0);
         for (int q = 0; q < Q; ++q) {
             long a = Math.floorMod(random.nextLong(), T), b = Math.floorMod(random.nextLong(), T);
             long l = Math.min(a, b), r = Math.max(a, b);
-            intervals.add(new LongRange(l + ":" + r, l , true, r, true));
             queries.add(new Workload.Query<>(l, r, 0, null, 0L));
         }
-        computeTrueAnswers(T, streamGenerator, intervals, queries);
+        computeTrueAnswers(T, streamGenerator, workload);
         for (Workload.Query<Long> q: queries) {
             assert q.r - q.l + 1 == q.trueAnswer;
         }
@@ -146,7 +120,9 @@ public class GenerateWorkload {
         }
 
         StreamGenerator streamGenerator = new RandomStreamGenerator(interarrivals, values, R);
-        Workload<Long> workload = generate(T, streamGenerator, A, L, Q);
+        WorkloadGenerator<Long> workloadGenerator = new RandomWorkloadGenerator(A, L, Q);
+        Workload<Long> workload = workloadGenerator.generate(T);
+        computeTrueAnswers(T, streamGenerator, workload);
         String outfile = String.format("%s/%sT%d.I%s.V%s.R%d.A%d.L%d.Q%d.workload", outdir, prefix, T, I, V, R, A, L, Q);
         try (FileOutputStream fos = new FileOutputStream(outfile)) {
             SerializationUtils.serialize(workload, fos);

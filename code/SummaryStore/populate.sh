@@ -26,4 +26,4 @@ for D in $Ds
 do
 	java -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.PopulateData -cachesize 10,000,000 $outdir $T $D $*
 done
-java -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.GenerateWorkload $outdir $T $*
+java -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.PopulateWorkload $outdir $T $*

@@ -14,14 +14,22 @@ INSTALL
 EXPERIMENTS
 ==============
 
+Experiments are defined by a combination of (dataset, query workload, decay functions):
+
+* Dataset: implement the StreamGenerator interface to define a new dataset. The code currently has implementations for
+ a random dataset generator (using iid interarrival time and value distributions) and a generator that replays the Google
+ trace.
+* Query workload: implement WorkloadGenerator to define a new workload.
+* Decay functions: defined inside the DataStore package. Most of our experiments will use RationalPowerWindowing.
+
 Each experiment runs in three phases:
 
 1. PopulateData: populate a summary store. Usually run multiple times, to generate several stores holding the same data
  with different decay functions.
-2. GenerateWorkload: generate a list of queries and their true answers (queries are binned into a specified number of
- age/length classes)
+2. PopulateWorkload: generate a list of queries and their true answers (queries are binned into several classes, e.g. by
+ age/length)
 3. CompareDecayFunctions: run the generated workload against each of the stores from step 1 to build a profile, a CDF
- over the error distribution for each age/length class
+ over the error distribution for each class
     * Run CompareDecayFunctions with -weight and -metric arguments to output an aggregate accuracy score for each
      decay function, i.e. a storage vs accuracy plot. Error profiles are cached on disk, so trying alternate weight and
      metric combinations (after CompareDecayFunctions has been run once) shouldn't take much time.

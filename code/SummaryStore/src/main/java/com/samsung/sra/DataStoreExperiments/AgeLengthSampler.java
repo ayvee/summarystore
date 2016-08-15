@@ -44,9 +44,8 @@ public class AgeLengthSampler {
         return selectRandomAgeLengthClass().sample(random);
     }
 
-    public static List<AgeLengthClass> getAgeLengthClasses(long streamAge, long streamLength, int nAgeClasses, int nLengthClasses) throws StreamException {
-        if (streamAge <= 0 || streamLength <= 0)
-            throw new StreamException("Querying non-empty stream");
+    public static List<AgeLengthClass> getAgeLengthClasses(long streamAge, long streamLength, int nAgeClasses, int nLengthClasses) {
+        assert streamAge > 0 && streamLength > 0;
         assert nAgeClasses > 0 && nLengthClasses > 0;
 
         long[] ageMarkers = new long[nAgeClasses + 1];
