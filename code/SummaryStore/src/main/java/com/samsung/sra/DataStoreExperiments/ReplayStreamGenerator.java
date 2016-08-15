@@ -11,16 +11,25 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.function.BiConsumer;
 
-/** TODO: turn this into an arbitrary trace player eventually */
-public class GoogleStreamGenerator implements StreamGenerator, AutoCloseable {
+/** Replay a trace file to generate a stream */
+public class ReplayStreamGenerator implements StreamGenerator, AutoCloseable {
     private static Logger logger = LoggerFactory.getLogger(StreamGenerator.class);
     private final String traceFile;
+    private final String separator;
+    private final int tsIndex, valIndex;
 
     private BufferedReader traceReader;
 
-    public GoogleStreamGenerator(String traceFile) throws IOException {
+    public ReplayStreamGenerator(String traceFile, String separator, int tsIndex, int valIndex) throws IOException {
         this.traceFile = traceFile;
+        this.separator = separator;
+        this.tsIndex = tsIndex;
+        this.valIndex = valIndex;
         reset();
+    }
+
+    public ReplayStreamGenerator(String traceFile) throws IOException {
+        this(traceFile, ",", 0, 1);
     }
 
     private Long currTimestamp;
@@ -34,11 +43,13 @@ public class GoogleStreamGenerator implements StreamGenerator, AutoCloseable {
                 currValue = null;
                 break;
             } else {
-                String[] vals = line.split(",");
-                long newTimestamp = Long.parseLong(vals[0]);
+                if (line.isEmpty() || line.startsWith("#")) continue;
+                String[] vals = line.split(separator);
+                assert vals.length > tsIndex && vals.length > valIndex : "incomplete line " + line;
+                long newTimestamp = Long.parseLong(vals[tsIndex]);
                 if (currTimestamp == null || newTimestamp != currTimestamp) {
                     currTimestamp = newTimestamp;
-                    currValue = Long.parseLong(vals[1]);
+                    currValue = Long.parseLong(vals[valIndex]);
                     break;
                 }
             }
@@ -73,7 +84,7 @@ public class GoogleStreamGenerator implements StreamGenerator, AutoCloseable {
         store.registerStream(streamID,
                 new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1), 2_000_000),
                 new SimpleCountOperator());
-        StreamGenerator generator = new GoogleStreamGenerator(
+        StreamGenerator generator = new ReplayStreamGenerator(
                 "/Users/a.vulimiri/samsung/summarystore/code/workloads/google-cluster-data/task_event_count");
         long ts = System.currentTimeMillis();
         for (int i = 0; i < 12; ++i) {
