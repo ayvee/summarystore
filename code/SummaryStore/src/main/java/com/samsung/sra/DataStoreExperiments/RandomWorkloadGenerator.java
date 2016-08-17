@@ -1,5 +1,7 @@
 package com.samsung.sra.DataStoreExperiments;
 
+import org.apache.commons.math3.util.Pair;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -22,8 +24,8 @@ public class RandomWorkloadGenerator implements WorkloadGenerator<Long> {
         for (AgeLengthClass alClass : alClasses) {
             List<Workload.Query<Long>> thisClassQueries = new ArrayList<>();
             for (int q = 0; q < Q; ++q) {
-                Pair<Long> al = alClass.sample(random);
-                long age = al.first(), length = al.second();
+                Pair<Long, Long> al = alClass.sample(random);
+                long age = al.getFirst(), length = al.getSecond();
                 long l = T - length + 1 - age, r = T - age;
                 if (0 <= l && r < T) {
                     Workload.Query<Long> query = new Workload.Query<>(l, r, 0, null, 0L);

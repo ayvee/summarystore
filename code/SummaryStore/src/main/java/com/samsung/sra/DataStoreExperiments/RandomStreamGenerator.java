@@ -4,12 +4,11 @@ import java.util.Random;
 import java.util.function.BiConsumer;
 
 public class RandomStreamGenerator implements StreamGenerator {
-    private final InterarrivalDistribution interarrivals;
-    private final ValueDistribution values;
+    private final Distribution<Long> interarrivals, values;
     private Random random;
     private final long R;
 
-    public RandomStreamGenerator(InterarrivalDistribution interarrivals, ValueDistribution values, long randomSeed) {
+    public RandomStreamGenerator(Distribution<Long> interarrivals, Distribution<Long> values, long randomSeed) {
         this.interarrivals = interarrivals;
         this.values = values;
         this.R = randomSeed;
@@ -30,7 +29,7 @@ public class RandomStreamGenerator implements StreamGenerator {
     }
 
     public static void main(String[] args) {
-        RandomStreamGenerator generator = new RandomStreamGenerator(new FixedInterarrival(2), new UniformValues(0, 100), 0);
+        RandomStreamGenerator generator = new RandomStreamGenerator(new FixedDistribution(2), new UniformDistribution(0, 100), 0);
         BiConsumer<Long, Long> printer = (ts, v) -> System.out.println(ts + "\t" + v);
         System.out.println("=====> reset <====");
         generator.generate(10, printer);

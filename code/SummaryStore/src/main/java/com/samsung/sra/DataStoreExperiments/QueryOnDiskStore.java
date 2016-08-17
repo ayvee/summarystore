@@ -37,6 +37,6 @@ public class QueryOnDiskStore {
         store.printBucketState(streamID);
         System.out.println(
                 "Store size = " + store.getStoreSizeInBytes() + " bytes; " +
-                "COUNT[" + l + ":" + r + "] = " + store.query(streamID, l, r, 0, null));
+                "COUNT[" + l + ":" + r + "] = " + store.query(streamID, l, r, 0));
     }
 }

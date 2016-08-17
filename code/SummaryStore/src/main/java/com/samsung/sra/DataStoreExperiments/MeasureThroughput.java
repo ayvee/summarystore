@@ -9,8 +9,9 @@ public class MeasureThroughput {
     private static final String loc_prefix = "/tmp/tdstore_";
     private static final long streamID = 0;
     private static final long T = 100_000_000;
-    private static final InterarrivalDistribution interarrivals = new FixedInterarrival(1);
-    private static final ValueDistribution values = new UniformValues(0, 100);
+    private static final Distribution<Long>
+            interarrivals = new FixedDistribution(1),
+            values = new UniformDistribution(0, 100);
 
 
     public static void main(String[] args) throws Exception {

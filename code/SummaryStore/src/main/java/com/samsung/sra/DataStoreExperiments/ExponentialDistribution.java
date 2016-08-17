@@ -2,15 +2,15 @@ package com.samsung.sra.DataStoreExperiments;
 
 import java.util.Random;
 
-public class ExponentialInterarrivals implements InterarrivalDistribution {
+public class ExponentialDistribution implements Distribution<Long> {
     private final double lambda;
 
-    public ExponentialInterarrivals(double lambda) {
+    public ExponentialDistribution(double lambda) {
         this.lambda = lambda;
     }
 
     @Override
-    public long next(Random random) {
+    public Long next(Random random) {
         return (long) Math.ceil(-Math.log(random.nextDouble()) / lambda);
     }
 }

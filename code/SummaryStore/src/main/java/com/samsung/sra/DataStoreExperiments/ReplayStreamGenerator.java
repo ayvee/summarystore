@@ -12,7 +12,7 @@ import java.nio.file.Paths;
 import java.util.function.BiConsumer;
 
 /** Replay a trace file to generate a stream */
-public class ReplayStreamGenerator implements StreamGenerator, AutoCloseable {
+public class ReplayStreamGenerator implements StreamGenerator {
     private static Logger logger = LoggerFactory.getLogger(StreamGenerator.class);
     private final String traceFile;
     private final String separator;
@@ -96,6 +96,7 @@ public class ReplayStreamGenerator implements StreamGenerator, AutoCloseable {
                     throw new RuntimeException(e);
                 }
             });
+            logger.info("finished appending month {}", i + 1);
             generator.reset();
         }
         store.flush(streamID);

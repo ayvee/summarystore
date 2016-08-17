@@ -25,10 +25,10 @@ class CompareDecayFunctions {
      * Returns (decay function name) -> (store location prefix) mapping for all stores in the directory
      * with the specified N
      */
-    private static Map<String, String> discoverStores(String directory, String prefix, long T, String I, String V, long R) throws IOException, RocksDBException {
-        Pattern pattern = Pattern.compile(String.format("(.*%sT%d\\.I%s\\.V%s\\.R%d\\.D([^\\.]+))\\.bucketStore.*", prefix, T, I, V, R));
+    private static Map<String, String> discoverStores(Configuration config) throws IOException, RocksDBException {
+        Pattern pattern = Pattern.compile(String.format("(.*%s\\.D([^\\.]+))\\.bucketStore.*", config.getStorePrefixBasename()));
         Map<String, String> stores = new LinkedHashMap<>();
-        try (DirectoryStream<Path> paths = Files.newDirectoryStream(Paths.get(directory), "*.bucketStore")) {
+        try (DirectoryStream<Path> paths = Files.newDirectoryStream(Paths.get(config.getDirectory()), "*.bucketStore")) {
             for (Path path : paths) {
                 if (Files.isDirectory(path)) {
                     Matcher matcher = pattern.matcher(path.toString());
@@ -57,9 +57,7 @@ class CompareDecayFunctions {
      * Compute stats for each store. Results will be memoized to disk if the argument is true
      */
     private static <R extends Number> Map<String, StoreStats> computeStatistics(
-            String directory, String prefix,
-            long T, String I, String V, long R,
-            String workloadFile, String memoFile) throws Exception {
+            Configuration config, String workloadFile, String memoFile) throws Exception {
         if (memoFile != null) {
             try (InputStream is = Files.newInputStream(Paths.get(memoFile))){
                 return (LinkedHashMap<String, StoreStats>) SerializationUtils.deserialize(is);
@@ -70,9 +68,9 @@ class CompareDecayFunctions {
             }
         }
 
-        Map<String, String> stores = discoverStores(directory, prefix, T, I, V, R);
+        Map<String, String> stores = discoverStores(config);
         if (stores.isEmpty()) {
-            throw new IllegalArgumentException(String.format("no stores found with prefix, T, I, V, R = %s, %d, %s, %s, %d", prefix, T, I, V, R));
+            throw new IllegalArgumentException("no stores found with specified configuration");
         }
         Workload<R> workload = readWorkload(workloadFile);
         if (logger.isDebugEnabled()) {
@@ -86,7 +84,7 @@ class CompareDecayFunctions {
             String decay = entry.getKey();
             StoreStats storeStats;
             // WARNING: setting cache size to T, i.e. loading all data into main memory
-            try (SummaryStore store = new SummaryStore(entry.getValue(), T)) {
+            try (SummaryStore store = new SummaryStore(entry.getValue(), config.getT())) {
                 store.warmupCache();
 
                 List<String> queryClasses = new ArrayList<>(workload.keySet());
@@ -138,8 +136,7 @@ class CompareDecayFunctions {
 
     private static <R> Workload<R> readWorkload(String workloadFile) throws IOException {
         try (InputStream is = Files.newInputStream(Paths.get(workloadFile))) {
-            return (Workload<R>)
-                    SerializationUtils.deserialize(is);
+            return (Workload<R>) SerializationUtils.deserialize(is);
         }
     }
 
@@ -148,48 +145,20 @@ class CompareDecayFunctions {
                 description("compute statistics for each decay function and query class, " +
                         "and optionally print weighted stats if a weight function and metric are specified").
                 defaultHelp(true);
-        ArgumentType<Long> CommaSeparatedLong = (ArgumentParser argParser, Argument arg, String value) ->
-                Long.valueOf(value.replace(",", ""));
-        parser.addArgument("directory").help("input/output directory");
-        parser.addArgument("T").help("size of stream").type(CommaSeparatedLong);
-        parser.addArgument("-I")
-                .help("interarrival distribution [" + CLIParser.getValidInterarrivalDistributions() + "]")
-                .setDefault("fixed1");
-        parser.addArgument("-V")
-                .help("value distribution [" + CLIParser.getValidValueDistributions() + "]")
-                .setDefault("uniform0,100");
-        parser.addArgument("-R").help("stream generator RNG seed").type(Long.class).setDefault(0L);
-        parser.addArgument("-A").help("number of age classes").type(int.class).setDefault(8);
-        parser.addArgument("-L").help("number of length classes").type(int.class).setDefault(8);
-        parser.addArgument("-Q").help("number of random queries to run per class").type(int.class).setDefault(1000);
+        parser.addArgument("conf", "config file").type(File.class);
+
         parser.addArgument("-metric").help("error metric (allowed: \"mean\", \"p<percentile>\", e.g. \"p50\")");
         parser.addArgument("-weight").help("function assigning weights to each query class (allowed: \"uniform\")");
-        parser.addArgument("-prefix").help("optional prefix to add to every input/output file").setDefault("");
 
-        String directory;
-        long T;
-        String I, V;
-        long R;
+        Configuration config;
         ToDoubleFunction<Statistics> metric;
         ToDoubleFunction<String> weightFunction;
-        int A, L, Q;
-        String prefix;
         try {
             Namespace parsed = parser.parseArgs(args);
-            directory = parsed.get("directory");
-            T = parsed.get("T");
-            I = parsed.get("I");
-            V = parsed.get("V");
-            R = parsed.get("R");
-            // we're silently discarding the output of the parse func calls (only doing them to sanity check CLI args)
-            CLIParser.parseInterarrivalDistribution(I);
-            CLIParser.parseValueDistribution(V);
-            A = parsed.get("A");
-            L = parsed.get("L");
-            Q = parsed.get("Q");
+            config = new Configuration(parsed.get("conf"));
             String metricName = parsed.get("metric");
             String weightFunctionName = parsed.get("weight");
-            if (metricName != null || weightFunctionName != null) { // TODO? move into CLIParser
+            if (metricName != null || weightFunctionName != null) { // TODO: move into Configuration?
                 if (metricName == null || weightFunctionName == null) {
                     throw new IllegalArgumentException("either both metric and weight function should be specified or neither");
                 }
@@ -210,7 +179,6 @@ class CompareDecayFunctions {
                 metric = null;
                 weightFunction = null;
             }
-            prefix = parsed.get("prefix");
         } catch (ArgumentParserException | IllegalArgumentException e) {
             System.err.println("ERROR: " + e.getMessage());
             parser.printHelp(new PrintWriter(System.err, true));
@@ -218,9 +186,9 @@ class CompareDecayFunctions {
             return;
         }
 
-        String workloadFile = String.format("%s/%sT%d.I%s.V%s.R%d.A%d.L%d.Q%d.workload", directory, prefix, T, I, V, R, A, L, Q);
-        String memoFile = String.format("%s/%sT%d.I%s.V%s.R%d.A%d.L%d.Q%d.profile", directory, prefix, T, I, V, R, A, L, Q);
-        Map<String, StoreStats> results = computeStatistics(directory, prefix, T, I, V, R, workloadFile, memoFile);
+        String workloadFile = config.getWorkloadFile();
+        String memoFile = config.getProfileFile();
+        Map<String, StoreStats> results = computeStatistics(config, workloadFile, memoFile);
 
         if (metric != null) {
             System.out.println("#decay\tstore size (bytes)\tcost");

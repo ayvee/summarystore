@@ -1,6 +1,7 @@
 package com.samsung.sra.DataStoreExperiments;
 
 import com.samsung.sra.DataStore.StreamException;
+import org.apache.commons.math3.util.Pair;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -40,7 +41,7 @@ public class AgeLengthSampler {
         return cdf.floorEntry(random.nextDouble()).getValue();
     }
 
-    public Pair<Long> sample() {
+    public Pair<Long, Long> sample() {
         return selectRandomAgeLengthClass().sample(random);
     }
 
