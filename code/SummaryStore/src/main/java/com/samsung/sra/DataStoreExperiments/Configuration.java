@@ -7,7 +7,14 @@ import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
+/**
+ * Configuration backed by a Toml file. See example.toml for a sample config.
+ *
+ * Raises IllegalArgumentException on some parse errors but is generally optimistic and expects the file is a legal
+ * config.
+ */
 public class Configuration {
     private final Toml toml;
 
@@ -35,26 +42,26 @@ public class Configuration {
         return toml.getLong("ingest-buffer-size", 0L).intValue();
     }
 
-    /** Get prefix of all SummaryStore output directories. (NOTE: need to append
-     * decay function name to get the full prefix that SummaryStore constructor takes)
+    /** Get prefix of all SummaryStore output directories. (NOTE: need to append decay function name to get the full
+     * prefix that the SummaryStore constructor takes). {@link #getHash} explains why we use a hash here
      */
     public String getStorePrefix() {
-        return String.format("%s/%sT%d.S%s", getDirectory(), getPrefix(), getT(), getStreamGeneratorHash());
+        return String.format("%s/%sT%d.S%s", getDirectory(), getPrefix(), getT(), getHash(toml.getTable("data")));
     }
 
     /** Return storeprefix minus directory path */
     public String getStorePrefixBasename() {
-        return String.format("%sT%d.S%s", getPrefix(), getT(), getStreamGeneratorHash());
+        return String.format("%sT%d.S%s", getPrefix(), getT(), getHash(toml.getTable("data")));
     }
 
     public String getWorkloadFile() {
         return String.format("%s/%sT%d.S%s.W%s.workload",
-                getDirectory(), getPrefix(), getT(), getStreamGeneratorHash(), getWorkloadGeneratorHash());
+                getDirectory(), getPrefix(), getT(), getHash(toml.getTable("data")), getHash(toml.getTable("workload")));
     }
 
     public String getProfileFile() {
         return String.format("%s/%sT%d.S%s.W%s.profile",
-                getDirectory(), getPrefix(), getT(), getStreamGeneratorHash(), getWorkloadGeneratorHash());
+                getDirectory(), getPrefix(), getT(), getHash(toml.getTable("data")), getHash(toml.getTable("workload")));
     }
 
     /** Data/queries will span the time range [0, T] */
@@ -68,24 +75,24 @@ public class Configuration {
             case "random": {
                 Distribution<Long> I, V;
                 long R;
-                switch (conf.getString("I.class").toLowerCase()) {
+                switch (conf.getString("interarrivals.distribution").toLowerCase()) {
                     case "exponential":
-                        I = new ExponentialDistribution(conf.getDouble("I.lambda"));
+                        I = new ExponentialDistribution(conf.getDouble("interarrivals.lambda"));
                         break;
                     case "fixed":
-                        I = new FixedDistribution(conf.getLong("I.value"));
+                        I = new FixedDistribution(conf.getLong("interarrivals.value"));
                         break;
                     default:
                         throw new IllegalArgumentException("invalid or missing interarrival class");
                 }
-                switch (conf.getString("V.class").toLowerCase()) {
+                switch (conf.getString("values.distribution").toLowerCase()) {
                     case "uniform":
-                        V = new UniformDistribution(conf.getLong("V.min"), conf.getLong("V.max"));
+                        V = new UniformDistribution(conf.getLong("values.min"), conf.getLong("values.max"));
                         break;
                     default:
                         throw new IllegalArgumentException("invalid or missing value class");
                 }
-                R = conf.getLong("R", 0L);
+                R = conf.getLong("random-seed", 0L);
                 return new RandomStreamGenerator(I, V, R);
             }
             case "replay":
@@ -95,44 +102,38 @@ public class Configuration {
         }
     }
 
-    public String getStreamGeneratorHash() {
-        Toml conf = toml.getTable("data");
-        // TODO: consider using say MD5 instead?
+    /**
+     * Compute a deterministic hash of some portion of the toml tree.
+     * Use case: suppose we run several experiments trying various workloads against the same dataset. We want to
+     * recognize that we can use the same generated SummaryStores for all these experiments. To do this we will name
+     * SummaryStores using a hash of the dataset config portion of the toml.
+     */
+    public static String getHash(Object node) {
         HashCodeBuilder builder = new HashCodeBuilder();
-        switch (conf.getString("class").toLowerCase()) {
-            case "random":
-                builder.append("random");
-                switch (conf.getString("I.class").toLowerCase()) {
-                    case "exponential":
-                        builder.append("exponential");
-                        builder.append(conf.getDouble("I.lambda"));
-                        break;
-                    case "fixed":
-                        builder.append("fixed");
-                        builder.append(conf.getLong("I.value"));
-                        break;
-                    default:
-                        throw new IllegalArgumentException("invalid or missing interarrival class");
-                }
-                switch (conf.getString("V.class").toLowerCase()) {
-                    case "uniform":
-                        builder.append("uniform");
-                        builder.append(conf.getLong("V.min"));
-                        builder.append(conf.getLong("V.max"));
-                        break;
-                    default:
-                        throw new IllegalArgumentException("invalid or missing value class");
-                }
-                builder.append(conf.getLong("R", 0L));
-                break;
-            case "replay":
-                builder.append("replay");
-                builder.append(conf.getString("file"));
-                break;
-            default:
-                throw new IllegalArgumentException("invalid or missing stream generator class");
-        }
+        buildHash(node, builder);
         return Long.toString((long)builder.toHashCode() - (long)Integer.MIN_VALUE);
+    }
+
+    private static void buildHash(Object node, HashCodeBuilder builder) {
+        if (node instanceof List) {
+            for (Object entry: (List)node) { // Array. Hash entries in sequence
+                buildHash(entry, builder);
+            }
+        } else if (node instanceof Toml || node instanceof Map) { // Table. Hash entries in key-sorted order
+            Map<String, Object> map = node instanceof Toml ?
+                    ((Toml) node).toMap() :
+                    (Map<String, Object>)node;
+            map.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(e -> {
+                        builder.append(e.getKey());
+                        buildHash(e.getValue(), builder);
+                    });
+        } else { // a primitive
+            assert node instanceof Number || node instanceof String || node instanceof Character
+                    : "unknown node class " + node.getClass();
+            builder.append(node); // TODO: verify that HashCodeBuilder handles Object-casted primitives sensibly
+        }
     }
 
     /** Return list of all decay function names. Use parseDecayFunction to convert name to Windowing */
@@ -170,32 +171,17 @@ public class Configuration {
         switch (conf.getString("class").toLowerCase()) {
             case "random":
                 return new RandomWorkloadGenerator(
-                        conf.getLong("A").intValue(), conf.getLong("L").intValue(), conf.getLong("Q").intValue()
+                        conf.getLong("A").intValue(), conf.getLong("L").intValue(), conf.getLong("Q").intValue(),
+                        conf.getLong("operator.index").intValue(), conf.getString("operator.type")
                 );
             default:
                 throw new IllegalArgumentException("invalid or missing workload generator class");
         }
     }
 
-    public String getWorkloadGeneratorHash() {
-        Toml conf = toml.getTable("workload");
-        // TODO: consider using say MD5 instead?
-        HashCodeBuilder builder = new HashCodeBuilder();
-        switch (conf.getString("class").toLowerCase()) {
-            case "random":
-                builder.append(conf.getLong("A"));
-                builder.append(conf.getLong("L"));
-                builder.append(conf.getLong("Q"));
-                break;
-            default:
-                throw new IllegalArgumentException("invalid or missing workload generator class");
-        }
-        return Long.toString((long)builder.toHashCode() - (long)Integer.MIN_VALUE);
-    }
-
     public static void main(String[] args) throws Exception {
-        System.out.println(new Configuration(
-                new File("/Users/a.vulimiri/samsung/summarystore/code/SummaryStore/example.toml"))
-                .getWorkloadFile());
+        Configuration config = new Configuration(
+                new File("/Users/a.vulimiri/samsung/summarystore/code/SummaryStore/example.toml"));
+        System.out.println(getHash(config.toml.getTable("data")));
     }
 }

@@ -40,6 +40,7 @@ public class PopulateWorkload {
             int matchCount = lrms.lookup(t, matchedIndexes);
             for (int i = 0; i < matchCount; ++i) {
                 Workload.Query<Long> q = queries.get(matchedIndexes[i]);
+                assert q.queryType.equalsIgnoreCase("count"); // TODO: other kinds of queries
                 ++q.trueAnswer;
             }
         });
@@ -57,7 +58,7 @@ public class PopulateWorkload {
         for (int q = 0; q < Q; ++q) {
             long a = Math.floorMod(random.nextLong(), T), b = Math.floorMod(random.nextLong(), T);
             long l = Math.min(a, b), r = Math.max(a, b);
-            queries.add(new Workload.Query<>(l, r, 0, null, 0L));
+            queries.add(new Workload.Query<>("count", l, r, 0, null, 0L));
         }
         computeTrueAnswers(T, streamGenerator, workload);
         for (Workload.Query<Long> q: queries) {

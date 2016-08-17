@@ -8,12 +8,16 @@ import java.util.Random;
 
 public class RandomWorkloadGenerator implements WorkloadGenerator<Long> {
     private final int A, L, Q;
+    private final int operatorIndex;
+    private final String operatorType;
 
-    public RandomWorkloadGenerator(int A, int L, int Q) {
+    public RandomWorkloadGenerator(int A, int L, int Q, int operatorIndex, String operatorType) {
         this.A = A;
         this.L = L;
         this.Q = Q;
-
+        this.operatorIndex = operatorIndex;
+        this.operatorType = operatorType;
+        assert operatorType.equalsIgnoreCase("count");
     }
 
     @Override
@@ -28,7 +32,7 @@ public class RandomWorkloadGenerator implements WorkloadGenerator<Long> {
                 long age = al.getFirst(), length = al.getSecond();
                 long l = T - length + 1 - age, r = T - age;
                 if (0 <= l && r < T) {
-                    Workload.Query<Long> query = new Workload.Query<>(l, r, 0, null, 0L);
+                    Workload.Query<Long> query = new Workload.Query<>(operatorType, l, r, operatorIndex, null, 0L);
                     thisClassQueries.add(query);
                 }
             }

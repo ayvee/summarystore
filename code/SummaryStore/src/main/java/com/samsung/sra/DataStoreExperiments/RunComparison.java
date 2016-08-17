@@ -17,8 +17,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-class CompareDecayFunctions {
-    private static Logger logger = LoggerFactory.getLogger(CompareDecayFunctions.class);
+class RunComparison {
+    private static Logger logger = LoggerFactory.getLogger(RunComparison.class);
     private static final long streamID = 0;
 
     /**
@@ -141,7 +141,7 @@ class CompareDecayFunctions {
     }
 
     public static void main(String[] args) throws Exception {
-        ArgumentParser parser = ArgumentParsers.newArgumentParser("CompareDecayFunctions", false).
+        ArgumentParser parser = ArgumentParsers.newArgumentParser("RunComparison", false).
                 description("compute statistics for each decay function and query class, " +
                         "and optionally print weighted stats if a weight function and metric are specified").
                 defaultHelp(true);
@@ -162,15 +162,15 @@ class CompareDecayFunctions {
                 if (metricName == null || weightFunctionName == null) {
                     throw new IllegalArgumentException("either both metric and weight function should be specified or neither");
                 }
-                if (metricName.equals("mean")) {
+                if (metricName.equalsIgnoreCase("mean")) {
                     metric = Statistics::getMean;
-                } else if (metricName.startsWith("p")) {
+                } else if (metricName.toLowerCase().startsWith("p")) {
                     double quantile = Double.valueOf(metricName.substring(1)) * 0.01;
                     metric = s -> s.getQuantile(quantile);
                 } else {
                     throw new IllegalArgumentException("unknown metric " + metricName);
                 }
-                if (weightFunctionName.equals("uniform")) {
+                if (weightFunctionName.equalsIgnoreCase("uniform")) {
                     weightFunction = e -> 1;
                 } else {
                     throw new IllegalArgumentException("unknown weight function " + weightFunctionName);

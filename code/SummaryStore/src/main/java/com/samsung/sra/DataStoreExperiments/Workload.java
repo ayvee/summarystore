@@ -14,12 +14,14 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class Workload<R> extends ConcurrentHashMap<String, List<Workload.Query<R>>> {
     public static class Query<R> implements Serializable {
+        String queryType;
         long l, r;
         int operatorNum;
         Object[] params;
         R trueAnswer;
 
-        public Query(long l, long r, int operatorNum, Object[] params, R trueAnswer) {
+        public Query(String queryType, long l, long r, int operatorNum, Object[] params, R trueAnswer) {
+            this.queryType = queryType;
             this.l = l;
             this.r = r;
             this.operatorNum = operatorNum;
