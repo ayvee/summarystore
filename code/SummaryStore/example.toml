@@ -6,19 +6,10 @@ ingest-buffer-size = 2_000_000      # number of values to buffer before triggeri
 # TODO: consider specifying each decay as a map, instead of encoding as string
 decay-functions = [
     "exponential2",
-    "rationalPower1,1",
-    "rationalPower2,1",
-#    "rationalPower3,1",
-    "rationalPower4,1",
-#    "rationalPower5,1",
-#    "rationalPower6,1",
-#    "rationalPower7,1",
-    "rationalPower8,1",
-#    "rationalPower9,1",
-#    "rationalPower11,1",
-#    "rationalPower13,1",
-#    "rationalPower15,1",
-#    "rationalPower18,1",
+    "rationalPower1,1,1,1",
+    "rationalPower1,1,2,1",
+    "rationalPower1,1,4,1",
+    "rationalPower1,1,8,1",
 ]
 
 

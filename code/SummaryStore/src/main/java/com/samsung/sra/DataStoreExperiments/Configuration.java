@@ -149,8 +149,18 @@ public class Configuration {
             return new GenericWindowing(new ExponentialWindowLengths(Double.parseDouble(decayName.substring("exponential".length()))));
         } else if (decayName.startsWith("rationalPower")) {
             String[] pq = decayName.substring("rationalPower".length()).split(",");
-            if (pq.length != 2) throw new IllegalArgumentException("malformed rationalPower decay spec " + decayName);
-            return new RationalPowerWindowing(Integer.parseInt(pq[0]), Integer.parseInt(pq[1]));
+            if (pq.length != 2 && pq.length != 4) throw new IllegalArgumentException("malformed rationalPower decay spec " + decayName);
+            int P, Q, R, S;
+            P = Integer.parseInt(pq[0]);
+            Q = Integer.parseInt(pq[1]);
+            if (pq.length == 4) {
+                R = Integer.parseInt(pq[2]);
+                S = Integer.parseInt(pq[3]);
+            } else {
+                R = 1;
+                S = 1;
+            }
+            return new RationalPowerWindowing(P, Q, R, S);
         } else {
             throw new IllegalArgumentException("unrecognized decay function " + decayName);
         }
