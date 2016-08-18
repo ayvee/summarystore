@@ -1,0 +1,46 @@
+directory = "workdir"               # input/output directory
+bucket-cache-size = 1_000_000       # number of buckets to cache in memory
+ingest-buffer-size = 2_000_000      # number of values to buffer before triggering merge
+
+# List of decay functions. Allowed vals: exponentialBASE, rationalPowerP,Q,R,S
+# TODO: consider specifying each decay as a map, instead of encoding as string
+decay-functions = [
+    "exponential2",
+    "rationalPower1,1",
+    "rationalPower2,1",
+#    "rationalPower3,1",
+    "rationalPower4,1",
+#    "rationalPower5,1",
+#    "rationalPower6,1",
+#    "rationalPower7,1",
+    "rationalPower8,1",
+#    "rationalPower9,1",
+#    "rationalPower11,1",
+#    "rationalPower13,1",
+#    "rationalPower15,1",
+#    "rationalPower18,1",
+]
+
+
+# Dataset (stream generator) specification
+[data]
+T = 1_000_000_000                        # generated data will span [0, T]
+operators = ["SimpleCountOperator"]      # list of operators to maintain in each SummaryStore
+# Use RandomStreamGenerator with iid exponential interarrivals and iid uniform values
+class = "random"
+interarrivals = {distribution = "exponential", lambda = 1.0}
+values = {distribution = "uniform", min = 0, max = 100}
+random-seed = 0                          # RandomStreamGenerator seed. Optional, defaults to 0
+## Use ReplayStreamGenerator instead
+#class = "replay"
+#file = "/Users/a.vulimiri/samsung/summarystore/code/workloads/google-cluster-data/task_event_count"
+
+
+# Workload specification
+[workload]
+# Use RandomWorkloadGenerator with 8 age/length classes and a 1000 queries per class
+class = "random"
+A = 8
+L = 8
+Q = 1000
+operator = {index = 0, type = "count"}

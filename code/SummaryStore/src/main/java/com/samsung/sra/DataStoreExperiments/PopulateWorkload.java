@@ -3,8 +3,6 @@ package com.samsung.sra.DataStoreExperiments;
 import com.changingbits.Builder;
 import com.changingbits.LongRange;
 import com.changingbits.LongRangeMultiSet;
-import net.sourceforge.argparse4j.ArgumentParsers;
-import net.sourceforge.argparse4j.inf.ArgumentParser;
 import org.apache.commons.lang.SerializationUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,9 +65,13 @@ public class PopulateWorkload {
     }
 
     public static void main(String[] args) throws Exception {
-        ArgumentParser parser = ArgumentParsers.newArgumentParser("PopulateWorkload", false).defaultHelp(true);
-        parser.addArgument("conf", "config file").type(File.class);
-        Configuration config = new Configuration(parser.parseArgs(args).get("conf"));
+        File configFile;
+        if (args.length != 1 || !(configFile = new File(args[0])).isFile()) {
+            System.err.println("SYNTAX: PopulateData config.toml");
+            System.exit(2);
+            return;
+        }
+        Configuration config = new Configuration(configFile);
 
         long T = config.getT();
         try (StreamGenerator streamGenerator = config.getStreamGenerator()) {

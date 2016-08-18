@@ -46,22 +46,22 @@ public class Configuration {
      * prefix that the SummaryStore constructor takes). {@link #getHash} explains why we use a hash here
      */
     public String getStorePrefix() {
-        return String.format("%s/%sT%d.S%s", getDirectory(), getPrefix(), getT(), getHash(toml.getTable("data")));
+        return String.format("%s/%sS%s", getDirectory(), getPrefix(), getHash(toml.getTable("data")));
     }
 
     /** Return storeprefix minus directory path */
     public String getStorePrefixBasename() {
-        return String.format("%sT%d.S%s", getPrefix(), getT(), getHash(toml.getTable("data")));
+        return String.format("%sS%s", getPrefix(), getHash(toml.getTable("data")));
     }
 
     public String getWorkloadFile() {
-        return String.format("%s/%sT%d.S%s.W%s.workload",
-                getDirectory(), getPrefix(), getT(), getHash(toml.getTable("data")), getHash(toml.getTable("workload")));
+        return String.format("%s/%sS%s.W%s.workload",
+                getDirectory(), getPrefix(), getHash(toml.getTable("data")), getHash(toml.getTable("workload")));
     }
 
     public String getProfileFile() {
-        return String.format("%s/%sT%d.S%s.W%s.profile",
-                getDirectory(), getPrefix(), getT(), getHash(toml.getTable("data")), getHash(toml.getTable("workload")));
+        return String.format("%s/%sS%s.W%s.profile",
+                getDirectory(), getPrefix(), getHash(toml.getTable("data")), getHash(toml.getTable("workload")));
     }
 
     /** Data/queries will span the time range [0, T] */
@@ -157,7 +157,7 @@ public class Configuration {
     }
 
     public WindowOperator[] getOperators() throws ClassNotFoundException, IllegalAccessException, InstantiationException {
-        List<String> operatorNames = toml.getList("dataset.operators");
+        List<String> operatorNames = toml.getList("data.operators");
         WindowOperator[] operators = new WindowOperator[operatorNames.size()];
         for (int i = 0; i < operators.length; ++i) {
             String opname = operatorNames.get(i);

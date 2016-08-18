@@ -58,7 +58,7 @@ public class ReplayStreamGenerator implements StreamGenerator {
 
     @Override
     public void generate(long T, BiConsumer<Long, Long> consumer) throws IOException {
-        while (currTimestamp != null && currTimestamp < T) {
+        while (currTimestamp != null && currTimestamp <= T) {
             consumer.accept(currTimestamp, currValue);
             readNextLine();
         }
