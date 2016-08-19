@@ -82,6 +82,9 @@ public class Configuration {
                     case "fixed":
                         I = new FixedDistribution(conf.getLong("interarrivals.value"));
                         break;
+                    case "pareto":
+                        I = new ParetoDistribution(conf.getDouble("interarrivals.xm"), conf.getDouble("interarrivals.alpha"));
+                        break;
                     default:
                         throw new IllegalArgumentException("invalid or missing interarrival class");
                 }
