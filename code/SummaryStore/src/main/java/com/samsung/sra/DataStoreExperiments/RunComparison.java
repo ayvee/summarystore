@@ -3,6 +3,7 @@ package com.samsung.sra.DataStoreExperiments;
 import com.samsung.sra.DataStore.ResultError;
 import com.samsung.sra.DataStore.SummaryStore;
 import net.sourceforge.argparse4j.ArgumentParsers;
+import net.sourceforge.argparse4j.impl.Arguments;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.ArgumentParserException;
 import net.sourceforge.argparse4j.inf.Namespace;
@@ -75,8 +76,10 @@ class RunComparison {
                         try {
                             logger.trace("Running query [{}, {}], true answer = {}", q.l, q.r, q.trueAnswer);
                             long trueAnswer = (Long)q.trueAnswer;
-                            double estimate = ((ResultError<Double, Pair<Double, Double>>) store.query(streamID, q.l, q.r, q.operatorNum, q.params)).result;
-                            double error = Math.abs(estimate - trueAnswer) / (1d + trueAnswer);
+                            ResultError<Double, Pair<Double, Double>> estimate =
+                                    (ResultError<Double, Pair<Double, Double>>) store.query(streamID, q.l, q.r, q.operatorNum, 0.95);
+                            //double error = Math.abs(estimate.result - trueAnswer) / (1d + trueAnswer);
+                            double error = estimate.error.getFirst() <= trueAnswer && trueAnswer <= estimate.error.getSecond() ? 0 : 1;
                             stats.addObservation(error);
                         } catch (Exception e) {
                             throw new RuntimeException(e);
@@ -120,6 +123,7 @@ class RunComparison {
         parser.addArgument("conf").help("config file").type(File.class);
         parser.addArgument("-metric").help("error metric (allowed: \"mean\", \"p<percentile>\", e.g. \"p50\")");
         parser.addArgument("-weight").help("function assigning weights to each query class (allowed: \"uniform\")");
+        parser.addArgument("-force-run").help("force running workload, ignoring any memoized results").action(Arguments.storeTrue());
 
         Configuration config;
         ToDoubleFunction<Statistics> metric;
@@ -127,6 +131,9 @@ class RunComparison {
         try {
             Namespace parsed = parser.parseArgs(args);
             config = new Configuration(parsed.get("conf"));
+            if (parsed.getBoolean("force_run")) {
+                Files.deleteIfExists(Paths.get(config.getProfileFile()));
+            }
             String metricName = parsed.get("metric");
             String weightFunctionName = parsed.get("weight");
             if (metricName != null || weightFunctionName != null) { // TODO: move into Configuration?

@@ -24,7 +24,7 @@ WorkloadGenerator interfaces, and then run the following scripts:
  error distribution for each class.
     * Specify -weight and -metric arguments to RunComparison to output an aggregate accuracy score for each
      decay function, i.e. a storage vs accuracy plot. Error profiles are cached on disk, so trying alternate weight and
-     metric combinations (after CompareDecayFunctions has been run once) shouldn't take much time.
+     metric combinations (after RunComparison has been run once) shouldn't take much time.
 
 All three scripts take a single config file as argument, specifying all parameters. Script format is explained in
 [example.toml](example.toml) and defined in Configuration.java. For now, adding a new StreamGenerator or
