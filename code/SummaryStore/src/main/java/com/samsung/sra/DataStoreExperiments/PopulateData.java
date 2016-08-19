@@ -27,6 +27,10 @@ public class PopulateData {
         // uncomment the parallelStream to parallelize
         config.getDecayFunctions()./*parallelStream().*/forEach(decay -> {
             String outprefix = config.getStorePrefix() + ".D" + decay;
+            if ((new File(outprefix + ".bucketStore").exists())) {
+                logger.warn("Decay function {} already populated, skipping", decay);
+                return;
+            }
             try (SummaryStore store = new SummaryStore(outprefix, cacheSize);
                  StreamGenerator streamgen = config.getStreamGenerator()) {
                 store.registerStream(streamID,
