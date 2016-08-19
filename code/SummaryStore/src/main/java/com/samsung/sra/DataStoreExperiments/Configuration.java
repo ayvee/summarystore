@@ -60,8 +60,8 @@ public class Configuration {
     }
 
     public String getProfileFile() {
-        return String.format("%s/%sS%s.W%s.profile",
-                getDirectory(), getPrefix(), getHash(toml.getTable("data")), getHash(toml.getTable("workload")));
+        return String.format("%s/%sS%s.W%s.D%s.profile", getDirectory(), getPrefix(),
+                getHash(toml.getTable("data")), getHash(toml.getTable("workload")), getHash(toml.getList("decay-functions")));
     }
 
     /** Data/queries will span the time range [0, T] */

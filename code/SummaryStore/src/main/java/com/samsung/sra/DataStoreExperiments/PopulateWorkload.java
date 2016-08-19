@@ -73,6 +73,10 @@ public class PopulateWorkload {
         }
         Configuration config = new Configuration(configFile);
 
+        if ((new File(config.getWorkloadFile())).isFile()) {
+            logger.warn("Workload file {} already exists, skipping generation", config.getWorkloadFile());
+            System.exit(1);
+        }
         long T = config.getT();
         try (StreamGenerator streamGenerator = config.getStreamGenerator()) {
             WorkloadGenerator<Long> workloadGenerator = config.getWorkloadGenerator();
