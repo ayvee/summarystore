@@ -3,10 +3,7 @@ package com.samsung.sra.DataStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.TreeMap;
-import java.util.TreeSet;
+import java.util.*;
 
 public class GenericWindowing implements Windowing {
     private static final Logger logger = LoggerFactory.getLogger(GenericWindowing.class);
@@ -103,22 +100,20 @@ public class GenericWindowing implements Windowing {
     }
 
     @Override
-    public List<Long> getSizeOfFirstKWindows(int k) {
-        addWindowsUntilCount(k);
+    public List<Long> getWindowsCoveringUpto(long N) {
+        if (N <= 0) return Collections.emptyList();
+        addWindowsPastMarker(N);
         List<Long> ret = new ArrayList<>();
-        long prevMarker = -1;
+        Long prevMarker = null;
         for (long currMarker: windowStartMarkers) {
-            if (prevMarker != -1) {
-                ret.add(currMarker - prevMarker);
-                if (ret.size() == k) break;
+            if (currMarker >= N) {
+                break;
+            } else {
+                if (prevMarker != null) {
+                    ret.add(currMarker - prevMarker);
+                }
+                prevMarker = currMarker;
             }
-            prevMarker = currMarker;
-        }
-        if (ret.size() == k - 1) {
-            assert prevMarker == lastWindowStart;
-            ret.add(lastWindowLength);
-        } else {
-            assert ret.size() == k;
         }
         return ret;
     }

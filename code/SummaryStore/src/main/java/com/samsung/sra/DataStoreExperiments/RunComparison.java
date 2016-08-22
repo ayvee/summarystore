@@ -63,8 +63,7 @@ class RunComparison {
             StoreStats storeStats;
             // WARNING: setting cache size to T, i.e. loading all data into main memory
             try (SummaryStore store = new SummaryStore(
-                    String.format("%s.D%s", config.getStorePrefix(), decay),
-                    config.getT())) {
+                    String.format("%s.D%s", config.getStorePrefix(), decay), config.getT())) {
                 store.warmupCache();
 
                 List<String> queryClasses = new ArrayList<>(workload.keySet());
@@ -170,7 +169,6 @@ class RunComparison {
 
         if (metric != null) {
             System.out.println("#decay\tstore size (bytes)\tcost");
-            //LinkedHashMap<String, Double> decayFunctionCosts = new LinkedHashMap<>(); // compute cost of each decay function
             results.forEach((decayFunction, stats) -> {
                 Collection<Statistics> eachClassStatistics = stats.queryStats.values();
                 Collection<Double> eachClassWeight = stats.queryStats.keySet().stream().
@@ -179,14 +177,8 @@ class RunComparison {
                 // construct the aggregate weighted mixture distribution over all the classes
                 Statistics mixtureStats = new Statistics(eachClassStatistics, eachClassWeight);
                 double cost = metric.applyAsDouble(mixtureStats);
-                //decayFunctionCosts.put(decayFunction, cost);
                 System.out.println(decayFunction + "\t" + stats.sizeInBytes + "\t" + cost);
             });
         }
-
-        /*String bestDecay = decayFunctionCosts.entrySet().stream().
-                min(Comparator.comparing(Map.Entry::getValue)).
-                get().getKey();
-        System.out.println("Best decay = " + bestDecay);*/
     }
 }

@@ -23,13 +23,10 @@ public interface DataStore extends AutoCloseable {
     /** Flush any buffered values into bucket store. Does not flush bucket store to disk */
     default void flush(long streamID) throws RocksDBException, StreamException {}
 
-    // FIXME: do we need a flush to disk API?
-
-    @Override
-    void close() throws RocksDBException;
-
-    // TODO: move into StreamStatistics
     long getStoreSizeInBytes();
 
     StreamStatistics getStreamStatistics(long streamID) throws StreamException;
+
+    @Override
+    void close() throws RocksDBException;
 }

@@ -4,7 +4,7 @@ import java.io.Serializable;
 import java.util.List;
 
 /**
- * These are the two properties of a window sequence that WBMH actually needs to know.
+ * These are the three properties of a window sequence that WBMH actually needs to know.
  * The GenericWindowing implementor can build a Windowing out of any arbitrary
  * WindowLengthsSequence, but it can be very time/space inefficient for e.g. gradual
  * decay functions, and specialized implementations can potentially be much faster
@@ -19,5 +19,12 @@ public interface Windowing extends Serializable {
     // FIXME?  Strictly, unnecessary; can replace with getFirstContainingTime(T-k, T, T+1) == 0
     long getSizeOfFirstWindow();
 
-    List<Long> getSizeOfFirstKWindows(int k);
+    /**
+     * Return the sizes of the first K windows, where
+     *    first K windows cover <= N elements
+     *    first K+1 windows cover > N elements
+     *
+     * (Used to calculate ingest buffer shape.)
+     */
+    List<Long> getWindowsCoveringUpto(long N);
 }

@@ -1,9 +1,6 @@
 package com.samsung.sra.DataStore;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
 /**
  * R of size S, R * 2^(p-1) of size S * 2^q, ..., R * k^(p-1) of size S * k^q, ...
@@ -94,16 +91,18 @@ public class RationalPowerWindowing implements Windowing {
     }
 
     @Override
-    public List<Long> getSizeOfFirstKWindows(int k) {
+    public List<Long> getWindowsCoveringUpto(long N) {
         List<Long> ret = new ArrayList<>();
+        long NsoFar = 0;
         for (long b = 1; ; ++b) {
             long count = (long)Math.pow(b, p-1) * R;
             long size = (long)Math.pow(b, q) * S;
             for (long i = 0; i < count; ++i) {
-                if (ret.size() >= k) {
+                if (NsoFar + size > N) {
                     return ret;
                 } else {
                     ret.add(size);
+                    NsoFar += size;
                 }
             }
         }

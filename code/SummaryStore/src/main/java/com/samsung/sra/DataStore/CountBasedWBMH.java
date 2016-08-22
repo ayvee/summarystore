@@ -7,7 +7,6 @@ import org.teneighty.heap.FibonacciHeap;
 import org.teneighty.heap.Heap;
 
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -84,8 +83,8 @@ public class CountBasedWBMH implements WindowingMechanism {
         }
     }
 
-    private int bufferSize;
-    private final ArrayList<Integer> bufferWindowLengths = new ArrayList<>();
+    private long bufferSize;
+    private final List<Long> bufferWindowLengths;
 
     /* We keep two ingest buffers, and at most two active threads at any given point:
          one thread flushing a full buffer,
@@ -103,28 +102,12 @@ public class CountBasedWBMH implements WindowingMechanism {
     public CountBasedWBMH(Windowing windowing, int numValuesToBuffer) {
         this.windowing = windowing;
 
-        // figure out size/shape of buffer. FIXME: ugly, can clean this up but will need expanding Windowing API
-        for (int K = 2; K <= numValuesToBuffer; K *= 2) {
-            // iterative deepening search for large enough K so that first K windows cover N elements
-            bufferWindowLengths.clear();
-            bufferSize = 0;
-            List<Long> windowLengths = windowing.getSizeOfFirstKWindows(K);
-            int N = numValuesToBuffer;
-            for (long windowLengthLong: windowLengths) {
-                if (N <= 0) break;
-                int windowLength = (int)windowLengthLong;
-                bufferWindowLengths.add(windowLength);
-                bufferSize += windowLength;
-                N -= windowLength;
-            }
-            if (N <= 0) { // we were able to cover all N elements
-                break;
-            }
-        }
+        bufferWindowLengths = windowing.getWindowsCoveringUpto(numValuesToBuffer);
+        bufferSize = bufferWindowLengths.stream().mapToLong(Long::longValue).sum();
         if (bufferSize > 0) {
             emptyBuffers = new ArrayBlockingQueue<>(2);
-            emptyBuffers.add(new IngestBuffer(bufferSize));
-            emptyBuffers.add(new IngestBuffer(bufferSize));
+            emptyBuffers.add(new IngestBuffer((int)bufferSize));
+            emptyBuffers.add(new IngestBuffer((int)bufferSize));
         } else {
             emptyBuffers = null;
         }
@@ -309,7 +292,7 @@ public class CountBasedWBMH implements WindowingMechanism {
             long cBase = (lastExtantBucket == null) ? 0 : lastExtantBucket.cEnd + 1;
             int cStartOffset = 0, cEndOffset;
             for (int bucketNum = 0; bucketNum < newBuckets.length; ++bucketNum) {
-                int bucketSize = bufferWindowLengths.get(newBuckets.length - 1 - bucketNum);
+                int bucketSize = bufferWindowLengths.get(newBuckets.length - 1 - bucketNum).intValue();
                 cEndOffset = cStartOffset + bucketSize - 1;
                 Bucket bucket = streamManager.createEmptyBucket(
                         lastExtantBucketID + bucketNum,

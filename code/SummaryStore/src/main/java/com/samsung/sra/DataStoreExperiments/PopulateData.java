@@ -2,7 +2,6 @@ package com.samsung.sra.DataStoreExperiments;
 
 import com.samsung.sra.DataStore.CountBasedWBMH;
 import com.samsung.sra.DataStore.SummaryStore;
-import com.samsung.sra.DataStore.WindowOperator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,9 +20,6 @@ public class PopulateData {
         }
         Configuration config = new Configuration(configFile);
 
-        long T = config.getT();
-        WindowOperator[] operators = config.getOperators();
-        long cacheSize = config.getBucketCacheSize();
         // uncomment the parallelStream to parallelize
         config.getDecayFunctions()./*parallelStream().*/forEach(decay -> {
             String outprefix = config.getStorePrefix() + ".D" + decay;
@@ -31,13 +27,13 @@ public class PopulateData {
                 logger.warn("Decay function {} already populated, skipping", decay);
                 return;
             }
-            try (SummaryStore store = new SummaryStore(outprefix, cacheSize);
+            try (SummaryStore store = new SummaryStore(outprefix, config.getBucketCacheSize());
                  StreamGenerator streamgen = config.getStreamGenerator()) {
                 store.registerStream(streamID,
                         new CountBasedWBMH(config.parseDecayFunction(decay), config.getIngestBufferSize()),
-                        operators);
+                        config.getOperators());
                 streamgen.reset();
-                streamgen.generate(T, (t, v) -> {
+                streamgen.generate(config.getT(), (t, v) -> {
                     try {
                         store.append(streamID, t, v);
                     } catch (Exception e) {
