@@ -1,7 +1,10 @@
 package com.samsung.sra.DataStoreExperiments;
 
-import com.samsung.sra.DataStore.*;
+import com.moandjiezana.toml.Toml;
 import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
+import com.samsung.sra.DataStore.CountBasedWBMH;
+import com.samsung.sra.DataStore.RationalPowerWindowing;
+import com.samsung.sra.DataStore.SummaryStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,6 +22,10 @@ public class ReplayStreamGenerator implements StreamGenerator {
     private final int tsIndex, valIndex;
 
     private BufferedReader traceReader;
+
+    public ReplayStreamGenerator(Toml params) throws IOException {
+        this(params.getString("file"));
+    }
 
     public ReplayStreamGenerator(String traceFile, String separator, int tsIndex, int valIndex) throws IOException {
         this.traceFile = traceFile;

@@ -3,7 +3,7 @@ bucket-cache-size = 1_000_000       # number of buckets to cache in memory
 ingest-buffer-size = 2_000_000      # number of values to buffer before triggering merge
 
 # List of decay functions. Allowed vals: exponentialBASE, rationalPowerP,Q,R,S
-# TODO: consider specifying each decay as a map, instead of encoding as string
+# TODO: consider specifying each decay as a map, instead of encoding into string
 decay-functions = [
     "exponential2",
     "rationalPower1,1,1,1",
@@ -17,20 +17,22 @@ decay-functions = [
 [data]
 T = 1_000_000_000                        # generated data will span [0, T]
 operators = ["SimpleCountOperator"]      # list of operators to maintain in each SummaryStore
-# Use RandomStreamGenerator with iid exponential interarrivals and iid uniform values
-class = "random"
-interarrivals = {distribution = "exponential", lambda = 1.0}
-values = {distribution = "uniform", min = 0, max = 100}
+stream-generator = "Random"              # use com.samsung.sra.DataStoreExperiments.RandomStreamGenerator
+interarrivals = {distribution = "Exponential", lambda = 1.0}
+                                         # com.samsung.sra.DataStoreExperiments.ExponentialDistribution
+values = {distribution = "Uniform", min = 0, max = 100}
 random-seed = 0                          # RandomStreamGenerator seed. Optional, defaults to 0
-## Use ReplayStreamGenerator instead
-#class = "replay"
+
+## Use com.samsung.sra.DataStoreExperiments.ReplayStreamGenerator instead
+#stream-generator = "Replay"
 #file = "/Users/a.vulimiri/samsung/summarystore/code/workloads/google-cluster-data/task_event_count"
 
 
 # Workload specification
 [workload]
-# Use RandomWorkloadGenerator with 8 age/length classes and a 1000 queries per class
-class = "random"
+# Use com.samsung.sra.DataStoreExperiments.RandomWorkloadGenerator,
+# with 8 age/length classes and a 1000 queries per class
+workload-generator = "Random"
 A = 8
 L = 8
 Q = 1000

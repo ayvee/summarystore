@@ -12,7 +12,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 
 public class PopulateWorkload {
     private static Logger logger = LoggerFactory.getLogger(PopulateWorkload.class);
@@ -44,7 +43,7 @@ public class PopulateWorkload {
         });
     }
 
-    public static void test() throws IOException {
+    /*public static void test() throws IOException {
         long T = 10_000_000;
         int Q = 1000;
         StreamGenerator streamGenerator = new RandomStreamGenerator(new FixedDistribution(1), new UniformDistribution(0, 100), 0);
@@ -62,7 +61,7 @@ public class PopulateWorkload {
         for (Workload.Query<Long> q: queries) {
             assert q.r - q.l + 1 == q.trueAnswer;
         }
-    }
+    }*/
 
     public static void main(String[] args) throws Exception {
         File configFile;

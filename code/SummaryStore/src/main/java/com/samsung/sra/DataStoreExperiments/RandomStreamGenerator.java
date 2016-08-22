@@ -1,5 +1,7 @@
 package com.samsung.sra.DataStoreExperiments;
 
+import com.moandjiezana.toml.Toml;
+
 import java.util.Random;
 import java.util.function.BiConsumer;
 
@@ -8,10 +10,10 @@ public class RandomStreamGenerator implements StreamGenerator {
     private Random random;
     private final long R;
 
-    public RandomStreamGenerator(Distribution<Long> interarrivals, Distribution<Long> values, long randomSeed) {
-        this.interarrivals = interarrivals;
-        this.values = values;
-        this.R = randomSeed;
+    public RandomStreamGenerator(Toml params) {
+        this.interarrivals = Configuration.parseDistribution(params.getTable("interarrivals"));
+        this.values = Configuration.parseDistribution(params.getTable("values"));
+        this.R = params.getLong("random-seed", 0L);
         this.random = new Random(R);
     }
 
@@ -26,15 +28,5 @@ public class RandomStreamGenerator implements StreamGenerator {
     @Override
     public void reset() {
         random.setSeed(R);
-    }
-
-    public static void main(String[] args) {
-        RandomStreamGenerator generator = new RandomStreamGenerator(new FixedDistribution(2), new UniformDistribution(0, 100), 0);
-        BiConsumer<Long, Long> printer = (ts, v) -> System.out.println(ts + "\t" + v);
-        System.out.println("=====> reset <====");
-        generator.generate(10, printer);
-        generator.reset();
-        System.out.println("=====> reset <====");
-        generator.generate(10, printer);
     }
 }

@@ -1,12 +1,14 @@
 package com.samsung.sra.DataStoreExperiments;
 
+import com.moandjiezana.toml.Toml;
+
 import java.util.Random;
 
 public class ExponentialDistribution implements Distribution<Long> {
     private final double lambda;
 
-    public ExponentialDistribution(double lambda) {
-        this.lambda = lambda;
+    public ExponentialDistribution(Toml conf) {
+        this.lambda = conf.getDouble("lambda");
     }
 
     @Override

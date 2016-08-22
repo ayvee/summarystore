@@ -27,12 +27,13 @@ WorkloadGenerator interfaces, and then run the following scripts:
      metric combinations (after RunComparison has been run once) shouldn't take much time.
 
 All three scripts take a single config file as argument, specifying all parameters. Script format is explained in
-[example.toml](example.toml) and defined in Configuration.java. For now, adding a new StreamGenerator or
-WorkloadGenerator requires modifying Configuration.java to tell it how to construct the object. Later we may switch
-to standardizing a constructor interface, likely with every Generator having to define a constructor with a
-Generator(Map<String, Object> parameters) signature.
+[example.toml](example.toml) and defined in Configuration.java.
 
     ./run.sh PopulateData example.toml
     ./run.sh PopulateWorkload example.toml
     ./run.sh RunComparison example.toml -weight uniform -metric Mean # storage vs avg error
     ./run.sh RunComparison example.toml -weight uniform -metric p95 # storage vs 95th %ile error
+
+When implementing a new StreamGenerator or WorkloadGenerator, you must define a constructor with signature
+Generator(Toml params): this is how arguments from the config file will be passed to your class. See e.g.
+RandomStreamGenerator and RandomWorkloadGenerator for examples.

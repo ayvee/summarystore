@@ -1,5 +1,6 @@
 package com.samsung.sra.DataStoreExperiments;
 
+import com.moandjiezana.toml.Toml;
 import org.apache.commons.math3.util.Pair;
 
 import java.util.ArrayList;
@@ -11,13 +12,12 @@ public class RandomWorkloadGenerator implements WorkloadGenerator<Long> {
     private final int operatorIndex;
     private final String operatorType;
 
-    public RandomWorkloadGenerator(int A, int L, int Q, int operatorIndex, String operatorType) {
-        this.A = A;
-        this.L = L;
-        this.Q = Q;
-        this.operatorIndex = operatorIndex;
-        this.operatorType = operatorType;
-        assert operatorType.equalsIgnoreCase("count");
+    public RandomWorkloadGenerator(Toml params) {
+        this.A = params.getLong("A").intValue();
+        this.L = params.getLong("L").intValue();
+        this.Q = params.getLong("Q").intValue();
+        this.operatorIndex = params.getLong("operator.index").intValue();
+        this.operatorType = params.getString("operator.type");
     }
 
     @Override

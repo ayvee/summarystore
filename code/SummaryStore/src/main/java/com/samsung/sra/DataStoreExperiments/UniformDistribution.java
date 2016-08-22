@@ -1,13 +1,15 @@
 package com.samsung.sra.DataStoreExperiments;
 
+import com.moandjiezana.toml.Toml;
+
 import java.util.Random;
 
 public class UniformDistribution implements Distribution<Long> {
     private final long min, max;
 
-    public UniformDistribution(long min, long max) {
-        this.min = min;
-        this.max = max;
+    public UniformDistribution(Toml conf) {
+        this.min = conf.getLong("min");
+        this.max = conf.getLong("max");
         assert min <= max;
     }
 

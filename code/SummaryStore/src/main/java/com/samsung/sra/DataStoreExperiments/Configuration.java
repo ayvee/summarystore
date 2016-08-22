@@ -5,7 +5,8 @@ import com.samsung.sra.DataStore.*;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
 import java.io.File;
-import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.Map;
 
@@ -49,11 +50,6 @@ public class Configuration {
         return String.format("%s/%sS%s", getDirectory(), getPrefix(), getHash(toml.getTable("data")));
     }
 
-    /** Return storeprefix minus directory path */
-    public String getStorePrefixBasename() {
-        return String.format("%sS%s", getPrefix(), getHash(toml.getTable("data")));
-    }
-
     public String getWorkloadFile() {
         return String.format("%s/%sS%s.W%s.workload",
                 getDirectory(), getPrefix(), getHash(toml.getTable("data")), getHash(toml.getTable("workload")));
@@ -69,39 +65,15 @@ public class Configuration {
         return toml.getLong("data.T");
     }
 
-    public StreamGenerator getStreamGenerator() throws IOException {
+    public StreamGenerator getStreamGenerator() {
         Toml conf = toml.getTable("data");
-        switch (conf.getString("class").toLowerCase()) {
-            case "random": {
-                Distribution<Long> I, V;
-                long R;
-                switch (conf.getString("interarrivals.distribution").toLowerCase()) {
-                    case "exponential":
-                        I = new ExponentialDistribution(conf.getDouble("interarrivals.lambda"));
-                        break;
-                    case "fixed":
-                        I = new FixedDistribution(conf.getLong("interarrivals.value"));
-                        break;
-                    case "pareto":
-                        I = new ParetoDistribution(conf.getDouble("interarrivals.xm"), conf.getDouble("interarrivals.alpha"));
-                        break;
-                    default:
-                        throw new IllegalArgumentException("invalid or missing interarrival class");
-                }
-                switch (conf.getString("values.distribution").toLowerCase()) {
-                    case "uniform":
-                        V = new UniformDistribution(conf.getLong("values.min"), conf.getLong("values.max"));
-                        break;
-                    default:
-                        throw new IllegalArgumentException("invalid or missing value class");
-                }
-                R = conf.getLong("random-seed", 0L);
-                return new RandomStreamGenerator(I, V, R);
-            }
-            case "replay":
-                return new ReplayStreamGenerator(conf.getString("file"));
-            default:
-                throw new IllegalArgumentException("invalid or missing stream generator class");
+        try {
+            Constructor<?> ctor = Class.forName(String.format(
+                    "com.samsung.sra.DataStoreExperiments.%sStreamGenerator", conf.getString("stream-generator")))
+                    .getDeclaredConstructor(Toml.class);
+            return (StreamGenerator) ctor.newInstance(conf);
+        } catch (NoSuchMethodException | ClassNotFoundException | IllegalAccessException | InvocationTargetException | InstantiationException e) {
+            throw new IllegalArgumentException("error trying to create StreamGenerator", e);
         }
     }
 
@@ -181,14 +153,24 @@ public class Configuration {
 
     public WorkloadGenerator<Long> getWorkloadGenerator() {
         Toml conf = toml.getTable("workload");
-        switch (conf.getString("class").toLowerCase()) {
-            case "random":
-                return new RandomWorkloadGenerator(
-                        conf.getLong("A").intValue(), conf.getLong("L").intValue(), conf.getLong("Q").intValue(),
-                        conf.getLong("operator.index").intValue(), conf.getString("operator.type")
-                );
-            default:
-                throw new IllegalArgumentException("invalid or missing workload generator class");
+        try {
+            Constructor<?> ctor = Class.forName(String.format(
+                    "com.samsung.sra.DataStoreExperiments.%sWorkloadGenerator", conf.getString("workload-generator")))
+                    .getDeclaredConstructor(Toml.class);
+            return (WorkloadGenerator<Long>) ctor.newInstance(conf);
+        } catch (NoSuchMethodException | ClassNotFoundException | IllegalAccessException | InvocationTargetException | InstantiationException e) {
+            throw new IllegalArgumentException("error trying to create WorkloadGenerator", e);
+        }
+    }
+
+    public static Distribution<Long> parseDistribution(Toml conf) {
+        try {
+            Constructor<?> ctor = Class.forName(String.format(
+                    "com.samsung.sra.DataStoreExperiments.%sDistribution", conf.getString("distribution")))
+                    .getDeclaredConstructor(Toml.class);
+            return (Distribution<Long>) ctor.newInstance(conf);
+        } catch (NoSuchMethodException | ClassNotFoundException | IllegalAccessException | InvocationTargetException | InstantiationException e) {
+            throw new IllegalArgumentException("error trying to create WorkloadGenerator", e);
         }
     }
 
