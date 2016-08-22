@@ -5,8 +5,6 @@ import com.samsung.sra.DataStore.*;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
 import java.io.File;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.Map;
 
@@ -67,14 +65,10 @@ public class Configuration {
 
     public StreamGenerator getStreamGenerator() {
         Toml conf = toml.getTable("data");
-        try {
-            Constructor<?> ctor = Class.forName(String.format(
-                    "com.samsung.sra.DataStoreExperiments.%sStreamGenerator", conf.getString("stream-generator")))
-                    .getDeclaredConstructor(Toml.class);
-            return (StreamGenerator) ctor.newInstance(conf);
-        } catch (NoSuchMethodException | ClassNotFoundException | IllegalAccessException | InvocationTargetException | InstantiationException e) {
-            throw new IllegalArgumentException("error trying to create StreamGenerator", e);
-        }
+        return constructObjectViaReflection(
+                String.format("com.samsung.sra.DataStoreExperiments.%sStreamGenerator",
+                        conf.getString("stream-generator")),
+                conf);
     }
 
     /**
@@ -108,6 +102,14 @@ public class Configuration {
             assert node instanceof Number || node instanceof String || node instanceof Character
                     : "unknown node class " + node.getClass();
             builder.append(node); // TODO: verify that HashCodeBuilder handles Object-casted primitives sensibly
+        }
+    }
+
+    private static <T> T constructObjectViaReflection(String className, Toml conf) {
+        try {
+            return (T) Class.forName(className).getConstructor(Toml.class).newInstance(conf);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalArgumentException("could not construct object of type " + className, e);
         }
     }
 
@@ -153,25 +155,16 @@ public class Configuration {
 
     public WorkloadGenerator<Long> getWorkloadGenerator() {
         Toml conf = toml.getTable("workload");
-        try {
-            Constructor<?> ctor = Class.forName(String.format(
-                    "com.samsung.sra.DataStoreExperiments.%sWorkloadGenerator", conf.getString("workload-generator")))
-                    .getDeclaredConstructor(Toml.class);
-            return (WorkloadGenerator<Long>) ctor.newInstance(conf);
-        } catch (NoSuchMethodException | ClassNotFoundException | IllegalAccessException | InvocationTargetException | InstantiationException e) {
-            throw new IllegalArgumentException("error trying to create WorkloadGenerator", e);
-        }
+        return constructObjectViaReflection(
+                String.format("com.samsung.sra.DataStoreExperiments.%sWorkloadGenerator",
+                        conf.getString("workload-generator")),
+                conf);
     }
 
     public static Distribution<Long> parseDistribution(Toml conf) {
-        try {
-            Constructor<?> ctor = Class.forName(String.format(
-                    "com.samsung.sra.DataStoreExperiments.%sDistribution", conf.getString("distribution")))
-                    .getDeclaredConstructor(Toml.class);
-            return (Distribution<Long>) ctor.newInstance(conf);
-        } catch (NoSuchMethodException | ClassNotFoundException | IllegalAccessException | InvocationTargetException | InstantiationException e) {
-            throw new IllegalArgumentException("error trying to create WorkloadGenerator", e);
-        }
+        return constructObjectViaReflection(
+                String.format("com.samsung.sra.DataStoreExperiments.%sDistribution", conf.getString("distribution")),
+                conf);
     }
 
     public static void main(String[] args) throws Exception {
