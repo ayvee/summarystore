@@ -73,7 +73,7 @@ class RunComparison {
                     workload.get(queryClass).parallelStream().forEach(q -> {
                         try {
                             logger.trace("Running query [{}, {}], true answer = {}", q.l, q.r, q.trueAnswer);
-                            long trueAnswer = q.trueAnswer;
+                            long trueAnswer = q.trueAnswer.get();
                             ResultError estimate = (ResultError) store.query(streamID, q.l, q.r, q.operatorNum, q.params);
                             double error = Math.abs(((Number) estimate.result).doubleValue() - trueAnswer) / (1d + trueAnswer);
                             //double error = estimate.error.getFirst() <= trueAnswer && trueAnswer <= estimate.error.getSecond() ? 0 : 1;

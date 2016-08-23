@@ -3,6 +3,7 @@ package com.samsung.sra.DataStoreExperiments;
 import java.io.Serializable;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A "workload" is a binned list of queries, essentially {
@@ -22,7 +23,7 @@ public class Workload extends ConcurrentHashMap<String, List<Workload.Query>> {
         long l, r;
         int operatorNum;
         Object[] params;
-        long trueAnswer;
+        AtomicLong trueAnswer;
 
         public Query(Type queryType, long l, long r, int operatorNum, Object[] params, long trueAnswer) {
             this.queryType = queryType;
@@ -30,7 +31,7 @@ public class Workload extends ConcurrentHashMap<String, List<Workload.Query>> {
             this.r = r;
             this.operatorNum = operatorNum;
             this.params = params;
-            this.trueAnswer = trueAnswer;
+            this.trueAnswer = new AtomicLong(trueAnswer);
         }
 
         @Override

@@ -180,6 +180,11 @@ public class Configuration {
                 conf);
     }
 
+    public boolean isWorkloadParallelismEnabled() {
+        Toml conf = toml.getTable("workload");
+        return conf.getBoolean("enable-parallelism", false);
+    }
+
     public static Distribution<Long> parseDistribution(Toml conf) {
         return constructObjectViaReflection(
                 "com.samsung.sra.DataStoreExperiments." + conf.getString("distribution"),

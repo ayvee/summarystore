@@ -41,3 +41,6 @@ A = 8
 L = 8
 Q = 1000
 operator = {index = 0, type = "count"}
+# Optional (default false), process queries in parallel when generating workload. Adds
+# several minutes of stream management overhead, only recommended in large streams
+enable-parallelism = false
