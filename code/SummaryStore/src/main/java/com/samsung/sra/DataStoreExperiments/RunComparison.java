@@ -62,8 +62,7 @@ class RunComparison {
         for (String decay: config.getDecayFunctions()) {
             StoreStats storeStats;
             // WARNING: setting cache size to T, i.e. loading all data into main memory
-            try (SummaryStore store = new SummaryStore(
-                    String.format("%s.D%s", config.getStorePrefix(), decay), config.getT())) {
+            try (SummaryStore store = new SummaryStore(config.getStorePrefix(decay), config.getT())) {
                 store.warmupCache();
 
                 List<String> queryClasses = new ArrayList<>(workload.keySet());

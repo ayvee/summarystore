@@ -41,11 +41,9 @@ public class Configuration {
         return toml.getLong("ingest-buffer-size", 0L).intValue();
     }
 
-    /** Get prefix of all SummaryStore output directories. (NOTE: need to append decay function name to get the full
-     * prefix that the SummaryStore constructor takes). {@link #getHash} explains why we use a hash here
-     */
-    public String getStorePrefix() {
-        return String.format("%s/%sS%s", getDirectory(), getPrefix(), getHash(toml.getTable("data")));
+    /** Get prefix of all SummaryStore output files. {@link #getHash} explains why we use a hash here */
+    public String getStorePrefix(String decayName) {
+        return String.format("%s/%sS%s.D%s", getDirectory(), getPrefix(), getHash(toml.getTable("data")), decayName);
     }
 
     public String getWorkloadFile() {
@@ -66,8 +64,7 @@ public class Configuration {
     public StreamGenerator getStreamGenerator() {
         Toml conf = toml.getTable("data");
         return constructObjectViaReflection(
-                String.format("com.samsung.sra.DataStoreExperiments.%sStreamGenerator",
-                        conf.getString("stream-generator")),
+                "com.samsung.sra.DataStoreExperiments." + conf.getString("stream-generator"),
                 conf);
     }
 
@@ -143,12 +140,16 @@ public class Configuration {
         }
     }
 
-    public WindowOperator[] getOperators() throws ClassNotFoundException, IllegalAccessException, InstantiationException {
+    public WindowOperator[] getOperators() {
         List<String> operatorNames = toml.getList("data.operators");
         WindowOperator[] operators = new WindowOperator[operatorNames.size()];
         for (int i = 0; i < operators.length; ++i) {
             String opname = operatorNames.get(i);
-            operators[i] = (WindowOperator)Class.forName("com.samsung.sra.DataStore.Aggregates." + opname).newInstance();
+            try {
+                operators[i] = (WindowOperator)Class.forName("com.samsung.sra.DataStore.Aggregates." + opname).newInstance();
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalArgumentException("could not construct operator " + opname, e);
+            }
         }
         return operators;
     }
@@ -156,14 +157,13 @@ public class Configuration {
     public WorkloadGenerator<Long> getWorkloadGenerator() {
         Toml conf = toml.getTable("workload");
         return constructObjectViaReflection(
-                String.format("com.samsung.sra.DataStoreExperiments.%sWorkloadGenerator",
-                        conf.getString("workload-generator")),
+                "com.samsung.sra.DataStoreExperiments." + conf.getString("workload-generator"),
                 conf);
     }
 
     public static Distribution<Long> parseDistribution(Toml conf) {
         return constructObjectViaReflection(
-                String.format("com.samsung.sra.DataStoreExperiments.%sDistribution", conf.getString("distribution")),
+                "com.samsung.sra.DataStoreExperiments." + conf.getString("distribution"),
                 conf);
     }
 
