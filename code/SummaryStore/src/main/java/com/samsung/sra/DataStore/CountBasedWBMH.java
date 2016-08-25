@@ -173,7 +173,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         ++N;
     }
 
-    /*NOTE: code here depends on the fact that append() calls are serialized (by StreamManager).
+    /*NOTE: code here depends on the fact that append()/flush()/close() calls are serialized (by StreamManager).
             Else we would need more careful synchronization */
     public void appendBuffered(StreamManager streamManager, long ts, Object value) throws RocksDBException{
         while (activeBuffer == null) {
@@ -223,6 +223,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         } finally {
             flushLock.unlock();
         }
+        activeBuffer = null;
     }
 
     /**

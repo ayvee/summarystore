@@ -3,8 +3,8 @@ package com.samsung.sra.DataStore;
 import java.io.Serializable;
 
 public class StreamStatistics implements Serializable {
-    long firstArrivalTimestamp = -1, lastArrivalTimestamp = -1;
-    long numValues = 0;
+    private long firstArrivalTimestamp = -1, lastArrivalTimestamp = -1;
+    private long numValues = 0;
     private double Isum = 0, Isqsum = 0;
     private double Vsum = 0, Vsqsum = 0;
 
@@ -39,15 +39,15 @@ public class StreamStatistics implements Serializable {
         lastArrivalTimestamp = ts;
     }
 
-    public long getFirstArrivalTimestamp() {
+    public long getTimeRangeStart() {
         return firstArrivalTimestamp;
     }
 
-    public long getLastArrivalTimestamp() {
+    public long getTimeRangeEnd() {
         return lastArrivalTimestamp;
     }
 
-    public long getTotalCount() {
+    public long getNumValues() {
         return numValues;
     }
 

@@ -66,20 +66,21 @@ class StreamManager implements Serializable {
     // TODO: add assertions
 
     void append(long ts, Object value) throws RocksDBException, StreamException {
-        if (ts <= stats.lastArrivalTimestamp) throw new StreamException("out-of-order insert in stream " + streamID +
-                ": <ts, val> = <" + ts + ", " + value + ">, last arrival = " + stats.lastArrivalTimestamp);
+        if (ts <= stats.getTimeRangeEnd()) throw new StreamException("out-of-order insert in stream " + streamID +
+                ": <ts, val> = <" + ts + ", " + value + ">, last arrival = " + stats.getTimeRangeEnd());
         stats.append(ts, value);
         windowingMechanism.append(this, ts, value);
     }
 
     Object query(int operatorNum, long t0, long t1, Object[] queryParams) throws RocksDBException {
-        if (t0 > stats.lastArrivalTimestamp) {
+        long T0 = stats.getTimeRangeStart(), T1 = stats.getTimeRangeEnd();
+        if (t0 > T1) {
             return operators[operatorNum].getEmptyQueryResult();
-        } else if (t0 < stats.firstArrivalTimestamp) {
-            t0 = stats.firstArrivalTimestamp;
+        } else if (t0 < T0) {
+            t0 = T0;
         }
-        if (t1 > stats.lastArrivalTimestamp) {
-            t1 = stats.lastArrivalTimestamp;
+        if (t1 > T1) {
+            t1 = T1;
         }
         //BTreeMap<Long, Long> index = streamManager.temporalIndex;
         Long l = temporalIndex.floorKey(t0); // first bucket with tStart <= t0

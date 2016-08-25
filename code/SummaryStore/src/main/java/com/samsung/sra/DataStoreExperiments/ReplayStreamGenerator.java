@@ -109,7 +109,7 @@ public class ReplayStreamGenerator implements StreamGenerator {
         store.flush(streamID);
         long te = System.currentTimeMillis();
         System.out.println("Write throughput = " +
-                (store.getStreamStatistics(streamID).getTotalCount() * 1000d / (double)(te - ts)) + " per second");
+                (store.getStreamStatistics(streamID).getNumValues() * 1000d / (double)(te - ts)) + " per second");
         store.printBucketState(streamID);
         System.out.println(store.query(streamID, (long)600e6, (long)900e6, 0, 0.95));
     }
