@@ -1,5 +1,6 @@
 package com.samsung.sra.DataStore;
 
+import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,6 +71,7 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     @Override
     public void append(StreamManager streamManager, long ts, Object value) throws RocksDBException {
+        //logger.debug("Appending in " + (numWindowsInBuffer==0? "Unbuffered":"buffered"));
         if (numWindowsInBuffer == 0) {
             appendUnbuffered(streamManager, ts, value);
         } else {
@@ -93,6 +95,13 @@ public class CountBasedWBMH implements WindowingMechanism {
 
         // insert newest element, creating a new bucket for it if necessary
         Bucket lastBucket = lastBucketID == -1 ? null : streamManager.getBucket(lastBucketID);
+        /*
+        if (lastBucket != null)
+            logger.debug("lastbucket: " + lastBucketID);
+        else
+            logger.debug("null lastbucket: ");
+        */
+
         if (lastBucket != null && lastBucket.cEnd - lastBucket.cStart + 1 < windowing.getSizeOfFirstWindow()) {
             // last bucket isn't yet full; insert new value into it
             lastBucket.cEnd = N;
@@ -158,7 +167,12 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     /** Advance count marker to N, apply the WBMH test, process any merges that result */
     private void processMergesUntil(StreamManager streamManager, long N) throws RocksDBException {
+
+
+
         while (!mergeCounts.isEmpty() && mergeCounts.getMinimum().getKey() <= N) {
+            //logger.debug(" ======= In WBMH before merge ========= ");
+
             Heap.Entry<Long, Long> entry = mergeCounts.extractMinimum();
             Heap.Entry<Long, Long> removed = heapEntries.remove(entry.getValue());
             assert removed == entry;
@@ -170,6 +184,20 @@ public class CountBasedWBMH implements WindowingMechanism {
             Bucket b2 = b1.nextBucketID == -1 ? null : streamManager.getBucket(b1.nextBucketID);
             Bucket bm1 = b0.prevBucketID == -1 ? null : streamManager.getBucket(b0.prevBucketID); // b{-1}
 
+
+            //if(logger.isDebugEnabled()) {
+            if(false) {
+                if(!( (long) (b0.aggregates[0]) == 0 || (long) (b1.aggregates[0]) == 0)) {
+                    String ret = " ======= In WBMH before merge with non empty Count ========= ";
+                    logger.debug(ret);
+                }
+                /*
+                logger.debug("======= In WBMH before merge ========= ");
+                logger.debug("b0: " + b0.toString());
+                logger.debug("b1: " + b1.toString());
+                logger.debug("======= End in WBMH before merge =========");
+                */
+            }
             streamManager.mergeBuckets(b0, b1);
 
             if (bm1 != null) bm1.nextBucketID = b0.thisBucketID;

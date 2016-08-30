@@ -1,9 +1,12 @@
 package com.samsung.sra.DataStore.Aggregates;
 
+import com.google.protobuf.Message;
 import com.samsung.sra.DataStore.*;
+import com.samsung.sra.protocol.Summarybucket;
 import org.apache.commons.lang.mutable.MutableDouble;
 import org.apache.commons.lang.mutable.MutableLong;
 import org.apache.commons.math3.util.Pair;
+//import com.samsung.sra.DataStoreExperiments.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -181,17 +184,14 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
     }
 
     @Override
-    public int getBytecount() {
-        return 8;
+    public Message.Builder protofy(Long aggr) {
+        return  Summarybucket.ProtoSimpleCount.
+                newBuilder().
+                setCount(aggr);
     }
 
     @Override
-    public void serialize(Long aggr, byte[] array, int startIndex) {
-        Utilities.longToByteArray(aggr, array, startIndex);
-    }
-
-    @Override
-    public Long deserialize(byte[] array, int startIndex) {
-        return Utilities.byteArrayToLong(array, startIndex);
+    public Long deprotofy(Message.Builder builder) {
+        return ((Summarybucket.ProtoSimpleCount.Builder) builder).getCount();
     }
 }

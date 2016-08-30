@@ -1,5 +1,7 @@
 package com.samsung.sra.DataStore;
 
+import com.google.protobuf.Message;
+
 import java.io.Serializable;
 import java.util.List;
 import java.util.function.Function;
@@ -69,12 +71,9 @@ public interface WindowOperator<A, V, R, E> extends Serializable {
     // AV: commenting out for now, will bring back if we find a need for dry-run error functions
     //abstract public E getError(Stream<Bucket> buckets, long tStart, long tEnd, Object... params);
 
-    /** Number of bytes needed to serialize the aggregate.
-     * FIXME: assuming every operator has a fixed byte-count for now to simplify serialization.
-     */
-    int getBytecount();
+    // NA: just provide methods to construct a proto builder and to deconstruct a builder
+    // these replace serialization and deserialization methods
+    Message.Builder protofy(A aggr);
+    A deprotofy(Message.Builder builder);
 
-    void serialize(A aggr, byte[] array, int startIndex);
-
-    A deserialize(byte[] array, int startIndex);
 }

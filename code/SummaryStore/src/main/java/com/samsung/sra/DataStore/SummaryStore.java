@@ -52,7 +52,12 @@ public class SummaryStore implements DataStore {
                                WindowOperator... operators) throws StreamException, RocksDBException {
         synchronized (streamManagers) {
             if (streamManagers.containsKey(streamID)) {
-                throw new StreamException("attempting to register streamID " + streamID + " multiple times");
+                //FIXME: NA; temporarily removing and then creating a new stream
+                streamManagers.remove(streamID);
+                streamManagers.put(streamID, new StreamManager(bucketStore, streamID, windowingMechanism, operators));
+
+                // FIXME: NA; uncomment this
+                // throw new StreamException("attempting to register streamID " + streamID + " multiple times");
             } else {
                 streamManagers.put(streamID, new StreamManager(bucketStore, streamID, windowingMechanism, operators));
             }
@@ -92,7 +97,9 @@ public class SummaryStore implements DataStore {
 
         streamManager.lock.writeLock().lock();
         try {
+            //logger.debug("Appending new value: <ts: " + ts + ", val: " + value + ">");
             streamManager.append(ts, value);
+
         } finally {
             streamManager.lock.writeLock().unlock();
         }
@@ -140,6 +147,7 @@ public class SummaryStore implements DataStore {
     @Override
     public long getStoreSizeInBytes() {
         long ret = 0;
+        /*
         for (StreamManager sm: streamManagers.values()) {
             sm.lock.readLock().lock();
             try {
@@ -148,6 +156,7 @@ public class SummaryStore implements DataStore {
                 sm.lock.readLock().unlock();
             }
         }
+        */
         return ret;
     }
 

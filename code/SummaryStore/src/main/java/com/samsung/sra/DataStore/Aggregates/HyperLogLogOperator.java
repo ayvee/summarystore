@@ -1,9 +1,11 @@
 package com.samsung.sra.DataStore.Aggregates;
 
+import com.google.protobuf.Message;
 import com.samsung.sra.DataStore.Bucket;
 import com.samsung.sra.DataStore.ResultError;
 import com.samsung.sra.DataStore.StreamStatistics;
 import com.samsung.sra.DataStore.WindowOperator;
+import com.samsung.sra.protocol.Summarybucket;
 
 import java.util.Collections;
 import java.util.List;
@@ -51,20 +53,15 @@ public class HyperLogLogOperator implements WindowOperator<HyperLogLog, Integer,
         return new ResultError<>(0L, 0L);
     }
 
+
+
     @Override
-    public int getBytecount() {
-        // FIXME
-        return 0;
+    public Message.Builder protofy(HyperLogLog aggr) {
+        return  null;
     }
 
     @Override
-    public void serialize(HyperLogLog aggr, byte[] array, int startIndex) {
-        // FIXME
-    }
-
-    @Override
-    public HyperLogLog deserialize(byte[] array, int startIndex) {
-        // FIXME
+    public HyperLogLog deprotofy(Message.Builder builder) {
         return null;
     }
 }

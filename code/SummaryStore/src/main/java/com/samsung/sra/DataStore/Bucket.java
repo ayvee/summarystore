@@ -35,12 +35,24 @@ public class Bucket implements Serializable {
         }
     }
 
+
     @Override
     public String toString() {
         String ret = "<bucket " + thisBucketID;
         ret += ", time range [" + tStart + ":" + tEnd + "]";
         ret += ", count range [" + cStart + ":" + cEnd + "]";
-        ret += ", count = " + (cEnd - cStart + 1) + ">";
+        ret += ", prev, next ID [" + prevBucketID + ":" + nextBucketID +"]";
+        ret += ", aggrs [ Count = " + aggregates.length + " : ";
+
+        for (int i = 0; i < aggregates.length; ++i) {
+            //ret += aggregates[i].getClass().toString() + " : ";
+            //ret += aggregates[i].toString() + " : ";
+        }
+
+        ret += "]";
+        //ret += ", count = " + (cEnd - cStart + 1);
+        ret += ">";
         return ret;
     }
+
 }

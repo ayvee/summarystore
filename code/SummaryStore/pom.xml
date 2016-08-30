@@ -24,6 +24,12 @@
             <artifactId>rocksdbjni</artifactId>
             <version>4.4</version>
         </dependency>
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <version>3.0.0</version>
+            <scope>compile</scope>
+        </dependency>
 		<dependency>
             <groupId>com.clearspring.analytics</groupId>
             <artifactId>stream</artifactId>
@@ -84,6 +90,11 @@
             <artifactId>slf4j-api</artifactId>
             <version>1.7.7</version>
         </dependency>
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.5</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -111,6 +122,32 @@
                     <target>1.8</target>
                 </configuration>
             </plugin>
+            <!-- nitin: protobuf build -->
+            <plugin>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>generate-sources</id>
+                        <phase>generate-sources</phase>
+                        <configuration>
+                            <tasks>
+                                <exec executable="protoc">
+                                    <arg value="--java_out=${project.basedir}/src/main/java/com/samsung/sra" />
+                                    <arg value="--proto_path=${project.basedir}/" />
+                                    <arg value="${project.basedir}/Bucket.proto" />
+                                </exec>
+                            </tasks>
+                            <sourceRoot>target/generated-sources</sourceRoot>
+                        </configuration>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
+
+
+
     </build>
 </project>

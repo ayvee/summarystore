@@ -158,6 +158,8 @@ public class RocksDBBucketStore implements BucketStore {
      */
     private final static byte[] metadataSpecialKey = {};
 
+
+    // FIXME: NA; also use proto here
     @Override
     public Serializable getMetadata() throws RocksDBException {
         byte[] indexesBytes = rocksDB.get(metadataSpecialKey);
