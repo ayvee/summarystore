@@ -1,7 +1,8 @@
 package com.samsung.sra.WindowingOptimizer;
 
-import com.samsung.sra.DataStoreExperiments.ExponentialInterarrivals;
-import com.samsung.sra.DataStoreExperiments.InterarrivalDistribution;
+import com.moandjiezana.toml.Toml;
+import com.samsung.sra.DataStoreExperiments.Distribution;
+import com.samsung.sra.DataStoreExperiments.ExponentialDistribution;
 import com.samsung.sra.DataStoreExperiments.Statistics;
 
 import java.io.BufferedWriter;
@@ -17,7 +18,7 @@ public class AgeLengthVsAccuracy {
                 T, arrivalRate, (queriesZipfS < 1e-4 ? 0: queriesZipfS), storageRatio);
         System.err.println("[" + LocalDateTime.now() + "] " + outprefix);
 
-        InterarrivalDistribution interarrivals = new ExponentialInterarrivals(arrivalRate);
+        Distribution<Long> interarrivals = new ExponentialDistribution(new Toml().read("lambda = " + arrivalRate));
         TMeasure tMeasure = new ZipfTMeasure(T, queriesZipfS);
         long[] counts = BinnedStreamGenerator.generateBinnedStream(T, interarrivals);
         for (int i = 0; i < counts.length; ++i) {

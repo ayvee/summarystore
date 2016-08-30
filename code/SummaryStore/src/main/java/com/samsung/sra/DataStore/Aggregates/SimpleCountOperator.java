@@ -71,11 +71,11 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
          * for count(portion of[t0, t1] that intersects [T0, T1])
          */
         private static void conditionalEstimate(MutableDouble mean, MutableDouble var,
-                                                MutableLong lowerbound, MutableLong upperbound,
+                                                MutableDouble lowerbound, MutableDouble upperbound,
                                                 long C, long T0, long T1, long t0, long t1) {
             long overlap = overlap(T0, T1, t0, t1);
             if (C != -1 && overlap != 0) {
-                logger.debug("conditional estimate: C = {}, [T0, T1] = [{}, {}], [t0, t1] = [{}, {}], overlap = {}",
+                logger.trace("conditional estimate: C = {}, [T0, T1] = [{}, {}], [t0, t1] = [{}, {}], overlap = {}",
                         C, T0, T1, t0, t1, overlap);
                 long length = length(T0, T1);
                 if (overlap == length) lowerbound.add(C);
@@ -87,12 +87,15 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
         }
 
         /** Unconditional estimate for a time interval of length T */
-        private static void unconditionalEstimate(MutableDouble mean, MutableDouble var, long T, double mu_t) {
+        private static void unconditionalEstimate(MutableDouble mean, MutableDouble var,
+                                                  MutableDouble lowerbound, MutableDouble upperbound,
+                                                  long T, double mu_t) {
             assert T >= 0;
             if (T > 0) {
-                logger.debug("unconditional estimate: overlap = {}", T);
+                logger.trace("unconditional estimate: overlap = {}", T);
                 mean.add(T / mu_t);
                 var.add(T / mu_t);
+                upperbound.setValue(Double.POSITIVE_INFINITY);
             }
         }
 
@@ -101,31 +104,32 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
             if (params != null && params.length > 0) {
                 confidenceLevel = ((Number)params[0]).doubleValue();
             }
+
             // Check overlap with each of these intervals:
             //     (-inf, ts-1], [ts, tml-1], [tml, tmr-1], [tmr, te], [te+1, inf)
             // Middle three intervals: we know counts, do a conditional estimate (proportional count)
             // First and last intervals: do an unconditional estimate (T / mu)
-            logger.debug("timestamps = [{}, {}, {}, {}], counts = ({}, {}, {})", ts, tml, tmr, te, Cl, Cm, Cr);
-            MutableDouble mean = new MutableDouble(0), var = new MutableDouble(0);
-            MutableLong lowerbound = new MutableLong(0), upperbound = new MutableLong(0);
+            logger.trace("timestamps = [{}, {}, {}, {}], counts = ({}, {}, {})", ts, tml, tmr, te, Cl, Cm, Cr);
+            MutableDouble
+                    mean = new MutableDouble(0), var = new MutableDouble(0),
+                    lowerbound = new MutableDouble(0), upperbound = new MutableDouble(0);
             // FIXME: should we use C/T instead of long-term average mu_t for unconditional?
-            unconditionalEstimate(mean, var, overlap(t0, t1, Long.MIN_VALUE, ts-1), mu_t);
+            unconditionalEstimate(mean, var, lowerbound, upperbound, overlap(t0, t1, Long.MIN_VALUE, ts-1), mu_t);
             conditionalEstimate(mean, var, lowerbound, upperbound, Cl, ts, tml-1, t0, t1);
             conditionalEstimate(mean, var, lowerbound, upperbound, Cm, tml, tmr-1, t0, t1);
             conditionalEstimate(mean, var, lowerbound, upperbound, Cr, tmr, te, t0, t1);
-            unconditionalEstimate(mean, var, overlap(t0, t1, te+1, Long.MAX_VALUE), mu_t);
+            unconditionalEstimate(mean, var, lowerbound, upperbound, overlap(t0, t1, te+1, Long.MAX_VALUE), mu_t);
+
             double ans = mean.toDouble();
             double CIl, CIr;
-            if (Math.abs(confidenceLevel - 1) < 1e-7) { // 100% CI
-                CIl = lowerbound.doubleValue();
-                CIr = (ts <= t0 && t1 <= te) ? upperbound.doubleValue() : Double.POSITIVE_INFINITY;
+            double numSDs = Utilities.getNormalQuantile((1 + confidenceLevel) / 2d); // ~150 nanosecs, not a bottleneck
+            if (Double.isInfinite(numSDs)) { // return 100% CI
+                CIl = lowerbound.toDouble();
+                CIr = upperbound.toDouble();
             } else {
-                assert Math.abs(confidenceLevel - 0.95) < 1e-7; // FIXME
-                double numSDs = 2;
                 double sd = sigma_t / mu_t * Math.sqrt(var.toDouble());
-                CIl = Math.max(ans - numSDs * sd, lowerbound.doubleValue());
-                CIr = ans + numSDs * sd;
-                if (ts <= t0 && t1 <= te) CIr = Math.min(CIr, upperbound.doubleValue());
+                CIl = Math.max(ans - numSDs * sd, lowerbound.toDouble());
+                CIr = Math.min(ans + numSDs * sd, upperbound.toDouble());
             }
             return new ResultError<>(ans, new Pair<>(CIl, CIr));
         }

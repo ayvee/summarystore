@@ -1,6 +1,7 @@
 package com.samsung.sra.DataStoreExperiments;
 
 import com.samsung.sra.DataStore.StreamException;
+import org.apache.commons.math3.util.Pair;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -40,13 +41,12 @@ public class AgeLengthSampler {
         return cdf.floorEntry(random.nextDouble()).getValue();
     }
 
-    public Pair<Long> sample() {
+    public Pair<Long, Long> sample() {
         return selectRandomAgeLengthClass().sample(random);
     }
 
-    public static List<AgeLengthClass> getAgeLengthClasses(long streamAge, long streamLength, int nAgeClasses, int nLengthClasses) throws StreamException {
-        if (streamAge <= 0 || streamLength <= 0)
-            throw new StreamException("Querying non-empty stream");
+    public static List<AgeLengthClass> getAgeLengthClasses(long streamAge, long streamLength, int nAgeClasses, int nLengthClasses) {
+        assert streamAge > 0 && streamLength > 0;
         assert nAgeClasses > 0 && nLengthClasses > 0;
 
         long[] ageMarkers = new long[nAgeClasses + 1];

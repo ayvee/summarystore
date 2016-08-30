@@ -1,11 +1,11 @@
 package com.samsung.sra.WindowingOptimizer;
 
-import com.samsung.sra.DataStoreExperiments.InterarrivalDistribution;
+import com.samsung.sra.DataStoreExperiments.Distribution;
 
 import java.util.Random;
 
 public class BinnedStreamGenerator {
-    public static long[] generateBinnedStream(int T, InterarrivalDistribution interarrivals) {
+    public static long[] generateBinnedStream(int T, Distribution<Long> interarrivals) {
         assert T >= 1;
         long[] ret = new long[T];
         double t = 0;

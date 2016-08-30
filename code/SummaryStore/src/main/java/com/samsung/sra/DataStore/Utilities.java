@@ -1,5 +1,7 @@
 package com.samsung.sra.DataStore;
 
+import org.apache.commons.math3.distribution.NormalDistribution;
+
 public class Utilities {
     private Utilities() {}
 
@@ -26,5 +28,12 @@ public class Utilities {
                 (((long) array[startPos + 5] & 0xFFL) << 16) |
                 (((long) array[startPos + 6] & 0xFFL) << 8) |
                 ((long)  array[startPos + 7] & 0xFFL);
+    }
+
+    private static final NormalDistribution normalDist = new NormalDistribution(0, 1);
+
+    public static double getNormalQuantile(double P) {
+        // TODO: check if access is thread-safe
+        return normalDist.inverseCumulativeProbability(P);
     }
 }

@@ -5,6 +5,8 @@ import org.rocksdb.RocksDBException;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Time-decayed aggregate storage
@@ -13,6 +15,8 @@ public class SummaryStore implements DataStore {
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(SummaryStore.class);
 
     private final BucketStore bucketStore;
+
+    private final ExecutorService executorService;
 
     private final HashMap<Long, StreamManager> streamManagers;
 
@@ -28,11 +32,12 @@ public class SummaryStore implements DataStore {
         this.bucketStore = filePrefix != null ?
                 new RocksDBBucketStore(filePrefix + ".bucketStore", cacheSizePerStream) :
                 new MainMemoryBucketStore();
+        executorService = Executors.newCachedThreadPool();
         Object uncast = bucketStore.getMetadata();
         if (uncast != null) {
             streamManagers = (HashMap<Long, StreamManager>) uncast;
             for (StreamManager si: streamManagers.values()) {
-                si.populateTransientFields(bucketStore);
+                si.populateTransientFields(bucketStore, executorService);
             }
         } else {
             streamManagers = new HashMap<>();
@@ -53,13 +58,13 @@ public class SummaryStore implements DataStore {
         synchronized (streamManagers) {
             if (streamManagers.containsKey(streamID)) {
                 //FIXME: NA; temporarily removing and then creating a new stream
-                streamManagers.remove(streamID);
-                streamManagers.put(streamID, new StreamManager(bucketStore, streamID, windowingMechanism, operators));
+                //streamManagers.remove(streamID);
+                //streamManagers.put(streamID, new StreamManager(bucketStore, streamID, windowingMechanism, operators));
 
                 // FIXME: NA; uncomment this
-                // throw new StreamException("attempting to register streamID " + streamID + " multiple times");
+                 throw new StreamException("attempting to register streamID " + streamID + " multiple times");
             } else {
-                streamManagers.put(streamID, new StreamManager(bucketStore, streamID, windowingMechanism, operators));
+                streamManagers.put(streamID, new StreamManager(bucketStore, executorService, streamID, windowingMechanism, operators));
             }
         }
     }
@@ -107,7 +112,7 @@ public class SummaryStore implements DataStore {
 
     public void printBucketState(long streamID, boolean printPerBucketState) throws RocksDBException {
         StreamManager streamManager = streamManagers.get(streamID);
-        System.out.println("Stream " + streamID + " with " + streamManager.stats.numValues + " elements in " +
+        System.out.println("Stream " + streamID + " with " + streamManager.stats.getNumValues() + " elements in " +
                 streamManager.temporalIndex.size() + " windows");
         if (printPerBucketState) {
             for (Object bucketID : streamManager.temporalIndex.values()) {
@@ -125,20 +130,37 @@ public class SummaryStore implements DataStore {
     }
 
     @Override
+    public void flush(long streamID) throws RocksDBException, StreamException {
+        final StreamManager streamManager;
+        synchronized (streamManagers) {
+            if (!streamManagers.containsKey(streamID)) {
+                throw new StreamException("attempting to flush unregistered stream " + streamID);
+            } else {
+                streamManager = streamManagers.get(streamID);
+            }
+        }
+
+        streamManager.lock.writeLock().lock();
+        try {
+            streamManager.windowingMechanism.flush(streamManager);
+        } finally {
+            streamManager.lock.writeLock().unlock();
+        }
+    }
+
+    @Override
     public void close() throws RocksDBException {
         synchronized (streamManagers) {
             // wait for all in-process writes and reads to finish, and seal read index
             for (StreamManager streamManager: streamManagers.values()) {
                 streamManager.lock.writeLock().lock();
-                //streamManager.temporalIndex.close();
             }
+            // At this point all operations on existing streams will be blocked. New stream
+            // creates are already blocked because we're synchronizing on streamManagers
             for (StreamManager streamManager: streamManagers.values()) {
-                bucketStore.flushCache(streamManager);
                 streamManager.windowingMechanism.close(streamManager);
-                //streamManager.temporalIndex.close();
+                bucketStore.flushCache(streamManager);
             }
-            // at this point all operations on existing streams will be blocked
-            // TODO: lock out creating new streams
             persistStreamsInfo();
             bucketStore.close();
         }
@@ -161,7 +183,7 @@ public class SummaryStore implements DataStore {
     }
 
     @Override
-    public long getStreamAge(long streamID) throws StreamException {
+    public StreamStatistics getStreamStatistics(long streamID) throws StreamException {
         StreamManager streamManager;
         synchronized (streamManagers) {
             streamManager = streamManagers.get(streamID);
@@ -171,24 +193,7 @@ public class SummaryStore implements DataStore {
         }
         streamManager.lock.readLock().lock();
         try {
-            return streamManager.stats.lastArrivalTimestamp;
-        } finally {
-            streamManager.lock.readLock().unlock();
-        }
-    }
-
-    @Override
-    public long getStreamCount(long streamID) throws StreamException {
-        StreamManager streamManager;
-        synchronized (streamManagers) {
-            streamManager = streamManagers.get(streamID);
-            if (streamManager == null) {
-                throw new StreamException("attempting to get age of unknown stream " + streamID);
-            }
-        }
-        streamManager.lock.readLock().lock();
-        try {
-            return streamManager.stats.numValues;
+            return new StreamStatistics(streamManager.stats);
         } finally {
             streamManager.lock.readLock().unlock();
         }
@@ -207,11 +212,13 @@ public class SummaryStore implements DataStore {
                 Windowing windowing
                         = new GenericWindowing(new ExponentialWindowLengths(2));
                         //= new RationalPowerWindowing(1, 1);
-                store.registerStream(streamID, new CountBasedWBMH(windowing), new SimpleCountOperator());
-                for (long i = 0; i < 1023; ++i) {
+                store.registerStream(streamID, new CountBasedWBMH(windowing, 33), new SimpleCountOperator());
+                for (long i = 0; i < 1022; ++i) {
                     store.append(streamID, i, i + 1);
-                    store.printBucketState(streamID, true);
+                    store.printBucketState(streamID);
                 }
+                store.flush(streamID);
+                store.printBucketState(streamID, true);
             } else {
                 store.printBucketState(streamID);
             }

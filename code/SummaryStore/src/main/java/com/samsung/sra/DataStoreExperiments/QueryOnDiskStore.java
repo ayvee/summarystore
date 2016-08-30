@@ -32,11 +32,11 @@ public class QueryOnDiskStore {
 
         SummaryStore store = new SummaryStore(prefix);
         if (r == -1) {
-            r = store.getStreamCount(streamID) - 1;
+            r = store.getStreamStatistics(streamID).getNumValues() - 1;
         }
         store.printBucketState(streamID);
         System.out.println(
                 "Store size = " + store.getStoreSizeInBytes() + " bytes; " +
-                "COUNT[" + l + ":" + r + "] = " + store.query(streamID, l, r, 0, null));
+                "COUNT[" + l + ":" + r + "] = " + store.query(streamID, l, r, 0));
     }
 }

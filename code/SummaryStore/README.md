@@ -14,26 +14,26 @@ INSTALL
 EXPERIMENTS
 ==============
 
-Each experiment runs in three phases:
+To run an experiment, define a dataset and a workload by implementing, respectively, the StreamGenerator and
+WorkloadGenerator interfaces, and then run the following scripts:
 
-1. PopulateData: populate a summary store. Usually run multiple times, to generate several stores holding the same data
- with different decay functions.
-2. GenerateWorkload: generate a list of queries and their true answers (queries are binned into a specified number of
- age/length classes)
-3. CompareDecayFunctions: run the generated workload against each of the stores from step 1 to build a profile, a CDF
- over the error distribution for each age/length class
-    * Run CompareDecayFunctions with -weight and -metric arguments to output an aggregate accuracy score for each
+1. PopulateData: populate a set of SummaryStores holding the same data with different decay functions.
+2. PopulateWorkload: generate a workload, a list of queries along with their true answers. Queries are binned into one
+ or more classes, e.g. by age/length.
+3. RunComparison: run the generated workload against each of the stores from step 1 to build a profile, a CDF over the
+ error distribution for each class.
+    * Specify -weight and -metric arguments to RunComparison to output an aggregate accuracy score for each
      decay function, i.e. a storage vs accuracy plot. Error profiles are cached on disk, so trying alternate weight and
-     metric combinations (after CompareDecayFunctions has been run once) shouldn't take much time.
+     metric combinations (after RunComparison has been run once) shouldn't take much time.
 
-Run any class with -h (e.g. ./run.sh PopulateData -h) to see supported parameters.
+All three scripts take a single config file as argument, specifying all parameters. Script format is explained in
+[example.toml](example.toml) and defined in Configuration.java.
 
-Quickstart (more detailed instructions later):
+    ./run.sh PopulateData example.toml
+    ./run.sh PopulateWorkload example.toml
+    ./run.sh RunComparison example.toml -weight uniform -metric Mean # storage vs avg error
+    ./run.sh RunComparison example.toml -weight uniform -metric p95 # storage vs 95th %ile error
 
-    mkdir datasets
-    export T=1,000,000 # (say)
-    ./populate.sh $T datasets simplecountUPPER_BOUND # runs PopulateData and GenerateWorkload
-    ./run.sh CompareDecayFunctions datasets $T
-
-(FIXME: right now the generated workload always only tests the very first operator, operator #0, which it assumes is a
- count)
+When implementing a new StreamGenerator or WorkloadGenerator, you must define a constructor with signature
+Generator(Toml params): this is how arguments from the config file will be passed to your class. See e.g.
+RandomStreamGenerator and RandomWorkloadGenerator for examples.

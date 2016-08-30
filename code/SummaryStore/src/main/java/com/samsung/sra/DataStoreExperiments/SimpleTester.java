@@ -1,5 +1,6 @@
 package com.samsung.sra.DataStoreExperiments;
 
+import com.moandjiezana.toml.Toml;
 import com.samsung.sra.DataStore.*;
 import com.samsung.sra.DataStore.Aggregates.SimpleBloomFilterOperator;
 import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
@@ -33,8 +34,6 @@ public class SimpleTester {
         long W = T;
         long Q = 1000;
 
-        InterarrivalDistribution interarrivals = new FixedInterarrival(1);
-        ValueDistribution values = new UniformValues(81, 83);
         LinkedHashMap<String, SummaryStore> stores = new LinkedHashMap<>();
 
         Windowing windowing
@@ -56,7 +55,10 @@ public class SimpleTester {
 
         System.out.println("Testing a store with " + T + " elements");
 
-        StreamGenerator generator = new StreamGenerator(interarrivals, values, 0);
+        RandomStreamGenerator generator = new RandomStreamGenerator(new Toml().read(
+                "interarrivals = {distribution = \"ExponentialDistribution\", lambda = 1.0}\n" +
+                "values = {distribution = \"FixedDistribution\", value = 10}"
+        ));
         long w0 = System.currentTimeMillis();
         //BiConsumer<Long, Long> printer = (ts, v) -> System.out.println(ts + "\t" + v);
         //BiConsumer<Long, Long> myvals = (ts, v) -> store.append(streamID, ts, v);

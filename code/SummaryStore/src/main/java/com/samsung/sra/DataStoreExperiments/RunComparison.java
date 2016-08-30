@@ -3,44 +3,26 @@ package com.samsung.sra.DataStoreExperiments;
 import com.samsung.sra.DataStore.ResultError;
 import com.samsung.sra.DataStore.SummaryStore;
 import net.sourceforge.argparse4j.ArgumentParsers;
-import net.sourceforge.argparse4j.inf.*;
+import net.sourceforge.argparse4j.impl.Arguments;
+import net.sourceforge.argparse4j.inf.ArgumentParser;
+import net.sourceforge.argparse4j.inf.ArgumentParserException;
+import net.sourceforge.argparse4j.inf.Namespace;
 import org.apache.commons.lang.SerializationUtils;
-import org.rocksdb.RocksDBException;
+import org.apache.commons.math3.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.ToDoubleFunction;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-class CompareDecayFunctions {
-    private static Logger logger = LoggerFactory.getLogger(CompareDecayFunctions.class);
+class RunComparison {
+    private static Logger logger = LoggerFactory.getLogger(RunComparison.class);
     private static final long streamID = 0;
-
-    /**
-     * Returns (decay function name) -> (store location prefix) mapping for all stores in the directory
-     * with the specified N
-     */
-    private static Map<String, String> discoverStores(String directory, String prefix, long T, String I, String V, long R) throws IOException, RocksDBException {
-        Pattern pattern = Pattern.compile(String.format("(.*%sT%d\\.I%s\\.V%s\\.R%d\\.D([^\\.]+))\\.bucketStore.*", prefix, T, I, V, R));
-        Map<String, String> stores = new LinkedHashMap<>();
-        try (DirectoryStream<Path> paths = Files.newDirectoryStream(Paths.get(directory), "*.bucketStore")) {
-            for (Path path : paths) {
-                if (Files.isDirectory(path)) {
-                    Matcher matcher = pattern.matcher(path.toString());
-                    if (matcher.matches()) {
-                        String pathPrefix = matcher.group(1), decay = matcher.group(2);
-                        stores.put(decay, pathPrefix);
-                    }
-                }
-            }
-        }
-        return stores;
-    }
 
     private static class StoreStats implements Serializable {
         final long sizeInBytes;
@@ -57,9 +39,7 @@ class CompareDecayFunctions {
      * Compute stats for each store. Results will be memoized to disk if the argument is true
      */
     private static <R extends Number> Map<String, StoreStats> computeStatistics(
-            String directory, String prefix,
-            long T, String I, String V, long R,
-            String workloadFile, String memoFile) throws Exception {
+            Configuration config, String workloadFile, String memoFile) throws Exception {
         if (memoFile != null) {
             try (InputStream is = Files.newInputStream(Paths.get(memoFile))){
                 return (LinkedHashMap<String, StoreStats>) SerializationUtils.deserialize(is);
@@ -70,23 +50,19 @@ class CompareDecayFunctions {
             }
         }
 
-        Map<String, String> stores = discoverStores(directory, prefix, T, I, V, R);
-        if (stores.isEmpty()) {
-            throw new IllegalArgumentException(String.format("no stores found with prefix, T, I, V, R = %s, %d, %s, %s, %d", prefix, T, I, V, R));
+        Workload<R> workload;
+        try (InputStream is = Files.newInputStream(Paths.get(workloadFile))) {
+            workload = (Workload<R>) SerializationUtils.deserialize(is);
         }
-        Workload<R> workload = readWorkload(workloadFile);
-        if (logger.isDebugEnabled()) {
-            for (Map.Entry<String, List<Workload.Query<R>>> entry : workload.entrySet()) {
-                logger.debug("{}, {}", entry.getKey(), entry.getValue().size());
-            }
+        for (Map.Entry<String, List<Workload.Query<R>>> entry : workload.entrySet()) {
+            logger.debug("{}, {}", entry.getKey(), entry.getValue().size());
         }
 
         HashMap<String, StoreStats> unsorted = new HashMap<>();
-        for (Map.Entry<String, String> entry : stores.entrySet()) {
-            String decay = entry.getKey();
+        for (String decay: config.getDecayFunctions()) {
             StoreStats storeStats;
             // WARNING: setting cache size to T, i.e. loading all data into main memory
-            try (SummaryStore store = new SummaryStore(entry.getValue(), T)) {
+            try (SummaryStore store = new SummaryStore(config.getStorePrefix(decay), config.getT())) {
                 store.warmupCache();
 
                 List<String> queryClasses = new ArrayList<>(workload.keySet());
@@ -98,9 +74,10 @@ class CompareDecayFunctions {
                         try {
                             logger.trace("Running query [{}, {}], true answer = {}", q.l, q.r, q.trueAnswer);
                             long trueAnswer = (Long)q.trueAnswer;
-                            long estimate = ((ResultError<Long, Long>)store.query(streamID, q.l, q.r, q.operatorNum, q.params)).result;
-                            double error = (trueAnswer == estimate) ? 0 :
-                                    Math.abs(estimate - trueAnswer) / (1d + trueAnswer);
+                            ResultError<Double, Pair<Double, Double>> estimate =
+                                    (ResultError<Double, Pair<Double, Double>>) store.query(streamID, q.l, q.r, q.operatorNum, 0.95);
+                            //double error = Math.abs(estimate.result - trueAnswer) / (1d + trueAnswer);
+                            double error = estimate.error.getFirst() <= trueAnswer && trueAnswer <= estimate.error.getSecond() ? 0 : 1;
                             stats.addObservation(error);
                         } catch (Exception e) {
                             throw new RuntimeException(e);
@@ -136,72 +113,40 @@ class CompareDecayFunctions {
         return sorted;
     }
 
-    private static <R> Workload<R> readWorkload(String workloadFile) throws IOException {
-        try (InputStream is = Files.newInputStream(Paths.get(workloadFile))) {
-            return (Workload<R>)
-                    SerializationUtils.deserialize(is);
-        }
-    }
-
     public static void main(String[] args) throws Exception {
-        ArgumentParser parser = ArgumentParsers.newArgumentParser("CompareDecayFunctions", false).
+        ArgumentParser parser = ArgumentParsers.newArgumentParser("RunComparison", false).
                 description("compute statistics for each decay function and query class, " +
                         "and optionally print weighted stats if a weight function and metric are specified").
                 defaultHelp(true);
-        ArgumentType<Long> CommaSeparatedLong = (ArgumentParser argParser, Argument arg, String value) ->
-                Long.valueOf(value.replace(",", ""));
-        parser.addArgument("directory").help("input/output directory");
-        parser.addArgument("T").help("size of stream").type(CommaSeparatedLong);
-        parser.addArgument("-I")
-                .help("interarrival distribution [" + CLIParser.getValidInterarrivalDistributions() + "]")
-                .setDefault("fixed1");
-        parser.addArgument("-V")
-                .help("value distribution [" + CLIParser.getValidValueDistributions() + "]")
-                .setDefault("uniform0,100");
-        parser.addArgument("-R").help("stream generator RNG seed").type(Long.class).setDefault(0L);
-        parser.addArgument("-A").help("number of age classes").type(int.class).setDefault(8);
-        parser.addArgument("-L").help("number of length classes").type(int.class).setDefault(8);
-        parser.addArgument("-Q").help("number of random queries to run per class").type(int.class).setDefault(1000);
+        parser.addArgument("conf").help("config file").type(File.class);
         parser.addArgument("-metric").help("error metric (allowed: \"mean\", \"p<percentile>\", e.g. \"p50\")");
         parser.addArgument("-weight").help("function assigning weights to each query class (allowed: \"uniform\")");
-        parser.addArgument("-prefix").help("optional prefix to add to every input/output file").setDefault("");
+        parser.addArgument("-force-run").help("force running workload, ignoring any memoized results").action(Arguments.storeTrue());
 
-        String directory;
-        long T;
-        String I, V;
-        long R;
+        Configuration config;
         ToDoubleFunction<Statistics> metric;
         ToDoubleFunction<String> weightFunction;
-        int A, L, Q;
-        String prefix;
         try {
             Namespace parsed = parser.parseArgs(args);
-            directory = parsed.get("directory");
-            T = parsed.get("T");
-            I = parsed.get("I");
-            V = parsed.get("V");
-            R = parsed.get("R");
-            // we're silently discarding the output of the parse func calls (only doing them to sanity check CLI args)
-            CLIParser.parseInterarrivalDistribution(I);
-            CLIParser.parseValueDistribution(V);
-            A = parsed.get("A");
-            L = parsed.get("L");
-            Q = parsed.get("Q");
+            config = new Configuration(parsed.get("conf"));
+            if (parsed.getBoolean("force_run")) {
+                Files.deleteIfExists(Paths.get(config.getProfileFile()));
+            }
             String metricName = parsed.get("metric");
             String weightFunctionName = parsed.get("weight");
-            if (metricName != null || weightFunctionName != null) { // TODO? move into CLIParser
+            if (metricName != null || weightFunctionName != null) { // TODO: move into Configuration?
                 if (metricName == null || weightFunctionName == null) {
                     throw new IllegalArgumentException("either both metric and weight function should be specified or neither");
                 }
-                if (metricName.equals("mean")) {
+                if (metricName.equalsIgnoreCase("mean")) {
                     metric = Statistics::getMean;
-                } else if (metricName.startsWith("p")) {
+                } else if (metricName.toLowerCase().startsWith("p")) {
                     double quantile = Double.valueOf(metricName.substring(1)) * 0.01;
                     metric = s -> s.getQuantile(quantile);
                 } else {
                     throw new IllegalArgumentException("unknown metric " + metricName);
                 }
-                if (weightFunctionName.equals("uniform")) {
+                if (weightFunctionName.equalsIgnoreCase("uniform")) {
                     weightFunction = e -> 1;
                 } else {
                     throw new IllegalArgumentException("unknown weight function " + weightFunctionName);
@@ -210,7 +155,6 @@ class CompareDecayFunctions {
                 metric = null;
                 weightFunction = null;
             }
-            prefix = parsed.get("prefix");
         } catch (ArgumentParserException | IllegalArgumentException e) {
             System.err.println("ERROR: " + e.getMessage());
             parser.printHelp(new PrintWriter(System.err, true));
@@ -218,13 +162,12 @@ class CompareDecayFunctions {
             return;
         }
 
-        String workloadFile = String.format("%s/%sT%d.I%s.V%s.R%d.A%d.L%d.Q%d.workload", directory, prefix, T, I, V, R, A, L, Q);
-        String memoFile = String.format("%s/%sT%d.I%s.V%s.R%d.A%d.L%d.Q%d.profile", directory, prefix, T, I, V, R, A, L, Q);
-        Map<String, StoreStats> results = computeStatistics(directory, prefix, T, I, V, R, workloadFile, memoFile);
+        String workloadFile = config.getWorkloadFile();
+        String memoFile = config.getProfileFile();
+        Map<String, StoreStats> results = computeStatistics(config, workloadFile, memoFile);
 
         if (metric != null) {
             System.out.println("#decay\tstore size (bytes)\tcost");
-            //LinkedHashMap<String, Double> decayFunctionCosts = new LinkedHashMap<>(); // compute cost of each decay function
             results.forEach((decayFunction, stats) -> {
                 Collection<Statistics> eachClassStatistics = stats.queryStats.values();
                 Collection<Double> eachClassWeight = stats.queryStats.keySet().stream().
@@ -233,14 +176,8 @@ class CompareDecayFunctions {
                 // construct the aggregate weighted mixture distribution over all the classes
                 Statistics mixtureStats = new Statistics(eachClassStatistics, eachClassWeight);
                 double cost = metric.applyAsDouble(mixtureStats);
-                //decayFunctionCosts.put(decayFunction, cost);
                 System.out.println(decayFunction + "\t" + stats.sizeInBytes + "\t" + cost);
             });
         }
-
-        /*String bestDecay = decayFunctionCosts.entrySet().stream().
-                min(Comparator.comparing(Map.Entry::getValue)).
-                get().getKey();
-        System.out.println("Best decay = " + bestDecay);*/
     }
 }

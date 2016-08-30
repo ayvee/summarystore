@@ -1,57 +1,47 @@
 package com.samsung.sra.DataStoreExperiments;
 
-import com.samsung.sra.DataStore.*;
-import org.rocksdb.RocksDBException;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
+import com.moandjiezana.toml.Toml;
+import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
+import com.samsung.sra.DataStore.CountBasedWBMH;
+import com.samsung.sra.DataStore.RationalPowerWindowing;
+import com.samsung.sra.DataStore.SummaryStore;
 
 public class MeasureThroughput {
-    private static String loc_prefix = "/tmp/tdstore_";
-    private static long streamID = 0;
+    private static final String loc_prefix = "/tmp/tdstore_";
+    private static final long streamID = 0;
+    private static final long T = 100_000_000;
+    private static final String streamConf =
+              "interarrivals = {distribution = \"Fixed\", value = 1}\n"
+            + "values = {distribution = \"Uniform\", min = 0, max = 100}\n"
+            + "random-seed = 0";
+
 
     public static void main(String[] args) throws Exception {
-        Runtime.getRuntime().exec(new String[]{"rm", "-rf", loc_prefix + "*"}).waitFor();
-        long T = 500_000_000;
-        //long storageSavingsFactor = 1;
-        //long W = T / 2 / storageSavingsFactor; // # windows
-        long W = T;
+        Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + loc_prefix + "*"}).waitFor();
 
-        long Q = 1000;
+        try (SummaryStore store = new SummaryStore(loc_prefix + "throughput")) {
+            store.registerStream(streamID,
+                    new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1), 2_000_000),
+                    new SimpleCountOperator());
 
-        InterarrivalDistribution interarrivals = new FixedInterarrival(1);
-        ValueDistribution values = new UniformValues(0, 100);
-
-        LinkedHashMap<String, SummaryStore> stores = new LinkedHashMap<>();
-        System.out.println("Testing a store with " + T + " elements and constant size 1 bucketing (0% storage savings)");
-        registerStore(stores, "linearstore", new CountBasedWBMH(new RationalPowerWindowing(1, 0)));
-
-        StreamGenerator generator = new StreamGenerator(interarrivals, values, 0);
-        long w0 = System.currentTimeMillis();
-        generator.generate(T, (t, v) -> {
-            try {
-                for (SummaryStore store: stores.values()) {
+            StreamGenerator generator = new RandomStreamGenerator(new Toml().read(streamConf));
+            long w0 = System.currentTimeMillis();
+            generator.generate(T, (t, v) -> {
+                try {
                     store.append(streamID, t, v);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
                 }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
-        long we = System.currentTimeMillis();
-        System.out.println("Write throughput = " + (T * 1000d / (we - w0)) + " appends/s");
+            });
+            store.flush(streamID);
+            long we = System.currentTimeMillis();
+            System.out.println("Write throughput = " + (T * 1000d / (we - w0)) + " appends/s");
+            store.printBucketState(streamID);
 
-        SummaryStore store = stores.get("linearstore");
-
-        long f0 = System.currentTimeMillis();
-        store.query(streamID, 0, T-1, 0, null);
-        long fe = System.currentTimeMillis();
-        System.out.println("Time to run longest query, spanning [0, T) = " + ((fe - f0) / 1000d) + " sec");
-    }
-
-    private static void registerStore(Map<String, SummaryStore> stores, String storeName, WindowingMechanism windowingMechanism) throws RocksDBException, StreamException {
-        SummaryStore store = new SummaryStore(loc_prefix + storeName);
-        //SummaryStore store = new SummaryStore(new MainMemoryBucketStore());
-        store.registerStream(streamID, windowingMechanism);
-        stores.put(storeName, store);
+            long f0 = System.currentTimeMillis();
+            store.query(streamID, 0, T - 1, 0);
+            long fe = System.currentTimeMillis();
+            System.out.println("Time to run longest query, spanning [0, T) = " + ((fe - f0) / 1000d) + " sec");
+        }
     }
 }

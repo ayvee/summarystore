@@ -12,7 +12,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
-import java.util.*;
+
+
+import java.util.HashMap;
+import java.util.Random;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
+
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
@@ -44,8 +51,6 @@ class StreamManager implements Serializable {
 
     String a = java.lang.Long.class.toString();
     String b = BloomFilter.class.toString();
-    //String x = java.lang.Long.class.toString();
-    //String y = BloomFilter.class.toString();
 
     final ReadWriteLock lock = new ReentrantReadWriteLock();
 
@@ -65,6 +70,7 @@ class StreamManager implements Serializable {
     Random rand = new Random();
 
     transient BucketStore bucketStore;
+    transient ExecutorService executorService;
 
     transient HashMap<String, PairTwo<WindowOperator, Integer>> objectStringMap = new HashMap<>();
 
@@ -76,9 +82,14 @@ class StreamManager implements Serializable {
             objectStringMap.put(operators[i].getClass().toString(), new PairTwo<>(operators[i], i));
         }
 
+        opNames[++op] = java.lang.Long.class.toString();
+        opNames[++op] = BloomFilter.class.toString();
+
+        /*
         opNames[++op] = SimpleCountOperator.class.toString();
         opNames[++op] = HyperLogLogOperator.class.toString();
-        opNames[op++] = SimpleBloomFilterOperator.class.toString();
+        opNames[++op] = SimpleBloomFilterOperator.class.toString();
+        */
 
         // ensure that all operators have been added to this array
         assert (op == operators.length);
@@ -90,15 +101,18 @@ class StreamManager implements Serializable {
         return 0;
     }
 
-    void populateTransientFields(BucketStore bucketStore) {
+    void populateTransientFields(BucketStore bucketStore, ExecutorService executorService) {
         this.bucketStore = bucketStore;
+        this.executorService = executorService;
         windowingMechanism.populateTransientFields();
     }
 
-    StreamManager(BucketStore bucketStore, long streamID,
+    StreamManager(BucketStore bucketStore, ExecutorService executorService,
+                  long streamID,
                   WindowingMechanism windowingMechanism, WindowOperator... operators) {
         this.streamID = streamID;
         this.bucketStore = bucketStore;
+        this.executorService = executorService;
         this.windowingMechanism = windowingMechanism;
         this.operators = operators;
         this.stats = new StreamStatistics();
@@ -120,18 +134,30 @@ class StreamManager implements Serializable {
     // TODO: add assertions
 
     void append(long ts, Object value) throws RocksDBException, StreamException {
-        if (ts <= stats.lastArrivalTimestamp) throw new StreamException("out-of-order insert in stream " + streamID);
+        if (ts <= stats.getTimeRangeEnd()) throw new StreamException("out-of-order insert in stream " + streamID +
+                ": <ts, val> = <" + ts + ", " + value + ">, last arrival = " + stats.getTimeRangeEnd());
         stats.append(ts, value);
         windowingMechanism.append(this, ts, value);
     }
 
     Object query(int operatorNum, long t0, long t1, Object[] queryParams) throws RocksDBException {
+
+/*
         if (t0 > stats.lastArrivalTimestamp) {
             logger.warn("Returning empty query result due to t0: " + t0);
             return operators[operatorNum].getEmptyQueryResult();
         } else if (t1 > stats.lastArrivalTimestamp) {
             logger.warn("Resetting t1: " + t1 + " to " + stats.lastArrivalTimestamp);
             t1 = stats.lastArrivalTimestamp;
+*/
+        long T0 = stats.getTimeRangeStart(), T1 = stats.getTimeRangeEnd();
+        if (t0 > T1) {
+            return operators[operatorNum].getEmptyQueryResult();
+        } else if (t0 < T0) {
+            t0 = T0;
+        }
+        if (t1 > T1) {
+            t1 = T1;
         }
         //BTreeMap<Long, Long> index = streamManager.temporalIndex;
         Long l = temporalIndex.floorKey(t0); // first bucket with tStart <= t0

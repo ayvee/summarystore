@@ -22,5 +22,7 @@ public interface WindowingMechanism extends Serializable {
     // deserialization hook
     default void populateTransientFields() {}
 
+    void flush(StreamManager manager) throws RocksDBException;
+
     void close(StreamManager streamManager) throws RocksDBException;
 }

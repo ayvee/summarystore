@@ -1,5 +1,7 @@
 package com.samsung.sra.DataStoreExperiments;
 
+import org.apache.commons.math3.util.Pair;
+
 import java.io.Serializable;
 import java.util.Random;
 
@@ -50,7 +52,7 @@ public class AgeLengthClass implements Serializable {
         this.lengthRange = lengthRange;
     }
 
-    public Pair<Long> sample(Random random) {
+    public Pair<Long, Long> sample(Random random) {
         double aRand = random.nextDouble(), lRand = random.nextDouble();
         return new Pair<>(
                 (long) (ageRange.min + aRand * (ageRange.max - ageRange.min)),

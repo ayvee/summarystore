@@ -12,24 +12,21 @@ public interface DataStore extends AutoCloseable {
                         WindowingMechanism windowingMechanism,
                         WindowOperator operators[]) throws StreamException, RocksDBException;
 
-    /** Query the last operator in operators[] that supports the requested queryType */
-    //Object query(long streamID, long t0, long t1, String queryType, Object... queryParams)
-    //        throws StreamException, QueryException, RocksDBException;
+    void append(long streamID, long timestamp, Object value) throws StreamException, RocksDBException;
 
     /** Query operators[operatorNumber] */
     Object query(long streamID, long t0, long t1, int operatorNumber, Object... queryParams)
             throws StreamException, QueryException, RocksDBException;
 
-    void append(long streamID, long timestamp, Object value) throws StreamException, RocksDBException;
+    // TODO: query operator by name instead of by index
 
-    @Override
-    void close() throws RocksDBException;
-
-    // TODO: add flush()
+    /** Flush any buffered values into bucket store. Does not flush bucket store to disk */
+    default void flush(long streamID) throws RocksDBException, StreamException {}
 
     long getStoreSizeInBytes();
 
-    long getStreamAge(long streamID) throws StreamException;
+    StreamStatistics getStreamStatistics(long streamID) throws StreamException;
 
-    long getStreamCount(long streamID) throws StreamException;
+    @Override
+    void close() throws RocksDBException;
 }

@@ -1,8 +1,12 @@
 package com.samsung.sra.DataStore;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.*;
 
 public class GenericWindowing implements Windowing {
+    private static final Logger logger = LoggerFactory.getLogger(GenericWindowing.class);
     private final WindowLengthsSequence windowLengths;
 
     public GenericWindowing(WindowLengthsSequence windowLengths) {
@@ -68,6 +72,8 @@ public class GenericWindowing implements Windowing {
         }
         long firstMarker = firstWindowOfLength.ceilingEntry(length).getValue();
         if (firstMarker >= l) {
+            /*logger.trace("getFirstContainingTime CASE 1: Tl = {}, Tr = {}, T = {}, [l, r] = [{}, {}], firstMarker = {}: retval = {}",
+                    Tl, Tr, T, l, r, firstMarker, firstMarker + Tr + 1);*/
             // l' == firstMarker, where l' := N'-1 - Tr
             return firstMarker + Tr + 1;
         } else {
@@ -75,6 +81,8 @@ public class GenericWindowing implements Windowing {
             // already in the same window or will be once we move into the next window
             addWindowsPastMarker(l);
             long currWindowL = windowStartMarkers.floor(l), currWindowR = windowStartMarkers.higher(l) - 1;
+            /*logger.trace("getFirstContainingTime CASE 2/3: Tl = {}, Tr = {}, T = {}, [l, r] = [{}, {}], firstMarker = {}, [currWindowL, currWindowR] = [{}, {}]",
+                    Tl, Tr, T, l, r, firstMarker, currWindowL, currWindowR);*/
             if (r <= currWindowR) {
                 // already in same window
                 return T;
@@ -92,22 +100,20 @@ public class GenericWindowing implements Windowing {
     }
 
     @Override
-    public List<Long> getSizeOfFirstKWindows(int k) {
-        addWindowsUntilCount(k);
+    public List<Long> getWindowsCoveringUpto(long N) {
+        if (N <= 0) return Collections.emptyList();
+        addWindowsPastMarker(N);
         List<Long> ret = new ArrayList<>();
-        long prevMarker = -1;
+        Long prevMarker = null;
         for (long currMarker: windowStartMarkers) {
-            if (prevMarker != -1) {
-                ret.add(currMarker - prevMarker);
-                if (ret.size() == k) break;
+            if (currMarker >= N) {
+                break;
+            } else {
+                if (prevMarker != null) {
+                    ret.add(currMarker - prevMarker);
+                }
+                prevMarker = currMarker;
             }
-            prevMarker = currMarker;
-        }
-        if (ret.size() == k - 1) {
-            assert prevMarker == lastWindowStart;
-            ret.add(lastWindowLength);
-        } else {
-            assert ret.size() == k;
         }
         return ret;
     }
