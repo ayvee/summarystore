@@ -17,6 +17,11 @@ import java.util.stream.Stream;
 
 /**
  * Created by n.agrawal1 on 7/18/16.
+ * This operator uses the BloomFilter implementation from the stream-lib library
+ * https://github.com/addthis/stream-lib
+ *
+ * Bloom Filter:
+ * https://github.com/addthis/stream-lib/tree/master/src/main/java/com/clearspring/analytics/stream/membership
  */
 
 //AVRE: Bloomfilter, Long, Boolean, Double
