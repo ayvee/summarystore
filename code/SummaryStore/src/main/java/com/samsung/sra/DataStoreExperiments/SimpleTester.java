@@ -25,7 +25,7 @@ public class SimpleTester {
 
     public static void main(String[] args) throws Exception {
 
-        Runtime.getRuntime().exec(new String[]{"rm", "-rf ", loc_prefix + "*"}).waitFor();
+        Runtime.getRuntime().exec(new String[]{"sh", "-c",  "rm -rf " + loc_prefix + "*"}).waitFor();
 
         SummaryStore store = null;
         long T =100; //  entries
