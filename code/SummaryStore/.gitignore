@@ -2,6 +2,7 @@
 *.iml
 
 target
+src/main/java/com/samsung/sra/protocol
 
 *.cdf
 *.csv
