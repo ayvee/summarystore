@@ -127,25 +127,18 @@
                     <target>1.8</target>
                 </configuration>
             </plugin>
-            <!-- nitin: protobuf build -->
             <plugin>
-                <artifactId>maven-antrun-plugin</artifactId>
+                <groupId>org.xolstice.maven.plugins</groupId>
+                <artifactId>protobuf-maven-plugin</artifactId>
+                <version>0.5.0</version>
+                <configuration>
+                    <protocExecutable>/usr/local/bin/protoc</protocExecutable>
+                </configuration>
                 <executions>
                     <execution>
-                        <id>generate-sources</id>
-                        <phase>generate-sources</phase>
-                        <configuration>
-                        <tasks>
-                                <exec executable="protoc">
-                                    <arg value="--java_out=${project.basedir}/src/main/java/com/samsung/sra" />
-                                    <arg value="--proto_path=${project.basedir}/" />
-                                    <arg value="${project.basedir}/Bucket.proto" />
-                                </exec>
-                            </tasks>
-                            <sourceRoot>target/generated-sources</sourceRoot>
-                        </configuration>
                         <goals>
-                            <goal>run</goal>
+                            <goal>compile</goal>
+                            <goal>test-compile</goal>
                         </goals>
                     </execution>
                 </executions>
