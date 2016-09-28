@@ -1,36 +1,27 @@
 package com.samsung.sra.DataStore;
 
-import com.google.protobuf.Descriptors;
+import com.clearspring.analytics.stream.frequency.CountMinSketch;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.samsung.sra.DataStore.Aggregates.BloomFilter;
-import com.samsung.sra.DataStore.Aggregates.HyperLogLogOperator;
-import com.samsung.sra.DataStore.Aggregates.SimpleBloomFilterOperator;
-import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
 import com.samsung.sra.DataStoreExperiments.PairTwo;
-import com.samsung.sra.protocol.Summarybucket;
+import com.samsung.sra.protocol.Summarybucket.ProtoBucket;
+import com.samsung.sra.protocol.Summarybucket.ProtoCMS;
+import com.samsung.sra.protocol.Summarybucket.ProtoSimpleBloomFilter;
+import com.samsung.sra.protocol.Summarybucket.ProtoSimpleCount;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
-
-
 import java.util.HashMap;
 import java.util.Random;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
-
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.Stream;
-
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.Descriptors.Descriptor;
-
-import com.samsung.sra.protocol.Summarybucket.ProtoBucket;
-import com.samsung.sra.protocol.Summarybucket.ProtoSimpleCount;
-import com.samsung.sra.protocol.Summarybucket.ProtoSimpleBloomFilter;
 
 
 /**
@@ -51,6 +42,7 @@ class StreamManager implements Serializable {
 
     String a = java.lang.Long.class.toString();
     String b = BloomFilter.class.toString();
+    String c = CountMinSketch.class.toString();
 
     final ReadWriteLock lock = new ReentrantReadWriteLock();
 
@@ -274,6 +266,9 @@ class StreamManager implements Serializable {
 
                         protoBucket.setPbloom(((ProtoSimpleBloomFilter.Builder)
                                 operators[op].protofy(bucket.aggregates[op])).build());
+                    } else if (c.equalsIgnoreCase(bucket.aggregates[op].getClass().toString())) {
+                        protoBucket.setPcms(((ProtoCMS.Builder)
+                        operators[op].protofy(bucket.aggregates[op])).build());
                     }
                 } else {
                     logger.error("aggr[" + op + "] in Bucket " + bucket.thisBucketID + " before serialize is NULL");
@@ -312,6 +307,11 @@ class StreamManager implements Serializable {
 
         if (protoBucket.hasPbloom() && op < operators.length) {
             bucket.aggregates[op] = operators[op].deprotofy(protoBucket.getPbloom().toBuilder());
+            op++;
+        }
+
+        if (protoBucket.hasPcms() && op < operators.length) {
+            bucket.aggregates[op] = operators[op].deprotofy(protoBucket.getPcms().toBuilder());
             op++;
         }
 

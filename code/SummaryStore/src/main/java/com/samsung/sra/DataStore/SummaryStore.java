@@ -1,5 +1,6 @@
 package com.samsung.sra.DataStore;
 
+import com.samsung.sra.DataStore.Aggregates.CMSOperator;
 import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
 import org.rocksdb.RocksDBException;
 import org.slf4j.LoggerFactory;
@@ -212,9 +213,11 @@ public class SummaryStore implements DataStore {
                 Windowing windowing
                         = new GenericWindowing(new ExponentialWindowLengths(2));
                         //= new RationalPowerWindowing(1, 1);
-                store.registerStream(streamID, new CountBasedWBMH(windowing, 33), new SimpleCountOperator());
+                store.registerStream(streamID, new CountBasedWBMH(windowing, 33),
+                        new SimpleCountOperator(),
+                        new CMSOperator(5, 100, 0));
                 for (long i = 0; i < 1022; ++i) {
-                    store.append(streamID, i, i + 1);
+                    store.append(streamID, i, i % 10);
                     store.printBucketState(streamID);
                 }
                 store.flush(streamID);
@@ -224,7 +227,9 @@ public class SummaryStore implements DataStore {
             }
             long t0 = 1, t1 = 511;
             System.out.println(
-                    "count[" + t0 + ", " + t1 + "] = " + store.query(streamID, t0, t1, 0, 0.95));
+                    "[" + t0 + ", " + t1 + "] count = " + store.query(streamID, t0, t1, 0, 0.95));
+            System.out.println(
+                    "[" + t0 + ", " + t1 + "] freq(8) = " + store.query(streamID, t0, t1, 1, 8L));
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
