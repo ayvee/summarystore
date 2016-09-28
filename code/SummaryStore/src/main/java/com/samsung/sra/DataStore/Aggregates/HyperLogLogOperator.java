@@ -1,10 +1,10 @@
 package com.samsung.sra.DataStore.Aggregates;
 
-import com.google.protobuf.Message;
 import com.samsung.sra.DataStore.Bucket;
 import com.samsung.sra.DataStore.ResultError;
 import com.samsung.sra.DataStore.StreamStatistics;
 import com.samsung.sra.DataStore.WindowOperator;
+import com.samsung.sra.protocol.Summarybucket.ProtoOperator;
 
 import java.util.Collections;
 import java.util.List;
@@ -55,12 +55,12 @@ public class HyperLogLogOperator implements WindowOperator<HyperLogLog, Long, Lo
 
 
     @Override
-    public Message.Builder protofy(HyperLogLog aggr) {
+    public ProtoOperator.Builder protofy(HyperLogLog aggr) {
         return  null;
     }
 
     @Override
-    public HyperLogLog deprotofy(Message.Builder builder) {
+    public HyperLogLog deprotofy(ProtoOperator protoOperator) {
         return null;
     }
 }

@@ -1,11 +1,10 @@
 package com.samsung.sra.DataStore.Aggregates;
 
-import com.google.protobuf.Message;
 import com.samsung.sra.DataStore.Bucket;
 import com.samsung.sra.DataStore.ResultError;
 import com.samsung.sra.DataStore.StreamStatistics;
 import com.samsung.sra.DataStore.WindowOperator;
-import com.samsung.sra.protocol.Summarybucket;
+import com.samsung.sra.protocol.Summarybucket.ProtoOperator;
 import org.apache.commons.math3.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,14 +56,14 @@ public class SumOperator implements WindowOperator<Long,Double,Pair<Double,Doubl
     }
 
     @Override
-    public Message.Builder protofy(Long aggr) {
-        return  Summarybucket.ProtoSum.
-                newBuilder().
-                setSum(aggr);
+    public ProtoOperator.Builder protofy(Long aggr) {
+        return ProtoOperator
+                .newBuilder()
+                .setLong(aggr);
     }
 
     @Override
-    public Long deprotofy(Message.Builder builder) {
-        return ((Summarybucket.ProtoSum.Builder) builder).getSum();
+    public Long deprotofy(ProtoOperator operator) {
+        return operator.getLong();
     }
 }

@@ -21,17 +21,17 @@ public class CMSProtofier {
         return builder;
     }
 
-    public static CountMinSketch deprotofy(ProtoCMS.Builder builder, int depth, int width) {
-        long size = builder.getSize();
-        assert builder.getHashACount() == depth;
+    public static CountMinSketch deprotofy(ProtoCMS protoCMS, int depth, int width) {
+        long size = protoCMS.getSize();
+        assert protoCMS.getHashACount() == depth;
         long[] hashA = new long[depth];
         for (int i = 0; i < depth; ++i) {
-            hashA[i] = builder.getHashA(i);
+            hashA[i] = protoCMS.getHashA(i);
         }
-        assert builder.getRowCount() == depth;
+        assert protoCMS.getRowCount() == depth;
         long[][] table = new long[depth][width];
         for (int i = 0; i < depth; ++i) {
-            ProtoCMS.Row row = builder.getRow(i);
+            ProtoCMS.Row row = protoCMS.getRow(i);
             assert row.getCellCount() == width;
             for (int j = 0; j < width; ++j) {
                 table[i][j] = row.getCell(j);

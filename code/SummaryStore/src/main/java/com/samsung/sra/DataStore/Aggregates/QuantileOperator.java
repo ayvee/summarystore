@@ -1,10 +1,10 @@
 package com.samsung.sra.DataStore.Aggregates;
 
-import com.google.protobuf.Message;
 import com.samsung.sra.DataStore.Bucket;
 import com.samsung.sra.DataStore.ResultError;
 import com.samsung.sra.DataStore.StreamStatistics;
 import com.samsung.sra.DataStore.WindowOperator;
+import com.samsung.sra.protocol.Summarybucket.ProtoOperator;
 
 import java.util.Collections;
 import java.util.List;
@@ -72,12 +72,12 @@ public class QuantileOperator implements WindowOperator<QDigest, Long, Long> {
     }
 
     @Override
-    public Message.Builder protofy(QDigest aggr) {
+    public ProtoOperator.Builder protofy(QDigest aggr) {
         return null;
     }
 
     @Override
-    public QDigest deprotofy(Message.Builder builder) {
+    public QDigest deprotofy(ProtoOperator protoOperator) {
         return null;
     }
 

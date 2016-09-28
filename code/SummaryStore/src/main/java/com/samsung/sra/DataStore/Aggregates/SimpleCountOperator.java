@@ -1,12 +1,10 @@
 package com.samsung.sra.DataStore.Aggregates;
 
-import com.google.protobuf.Message;
 import com.samsung.sra.DataStore.*;
-import com.samsung.sra.protocol.Summarybucket;
+import com.samsung.sra.protocol.Summarybucket.ProtoOperator;
 import org.apache.commons.lang.mutable.MutableDouble;
 import org.apache.commons.lang.mutable.MutableLong;
 import org.apache.commons.math3.util.Pair;
-//import com.samsung.sra.DataStoreExperiments.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,6 +12,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
+
+//import com.samsung.sra.DataStoreExperiments.Pair;
 
 /** TODO?: return confidence level along with each CI? */
 public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Double,Double>> {
@@ -188,14 +188,14 @@ public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Doub
     }
 
     @Override
-    public Message.Builder protofy(Long aggr) {
-        return  Summarybucket.ProtoSimpleCount.
-                newBuilder().
-                setCount(aggr);
+    public ProtoOperator.Builder protofy(Long aggr) {
+        return ProtoOperator
+                .newBuilder()
+                .setLong(aggr);
     }
 
     @Override
-    public Long deprotofy(Message.Builder builder) {
-        return ((Summarybucket.ProtoSimpleCount.Builder) builder).getCount();
+    public Long deprotofy(ProtoOperator operator) {
+        return operator.getLong();
     }
 }

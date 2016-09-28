@@ -2,12 +2,11 @@ package com.samsung.sra.DataStore.Aggregates;
 
 import com.clearspring.analytics.stream.frequency.CMSProtofier;
 import com.clearspring.analytics.stream.frequency.CountMinSketch;
-import com.google.protobuf.Message;
 import com.samsung.sra.DataStore.Bucket;
 import com.samsung.sra.DataStore.ResultError;
 import com.samsung.sra.DataStore.StreamStatistics;
 import com.samsung.sra.DataStore.WindowOperator;
-import com.samsung.sra.protocol.Summarybucket.ProtoCMS;
+import com.samsung.sra.protocol.Summarybucket.ProtoOperator;
 
 import java.util.Arrays;
 import java.util.List;
@@ -80,12 +79,14 @@ public class CMSOperator implements WindowOperator<CountMinSketch,Long,Object> {
 
     /** protofy code needs access to package-local members, so put it in the com.clearspring... package */
     @Override
-    public Message.Builder protofy(CountMinSketch aggr) {
-        return CMSProtofier.protofy(aggr);
+    public ProtoOperator.Builder protofy(CountMinSketch aggr) {
+        return ProtoOperator
+                .newBuilder()
+                .setCms(CMSProtofier.protofy(aggr));
     }
 
     @Override
-    public CountMinSketch deprotofy(Message.Builder builder) {
-        return CMSProtofier.deprotofy((ProtoCMS.Builder) builder, depth, width);
+    public CountMinSketch deprotofy(ProtoOperator protoOperator) {
+        return CMSProtofier.deprotofy(protoOperator.getCms(), depth, width);
     }
 }

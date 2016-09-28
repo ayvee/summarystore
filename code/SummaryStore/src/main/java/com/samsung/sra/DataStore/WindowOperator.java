@@ -1,6 +1,6 @@
 package com.samsung.sra.DataStore;
 
-import com.google.protobuf.Message;
+import com.samsung.sra.protocol.Summarybucket.ProtoOperator;
 
 import java.io.Serializable;
 import java.util.List;
@@ -72,7 +72,9 @@ public interface WindowOperator<A, R, E> extends Serializable {
 
     // NA: just provide methods to construct a proto builder and to deconstruct a builder
     // these replace serialization and deserialization methods
-    Message.Builder protofy(A aggr);
-    A deprotofy(Message.Builder builder);
+
+    ProtoOperator.Builder protofy(A aggr);
+
+    A deprotofy(ProtoOperator protoOperator);
 
 }

@@ -5,9 +5,6 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.samsung.sra.DataStore.Aggregates.BloomFilter;
 import com.samsung.sra.DataStoreExperiments.PairTwo;
 import com.samsung.sra.protocol.Summarybucket.ProtoBucket;
-import com.samsung.sra.protocol.Summarybucket.ProtoCMS;
-import com.samsung.sra.protocol.Summarybucket.ProtoSimpleBloomFilter;
-import com.samsung.sra.protocol.Summarybucket.ProtoSimpleCount;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -232,7 +229,7 @@ class StreamManager implements Serializable {
             logger.error("NULL Bucket about to be serialized");
         }
 
-        ProtoBucket.Builder protoBucket = null;
+        ProtoBucket.Builder protoBucket;
 
         try {
             protoBucket = ProtoBucket.newBuilder().
@@ -242,8 +239,8 @@ class StreamManager implements Serializable {
                     setTStart(bucket.tStart).setTEnd(bucket.tEnd).
                     setCStart(bucket.cStart).setCEnd(bucket.cEnd);
         } catch (Exception e) {
-            logger.error("Exception in serializing bucket ");
-            e.printStackTrace();
+            logger.error("Exception in serializing bucket", e);
+            throw new RuntimeException(e);
         }
 
         for (int op = 0; op < operators.length; ++op) {
@@ -251,28 +248,8 @@ class StreamManager implements Serializable {
             //objectStringMap.get(bucket.aggregates[op].getClass().toString());
 
             try {
-                if (bucket.aggregates[op] != null) {
-                    if (a.equalsIgnoreCase(bucket.aggregates[op].getClass().toString())) {
-                        //logger.debug("Simple Count for aggr[" + op + "] in Bucket " + bucket.thisBucketID);
-
-                        //NA: solely for testing
-                        //bucket.aggregates[op] = rand.nextLong();
-
-                        protoBucket.setPcount(((ProtoSimpleCount.Builder)
-                                operators[op].protofy(bucket.aggregates[op])).build());
-
-                    } else if (b.equalsIgnoreCase(bucket.aggregates[op].getClass().toString())) {
-                        //logger.debug("Simple Bloom for aggr[" + op + "] in Bucket " + bucket.thisBucketID);
-
-                        protoBucket.setPbloom(((ProtoSimpleBloomFilter.Builder)
-                                operators[op].protofy(bucket.aggregates[op])).build());
-                    } else if (c.equalsIgnoreCase(bucket.aggregates[op].getClass().toString())) {
-                        protoBucket.setPcms(((ProtoCMS.Builder)
-                        operators[op].protofy(bucket.aggregates[op])).build());
-                    }
-                } else {
-                    logger.error("aggr[" + op + "] in Bucket " + bucket.thisBucketID + " before serialize is NULL");
-                }
+                assert bucket.aggregates[op] != null;
+                protoBucket.addOperator(operators[op].protofy(bucket.aggregates[op]));
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -292,7 +269,6 @@ class StreamManager implements Serializable {
         bucket.tEnd = protoBucket.getTEnd();
         bucket.cStart = protoBucket.getCStart();
         bucket.cEnd = protoBucket.getCEnd();
-        int op = 0;
 
         /** find number of aggregates in protobucket or use operators.length
          * eventually this assign and check should be dropped since the serialized object
@@ -300,52 +276,10 @@ class StreamManager implements Serializable {
          */
         bucket.aggregates = new Object[operators.length];
 
-        if (protoBucket.hasPcount() && op < operators.length) {
-            bucket.aggregates[op] = operators[op].deprotofy(protoBucket.getPcount().toBuilder());
-            op++;
+        assert protoBucket.getOperatorCount() == operators.length;
+        for (int op = 0; op < operators.length; ++op) {
+            bucket.aggregates[op] = operators[op].deprotofy(protoBucket.getOperator(op));
         }
-
-        if (protoBucket.hasPbloom() && op < operators.length) {
-            bucket.aggregates[op] = operators[op].deprotofy(protoBucket.getPbloom().toBuilder());
-            op++;
-        }
-
-        if (protoBucket.hasPcms() && op < operators.length) {
-            bucket.aggregates[op] = operators[op].deprotofy(protoBucket.getPcms().toBuilder());
-            op++;
-        }
-
-        // must deserialize all valid operators that were serialized
-        if(op!=operators.length)
-            logger.error("Error: deserializing less operators than needed");
-        assert(op == operators.length);
-
-        /** THIS IS TO BE DELETED
-         for (int op = 0; op < operators.length; ++op) {
-             PairTwo<WindowOperator, Integer> pairTwo1 = objectStringMap.get(operators[op].getClass().toString());
-             switch(pairTwo1.second()) {}
-             PairTwo<WindowOperator, Integer> pairTwo2 = objectStringMap.get(protoBucket.getPcount());
-             logger.debug("DESER == x: " + x + " y: " + y + " class: " + operators[op].getClass().toString());
-
-             if(x.equalsIgnoreCase(operators[op].getClass().toString())) {
-                 logger.debug("Attempting Deser in " + operators[op].getClass().getName());
-                 bucket.aggregates[op] = operators[op].deprotofy(protoBucket.getPcount().toBuilder());
-             }
-             else if(y.equalsIgnoreCase(operators[op].getClass().toString())) {
-                logger.debug("Attempting Deser in " + operators[op].getClass().getName());
-                bucket.aggregates[op] = operators[op].deprotofy(protoBucket.getPbloom().toBuilder());
-             }
-             //else if(c.equalsIgnoreCase(operators[op].getClass().toString()))
-             //  bucket.aggregates[op] = operators[op].deprotofy(protoBucket.getPsum().toBuilder());
-
-             if (bucket.aggregates[op] != null)
-                logger.debug("Op " + operators[op].getClass().getName() + " in bucket "
-                    + bucket.thisBucketID + " after deser: " + bucket.aggregates[op].toString());
-             else
-                logger.debug("Op " + operators[op].getClass().getName() + " in bucket "
-                    + bucket.thisBucketID + " after deser is null ");
-             }
-         */
 
         return bucket;
     }

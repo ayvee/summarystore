@@ -1,9 +1,9 @@
 package com.samsung.sra.DataStore.Aggregates;
 
 import com.google.protobuf.ByteString;
-import com.google.protobuf.Message;
 import com.samsung.sra.DataStore.*;
 import com.samsung.sra.protocol.Summarybucket;
+import com.samsung.sra.protocol.Summarybucket.ProtoOperator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -156,31 +156,41 @@ public class SimpleBloomFilterOperator implements WindowOperator<BloomFilter, Bo
     }
 
     @Override
-    public Message.Builder protofy(BloomFilter aggr) {
+    public ProtoOperator.Builder protofy(BloomFilter aggr) {
 
         // First construct builder for BitSet
         Summarybucket.ProtoBitset.Builder pbBuilder = Summarybucket.ProtoBitset.
                 newBuilder().
                 addBitsetbytes(ByteString.copyFrom(aggr.filter().toByteArray()));
 
-        // return builder for all three: bitset, filtersize, num hashes
-        return  Summarybucket.
-                ProtoSimpleBloomFilter.
-                newBuilder().
-                setBitset(pbBuilder).
-                setFiltersize(aggr.getFilterSize()).
-                setNumhashes(aggr.getHashCount());
+        // Base Bloom filter builder
+        Summarybucket.ProtoSimpleBloomFilter.Builder bfBuilder = Summarybucket
+                .ProtoSimpleBloomFilter
+                .newBuilder()
+                .setBitset(pbBuilder)
+                .setFiltersize(aggr.getFilterSize())
+                .setNumhashes(aggr.getHashCount());
+
+        // Wrap inside operator
+        return Summarybucket
+                .ProtoOperator
+                .newBuilder()
+                .setBloomFilter(bfBuilder);
     }
 
     @Override
-    public BloomFilter deprotofy(Message.Builder builder) {
-
-        // BitSet is a nested proto message
+    public BloomFilter deprotofy(ProtoOperator protoOperator) {
+        Summarybucket.ProtoSimpleBloomFilter protoFilter = protoOperator.getBloomFilter();
+        return new BloomFilter(
+                protoFilter.getNumhashes(),
+                // TODO: should technically be something like getBitset().getBitsetBytes().asByteBuffer()
+                BitSet.valueOf(protoFilter.getBitset().toByteArray()),
+                protoFilter.getFiltersize());
+        /*// BitSet is a nested proto message
         BloomFilter bf = new BloomFilter (
                 ((Summarybucket.ProtoSimpleBloomFilter.Builder) builder).getNumhashes(),
                 BitSet.valueOf(((Summarybucket.ProtoSimpleBloomFilter.Builder) builder).getBitset().toByteArray()),
                 ((Summarybucket.ProtoSimpleBloomFilter.Builder) builder).getFiltersize());
-
-        return bf;
+        return bf;*/
     }
 }
