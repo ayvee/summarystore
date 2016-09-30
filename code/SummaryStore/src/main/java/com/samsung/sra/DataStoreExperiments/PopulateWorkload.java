@@ -16,11 +16,11 @@ import java.util.List;
 public class PopulateWorkload {
     private static Logger logger = LoggerFactory.getLogger(PopulateWorkload.class);
 
-    private static void computeTrueAnswers(long T, StreamGenerator streamGenerator, Workload<Long> workload) throws IOException {
+    private static void computeTrueAnswers(long T, StreamGenerator streamGenerator, Workload workload) throws IOException {
         ArrayList<LongRange> intervals = new ArrayList<>();
-        ArrayList<Workload.Query<Long>> queries = new ArrayList<>();
-        for (List<Workload.Query<Long>> classQueries: workload.values()) {
-            for (Workload.Query<Long> q: classQueries) {
+        ArrayList<Workload.Query> queries = new ArrayList<>();
+        for (List<Workload.Query> classQueries: workload.values()) {
+            for (Workload.Query q: classQueries) {
                 queries.add(q);
                 intervals.add(new LongRange(q.l + ":" + q.r, q.l, true, q.r, true));
             }
@@ -36,7 +36,7 @@ public class PopulateWorkload {
             }
             int matchCount = lrms.lookup(t, matchedIndexes);
             for (int i = 0; i < matchCount; ++i) {
-                Workload.Query<Long> q = queries.get(matchedIndexes[i]);
+                Workload.Query q = queries.get(matchedIndexes[i]);
                 assert q.queryType.equalsIgnoreCase("count"); // TODO: other kinds of queries
                 ++q.trueAnswer;
             }
@@ -79,7 +79,7 @@ public class PopulateWorkload {
         long T = config.getT();
         try (StreamGenerator streamGenerator = config.getStreamGenerator()) {
             WorkloadGenerator<Long> workloadGenerator = config.getWorkloadGenerator();
-            Workload<Long> workload = workloadGenerator.generate(T);
+            Workload workload = workloadGenerator.generate(T);
             computeTrueAnswers(T, streamGenerator, workload);
             try (FileOutputStream fos = new FileOutputStream(config.getWorkloadFile())) {
                 SerializationUtils.serialize(workload, fos);

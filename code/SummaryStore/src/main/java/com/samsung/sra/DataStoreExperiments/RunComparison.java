@@ -50,11 +50,11 @@ class RunComparison {
             }
         }
 
-        Workload<R> workload;
+        Workload workload;
         try (InputStream is = Files.newInputStream(Paths.get(workloadFile))) {
-            workload = (Workload<R>) SerializationUtils.deserialize(is);
+            workload = (Workload) SerializationUtils.deserialize(is);
         }
-        for (Map.Entry<String, List<Workload.Query<R>>> entry : workload.entrySet()) {
+        for (Map.Entry<String, List<Workload.Query>> entry : workload.entrySet()) {
             logger.debug("{}, {}", entry.getKey(), entry.getValue().size());
         }
 
@@ -73,7 +73,7 @@ class RunComparison {
                     workload.get(queryClass).parallelStream().forEach(q -> {
                         try {
                             logger.trace("Running query [{}, {}], true answer = {}", q.l, q.r, q.trueAnswer);
-                            long trueAnswer = (Long)q.trueAnswer;
+                            long trueAnswer = q.trueAnswer;
                             ResultError<Double, Pair<Double, Double>> estimate =
                                     (ResultError<Double, Pair<Double, Double>>) store.query(streamID, q.l, q.r, q.operatorNum, 0.95);
                             //double error = Math.abs(estimate.result - trueAnswer) / (1d + trueAnswer);

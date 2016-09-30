@@ -10,17 +10,16 @@ import java.util.concurrent.ConcurrentHashMap;
  *      name of 2nd query class -> list of all queries belonging to 2nd query class,
  *      ...
  * }
- * @param <R>    query result type
  */
-public class Workload<R> extends ConcurrentHashMap<String, List<Workload.Query<R>>> {
-    public static class Query<R> implements Serializable {
+public class Workload extends ConcurrentHashMap<String, List<Workload.Query>> {
+    public static class Query implements Serializable {
         String queryType;
         long l, r;
         int operatorNum;
         Object[] params;
-        R trueAnswer;
+        long trueAnswer;
 
-        public Query(String queryType, long l, long r, int operatorNum, Object[] params, R trueAnswer) {
+        public Query(String queryType, long l, long r, int operatorNum, Object[] params, long trueAnswer) {
             this.queryType = queryType;
             this.l = l;
             this.r = r;

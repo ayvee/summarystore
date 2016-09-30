@@ -6,73 +6,70 @@ import java.io.Serializable;
 import java.util.Random;
 
 public class AgeLengthClass implements Serializable {
-    public static class Range<T> implements Serializable {
-        public final T min, max;
+    public static class Bin implements Serializable {
+        public final String name;
+        public final long start, end, multiplier;
 
-        Range(T min, T max) {
-            assert min != null && max != null;
-            this.min = min;
-            this.max = max;
+        /**
+         * The contents of this bin are the values
+         *     start * multiplier, (start + 1) * multiplier, ..., end * multiplier
+         */
+        public Bin(String name, long start, long end, long multiplier) {
+            this.name = name;
+            this.start = start;
+            this.end = end;
+            this.multiplier = multiplier;
+        }
+
+        public Bin(Bin that) {
+            this.name = that.name;
+            this.start = that.start;
+            this.end = that.end;
+            this.multiplier = that.multiplier;
+        }
+
+        public long sample(Random rand) {
+            return multiplier * (start + (Math.abs(rand.nextLong()) % (end - start + 1)));
         }
 
         @Override
         public String toString() {
-            return "[" + min + ", " + max + "]";
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Range<?> range = (Range<?>) o;
-
-            return min.equals(range.min) && max.equals(range.max);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = min.hashCode();
-            result = 31 * result + max.hashCode();
-            return result;
+            return name; //+ " [" + start + ", " + end + "] * " + multiplier;
         }
     }
 
-    private final Range<Long> ageRange, lengthRange;
+    private final Bin ageBin, lengthBin;
+    private final Long maxAge;
 
-    public AgeLengthClass(Range<Long> ageRange,
-                          Range<Long> lengthRange) {
-        assert ageRange != null && lengthRange != null;
-        this.ageRange = ageRange;
-        this.lengthRange = lengthRange;
+    public AgeLengthClass(Bin ageBin, Bin lengthBin) {
+        this(ageBin, lengthBin, null);
     }
 
+    public AgeLengthClass(Bin ageBin, Bin lengthBin, Long maxAge) {
+        assert ageBin != null && lengthBin != null;
+        this.ageBin = ageBin;
+        this.lengthBin = lengthBin;
+        this.maxAge = maxAge;
+    }
+
+    /** Return random age, random length */
     public Pair<Long, Long> sample(Random random) {
-        double aRand = random.nextDouble(), lRand = random.nextDouble();
-        return new Pair<>(
-                (long) (ageRange.min + aRand * (ageRange.max - ageRange.min)),
-                (long) (lengthRange.min + lRand * (lengthRange.max - lengthRange.min)));
+        // TODO: verify rejection sampling is unbiased
+        while (true) {
+            long age = ageBin.sample(random);
+            long length = lengthBin.sample(random);
+            if (maxAge == null || age + length - 1 <= maxAge) {
+                return new Pair<>(age, length);
+            }
+        }
     }
 
     @Override
     public String toString() {
-        return "<ages " + ageRange + ", lengths " + lengthRange + ">";
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        AgeLengthClass that = (AgeLengthClass) o;
-
-        return ageRange.equals(that.ageRange) && lengthRange.equals(that.lengthRange);
-    }
-
-    @Override
-    public int hashCode() {
-        int result = ageRange.hashCode();
-        result = 31 * result + lengthRange.hashCode();
-        return result;
+        return "<" +
+                "age " + ageBin + ", " +
+                "length " + lengthBin +
+                (maxAge != null ? (", maxAge = " + maxAge) : "") +
+                ">";
     }
 }

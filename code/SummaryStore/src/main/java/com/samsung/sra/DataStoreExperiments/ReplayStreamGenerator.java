@@ -40,14 +40,14 @@ public class ReplayStreamGenerator implements StreamGenerator {
     }
 
     private Long currTimestamp;
-    private Object[] currValue = {null};
+    private Object[] currValue = null;
 
     private void readNextLine() throws IOException {
         while (true) {
             String line = traceReader.readLine();
             if (line == null) {
                 currTimestamp = null;
-                currValue[0] = null;
+                currValue = null;
                 break;
             } else {
                 if (line.isEmpty() || line.startsWith("#")) continue;
@@ -56,7 +56,7 @@ public class ReplayStreamGenerator implements StreamGenerator {
                 long newTimestamp = Long.parseLong(vals[tsIndex]);
                 if (currTimestamp == null || newTimestamp != currTimestamp) {
                     currTimestamp = newTimestamp;
-                    currValue[0] = Long.parseLong(vals[valIndex]);
+                    currValue = new Object[]{Long.parseLong(vals[valIndex])};
                     break;
                 }
             }

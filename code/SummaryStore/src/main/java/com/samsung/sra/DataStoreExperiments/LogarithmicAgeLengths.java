@@ -11,11 +11,11 @@ import java.util.*;
 
 import static org.apache.commons.math3.util.FastMath.*;
 
-public class AgeLengthSampler {
+public class LogarithmicAgeLengths {
     private Random random = new Random();
     private final TreeMap<Double, AgeLengthClass> cdf = new TreeMap<>();
 
-    public AgeLengthSampler(List<AgeLengthClass> classes, List<Double> weights) {
+    public LogarithmicAgeLengths(List<AgeLengthClass> classes, List<Double> weights) {
         double normfact = 0d;
         for (Double weight: weights) {
             normfact += weight;
@@ -29,7 +29,7 @@ public class AgeLengthSampler {
         }
     }
 
-    public AgeLengthSampler(long streamAge, long streamLength, int nAgeClasses, int nLengthClasses, List<Double> weights) throws StreamException {
+    public LogarithmicAgeLengths(long streamAge, long streamLength, int nAgeClasses, int nLengthClasses, List<Double> weights) throws StreamException {
         this(getAgeLengthClasses(streamAge, streamLength, nAgeClasses, nLengthClasses), weights);
     }
 
@@ -76,16 +76,16 @@ public class AgeLengthSampler {
 
         List<AgeLengthClass> ret = new ArrayList<>();
         for (int a = 0; a < nAgeClasses; ++a) {
-            AgeLengthClass.Range<Long> ageRange = new AgeLengthClass.Range<>(ageMarkers[a], ageMarkers[a+1] - 1);
+            AgeLengthClass.Bin ageBin = new AgeLengthClass.Bin("a" + a, ageMarkers[a], ageMarkers[a+1] - 1, 1);
             for (int l = 0; l < nLengthClasses; ++l) {
-                AgeLengthClass.Range<Long> lengthRange = new AgeLengthClass.Range<>(lengthMarkers[l], lengthMarkers[l+1] - 1);
-                ret.add(new AgeLengthClass(ageRange, lengthRange));
+                AgeLengthClass.Bin lengthBin = new AgeLengthClass.Bin("l" + l, lengthMarkers[l], lengthMarkers[l+1] - 1, 1);
+                ret.add(new AgeLengthClass(ageBin, lengthBin));
             }
         }
         return ret;
     }
 
-    public static AgeLengthSampler constructFromFileSpec(long streamAge, long streamLength, String filename) throws IOException, StreamException {
+    public static LogarithmicAgeLengths constructFromFileSpec(long streamAge, long streamLength, String filename) throws IOException, StreamException {
         int nAgeClasses, nLengthClasses;
         List<Double> weights;
         try (BufferedReader r = new BufferedReader(new FileReader(filename))) {
@@ -125,12 +125,12 @@ public class AgeLengthSampler {
                     weights.add(st.nval);
             }
         }
-        return new AgeLengthSampler(streamAge, streamLength, nAgeClasses, nLengthClasses, weights);
+        return new LogarithmicAgeLengths(streamAge, streamLength, nAgeClasses, nLengthClasses, weights);
     }
 
     public static void main(String[] args) {
         long streamAge = 1_000_000, streamLength = 1_000_000;
-        AgeLengthSampler alc;
+        LogarithmicAgeLengths alc;
 
         assert args.length == 2 && args[0].equalsIgnoreCase("-f");
         try {
