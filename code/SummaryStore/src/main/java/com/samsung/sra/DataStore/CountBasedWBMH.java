@@ -1,6 +1,5 @@
 package com.samsung.sra.DataStore;
 
-import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,17 +39,17 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     private static class IngestBuffer implements Serializable {
         private long[] timestamps;
-        private Object[] values;
+        private Object[][] values;
         private int capacity = 0;
         private int size = 0;
 
         IngestBuffer(int capacity) {
             this.capacity = capacity;
             this.timestamps = new long[capacity];
-            this.values = new Object[capacity];
+            this.values = new Object[capacity][];
         }
 
-        public void append(long ts, Object value) {
+        public void append(long ts, Object[] value) {
             if (size >= capacity) throw new IndexOutOfBoundsException();
             timestamps[size] = ts;
             values[size] = value;
@@ -78,7 +77,7 @@ public class CountBasedWBMH implements WindowingMechanism {
             return timestamps[pos];
         }
 
-        public Object getValue(int pos) {
+        public Object[] getValue(int pos) {
             if (pos < 0 || pos >= size) throw new IndexOutOfBoundsException();
             return values[pos];
         }
@@ -128,7 +127,7 @@ public class CountBasedWBMH implements WindowingMechanism {
     }
 
     @Override
-    public void append(StreamManager streamManager, long ts, Object value) throws RocksDBException {
+    public void append(StreamManager streamManager, long ts, Object[] value) throws RocksDBException {
         //logger.debug("Appending in " + (numWindowsInBuffer==0? "Unbuffered":"buffered"));
         //if (numWindowsInBuffer == 0) {
         if (bufferSize == 0) {
@@ -143,7 +142,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         if (bufferSize > 0) flush(manager);
     }
 
-    public void appendUnbuffered(StreamManager streamManager, long ts, Object value) throws RocksDBException {
+    public void appendUnbuffered(StreamManager streamManager, long ts, Object[] value) throws RocksDBException {
         if (logger.isDebugEnabled() && N % 1_000_000 == 0) {
             logger.debug("N = {}, mergeCounts.size = {}", N, mergeCounts.getSize());
         }
@@ -185,7 +184,7 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     /*NOTE: code here depends on the fact that append()/flush()/close() calls are serialized (by StreamManager).
             Else we would need more careful synchronization */
-    public void appendBuffered(StreamManager streamManager, long ts, Object value) throws RocksDBException{
+    public void appendBuffered(StreamManager streamManager, long ts, Object[] value) throws RocksDBException{
         while (activeBuffer == null) {
             try {
                 activeBuffer = emptyBuffers.take();

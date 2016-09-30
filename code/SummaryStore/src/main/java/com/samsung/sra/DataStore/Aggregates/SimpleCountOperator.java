@@ -16,7 +16,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 /** TODO?: return confidence level along with each CI? */
-public class SimpleCountOperator implements WindowOperator<Long, Long, Double, Pair<Double, Double>> {
+public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Double,Double>> {
     private static Logger logger = LoggerFactory.getLogger(SimpleCountOperator.class);
 
     private static final List<String> supportedQueries = Collections.singletonList("count");
@@ -37,7 +37,7 @@ public class SimpleCountOperator implements WindowOperator<Long, Long, Double, P
     }
 
     @Override
-    public Long insert(Long aggr, long ts, Long val) {
+    public Long insert(Long aggr, long ts, Object[] val) {
         return aggr + 1;
     }
 

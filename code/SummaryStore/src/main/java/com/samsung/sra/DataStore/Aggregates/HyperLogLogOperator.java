@@ -5,7 +5,6 @@ import com.samsung.sra.DataStore.Bucket;
 import com.samsung.sra.DataStore.ResultError;
 import com.samsung.sra.DataStore.StreamStatistics;
 import com.samsung.sra.DataStore.WindowOperator;
-import com.samsung.sra.protocol.Summarybucket;
 
 import java.util.Collections;
 import java.util.List;
@@ -14,7 +13,7 @@ import java.util.stream.Stream;
 
 /** Implements COUNT(DISTINCT) over the values in an integer stream.
  * TODO: serialization */
-public class HyperLogLogOperator implements WindowOperator<HyperLogLog, Integer, Long, Long> {
+public class HyperLogLogOperator implements WindowOperator<HyperLogLog, Long, Long> {
     private static List<String> supportedQueries = Collections.singletonList("count");
 
     @Override
@@ -36,8 +35,8 @@ public class HyperLogLogOperator implements WindowOperator<HyperLogLog, Integer,
     }
 
     @Override
-    public HyperLogLog insert(HyperLogLog aggr, long timestamp, Integer val) {
-        aggr.insert(val);
+    public HyperLogLog insert(HyperLogLog aggr, long timestamp, Object[] val) {
+        aggr.insert((int)val[0]);
         return aggr;
     }
 

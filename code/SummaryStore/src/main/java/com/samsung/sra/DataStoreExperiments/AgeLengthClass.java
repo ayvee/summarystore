@@ -27,9 +27,7 @@ public class AgeLengthClass implements Serializable {
 
             Range<?> range = (Range<?>) o;
 
-            if (!min.equals(range.min)) return false;
-            return max.equals(range.max);
-
+            return min.equals(range.min) && max.equals(range.max);
         }
 
         @Override
@@ -40,13 +38,10 @@ public class AgeLengthClass implements Serializable {
         }
     }
 
-    public final int ageClassNum, lengthClassNum;
-    public final Range<Long> ageRange, lengthRange;
+    private final Range<Long> ageRange, lengthRange;
 
-    public AgeLengthClass(int ageClassNum, Range<Long> ageRange,
-                          int lengthClassNum, Range<Long> lengthRange) {
-        this.ageClassNum = ageClassNum;
-        this.lengthClassNum = lengthClassNum;
+    public AgeLengthClass(Range<Long> ageRange,
+                          Range<Long> lengthRange) {
         assert ageRange != null && lengthRange != null;
         this.ageRange = ageRange;
         this.lengthRange = lengthRange;
@@ -61,7 +56,7 @@ public class AgeLengthClass implements Serializable {
 
     @Override
     public String toString() {
-        return "<age class #" + ageClassNum + " " + ageRange + ", length class #" + lengthClassNum + " " + lengthRange + ">";
+        return "<ages " + ageRange + ", lengths " + lengthRange + ">";
     }
 
     @Override
@@ -71,18 +66,12 @@ public class AgeLengthClass implements Serializable {
 
         AgeLengthClass that = (AgeLengthClass) o;
 
-        if (ageClassNum != that.ageClassNum) return false;
-        if (lengthClassNum != that.lengthClassNum) return false;
-        if (!ageRange.equals(that.ageRange)) return false;
-        return lengthRange.equals(that.lengthRange);
-
+        return ageRange.equals(that.ageRange) && lengthRange.equals(that.lengthRange);
     }
 
     @Override
     public int hashCode() {
-        int result = ageClassNum;
-        result = 31 * result + lengthClassNum;
-        result = 31 * result + ageRange.hashCode();
+        int result = ageRange.hashCode();
         result = 31 * result + lengthRange.hashCode();
         return result;
     }

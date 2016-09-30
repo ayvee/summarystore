@@ -18,9 +18,9 @@ public class RandomStreamGenerator implements StreamGenerator {
     }
 
     @Override
-    public void generate(long T, BiConsumer<Long, Long> consumer) {
+    public void generate(long T, BiConsumer<Long, Object[]> consumer) {
         for (long t = 0; t <= T; t += interarrivals.next(random)) {
-            long v = values.next(random);
+            Object[] v = {values.next(random)};
             consumer.accept(t, v);
         }
     }

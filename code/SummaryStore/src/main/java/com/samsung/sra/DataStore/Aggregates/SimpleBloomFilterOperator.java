@@ -4,14 +4,12 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.Message;
 import com.samsung.sra.DataStore.*;
 import com.samsung.sra.protocol.Summarybucket;
-import jdk.nashorn.internal.ir.debug.ObjectSizeCalculator;
-import org.apache.commons.math3.analysis.function.Ceil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
-import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.BitSet;
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -25,7 +23,7 @@ import java.util.stream.Stream;
  */
 
 //AVRE: Bloomfilter, Long, Boolean, Double
-public class SimpleBloomFilterOperator implements WindowOperator<BloomFilter, Long, Boolean, Double>{
+public class SimpleBloomFilterOperator implements WindowOperator<BloomFilter, Boolean, Double>{
 
 
     private int filterSize = 128; //2^15;
@@ -89,9 +87,9 @@ public class SimpleBloomFilterOperator implements WindowOperator<BloomFilter, Lo
      * @param val
      */
     @Override
-    public BloomFilter insert(BloomFilter aggr, long timestamp, Long val) {
+    public BloomFilter insert(BloomFilter aggr, long timestamp, Object[] val) {
         byte[] bytes = new byte[Long.SIZE];
-        Utilities.longToByteArray(val,bytes,0);
+        Utilities.longToByteArray((long)val[0],bytes,0);
         aggr.add(bytes);
         return aggr;
     }

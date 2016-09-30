@@ -15,8 +15,14 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-// TODO: change Long to byte[]. Library already has most of the needed code, just need some wrapper functions
-public class CMSOperator implements WindowOperator<CountMinSketch,Long,Long,Double> {
+/**
+ * A = CountMinSketch
+ * V = [value to insert: long, count of value (default 1): long]. Count = 1 is a classic CMS
+       TODO: change to [byte[], Long]. streamlib already has most of the needed code, just need some wrapper functions
+ * R = Long, a count
+ * E = TODO. Should eventually be a CI
+ */
+public class CMSOperator implements WindowOperator<CountMinSketch,Long,Object> {
     private static List<String> supportedQueryTypes = Arrays.asList("frequency", "cms");
 
     @Override
@@ -49,24 +55,27 @@ public class CMSOperator implements WindowOperator<CountMinSketch,Long,Long,Doub
     }
 
     @Override
-    public CountMinSketch insert(CountMinSketch aggr, long timestamp, Long val) {
-        aggr.add(val, 1);
+    public CountMinSketch insert(CountMinSketch aggr, long timestamp, Object[] val) {
+        long entry = (long)val[0];
+        long count = val.length > 1 ? (long)val[1] : 1;
+        aggr.add(entry, count);
         return aggr;
     }
 
     @Override
-    public ResultError<Long, Double> query(StreamStatistics streamStats,
+    public ResultError<Long, Object> query(StreamStatistics streamStats,
                                            long T0, long T1, Stream<Bucket> buckets,
                                            Function<Bucket, CountMinSketch> aggregateRetriever,
                                            long t0, long t1, Object... params) {
-        CountMinSketch union = merge(buckets.map(aggregateRetriever));
-        // TODO: error estimate
-        return new ResultError<>(union.estimateCount((long) params[0]), 0D);
+        long est = buckets.map(aggregateRetriever)
+                .mapToLong(cms -> cms.estimateCount((long) params[0]))
+                .sum();
+        return new ResultError<>(est, null);
     }
 
     @Override
-    public ResultError<Long, Double> getEmptyQueryResult() {
-        return new ResultError<>(0L, 0D);
+    public ResultError<Long, Object> getEmptyQueryResult() {
+        return new ResultError<>(0L, null);
     }
 
     /** protofy code needs access to package-local members, so put it in the com.clearspring... package */

@@ -40,14 +40,14 @@ public class ReplayStreamGenerator implements StreamGenerator {
     }
 
     private Long currTimestamp;
-    private Long currValue;
+    private Object[] currValue = {null};
 
     private void readNextLine() throws IOException {
         while (true) {
             String line = traceReader.readLine();
             if (line == null) {
                 currTimestamp = null;
-                currValue = null;
+                currValue[0] = null;
                 break;
             } else {
                 if (line.isEmpty() || line.startsWith("#")) continue;
@@ -56,7 +56,7 @@ public class ReplayStreamGenerator implements StreamGenerator {
                 long newTimestamp = Long.parseLong(vals[tsIndex]);
                 if (currTimestamp == null || newTimestamp != currTimestamp) {
                     currTimestamp = newTimestamp;
-                    currValue = Long.parseLong(vals[valIndex]);
+                    currValue[0] = Long.parseLong(vals[valIndex]);
                     break;
                 }
             }
@@ -64,7 +64,7 @@ public class ReplayStreamGenerator implements StreamGenerator {
     }
 
     @Override
-    public void generate(long T, BiConsumer<Long, Long> consumer) throws IOException {
+    public void generate(long T, BiConsumer<Long, Object[]> consumer) throws IOException {
         while (currTimestamp != null && currTimestamp <= T) {
             consumer.accept(currTimestamp, currValue);
             readNextLine();
@@ -94,7 +94,7 @@ public class ReplayStreamGenerator implements StreamGenerator {
         StreamGenerator generator = new ReplayStreamGenerator(
                 "/Users/a.vulimiri/samsung/summarystore/code/workloads/google-cluster-data/task_event_count");
         long ts = System.currentTimeMillis();
-        for (int i = 0; i < 12; ++i) {
+        for (int i = 0; i < 1; ++i) {
             long baseT = i * 2506199602822L;
             generator.generate(Long.MAX_VALUE, (t, v) -> {
                 try {

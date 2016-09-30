@@ -12,7 +12,7 @@ public interface DataStore extends AutoCloseable {
                         WindowingMechanism windowingMechanism,
                         WindowOperator operators[]) throws StreamException, RocksDBException;
 
-    void append(long streamID, long timestamp, Object value) throws StreamException, RocksDBException;
+    void append(long streamID, long timestamp, Object... value) throws StreamException, RocksDBException;
 
     /** Query operators[operatorNumber] */
     Object query(long streamID, long t0, long t1, int operatorNumber, Object... queryParams)
