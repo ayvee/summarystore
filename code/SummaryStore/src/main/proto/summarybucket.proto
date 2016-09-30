@@ -5,6 +5,8 @@ option java_package = "com.samsung.sra.protocol";
 // Schema: one message type per operator; include a comment to indicate operator name
 // bucket message includes all nested messages
 
+// long-term TODO: extension messages to avoid hardcoding list of operators
+
 // by itself just a bitset; used by BloomFilters for now, but potentially others
 message ProtoBitset {
     repeated bytes bitsetbytes = 1;
@@ -18,10 +20,21 @@ message ProtoSimpleSum {
     required int64 sum = 1;
 }
 
+// TODO: filtersize and numhashes are fixed for a stream. Don't need here, can
+//       only store once in the Operator object
 message ProtoSimpleBloomFilter {
     required int32 filtersize = 1;
     required int32 numhashes = 2;
     required ProtoBitset bitset = 3;
+}
+
+message ProtoCMS {
+    required int64 size = 1;
+    repeated int64 hashA = 2;  // long[depth]
+    message Row {
+        repeated int64 cell = 1; // long[width]
+    }
+    repeated Row row = 3; // row[depth] == long[depth][width]
 }
 
 // the superset; this is the whole bucket
@@ -36,5 +49,5 @@ message ProtoBucket {
     optional ProtoSimpleCount pcount = 8;
     optional ProtoSimpleSum psum = 9;
     optional ProtoSimpleBloomFilter pbloom = 10;
-
+    optional ProtoCMS pcms = 11;
 }
