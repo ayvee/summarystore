@@ -61,8 +61,9 @@ class RunComparison {
         HashMap<String, StoreStats> unsorted = new HashMap<>();
         for (String decay: config.getDecayFunctions()) {
             StoreStats storeStats;
-            // WARNING: setting cache size to T, i.e. loading all data into main memory
-            try (SummaryStore store = new SummaryStore(config.getStorePrefix(decay), config.getT())) {
+            // WARNING: setting cache size to length(all time), i.e. loading all data into main memory
+            long cacheSize = config.getTend() - config.getTstart() + 1;
+            try (SummaryStore store = new SummaryStore(config.getStorePrefix(decay), cacheSize)) {
                 store.warmupCache();
 
                 List<String> queryClasses = new ArrayList<>(workload.keySet());
