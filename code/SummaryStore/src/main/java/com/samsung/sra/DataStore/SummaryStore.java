@@ -91,7 +91,7 @@ public class SummaryStore implements DataStore {
         }
     }
 
-    public void append(long streamID, long ts, Object value) throws StreamException, RocksDBException {
+    public void append(long streamID, long ts, Object... value) throws StreamException, RocksDBException {
         final StreamManager streamManager;
         synchronized (streamManagers) {
             if (!streamManagers.containsKey(streamID)) {
@@ -105,7 +105,6 @@ public class SummaryStore implements DataStore {
         try {
             //logger.debug("Appending new value: <ts: " + ts + ", val: " + value + ">");
             streamManager.append(ts, value);
-
         } finally {
             streamManager.lock.writeLock().unlock();
         }
@@ -217,7 +216,7 @@ public class SummaryStore implements DataStore {
                         new SimpleCountOperator(),
                         new CMSOperator(5, 100, 0));
                 for (long i = 0; i < 1022; ++i) {
-                    store.append(streamID, i, i % 10);
+                    store.append(streamID, i, i % 10, 1000L);
                     store.printBucketState(streamID);
                 }
                 store.flush(streamID);

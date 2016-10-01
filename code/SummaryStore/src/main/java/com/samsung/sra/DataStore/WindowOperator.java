@@ -8,13 +8,12 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
- * Implements all the functions needed to manage aggregate data structures of type A,
- * which supports inserting values of type V and returns query answers of type ResultError<R, E>.
- * Note that WindowOperators manage aggregate objects, they are not aggregates themselves
- * (i.e. a BloomFilterOperator object only creates, updates and queries Bloom filters; it is not
- * a Bloom filter itself and does not have an internal bit-array)
+ * Implements all the functions needed to manage aggregate data structures of type A which returns query answers of type
+ * ResultError<R, E>. Note that WindowOperators manage aggregate objects, they are not aggregates themselves (i.e. a
+ * BloomFilterOperator object only creates, updates and queries Bloom filters; it is not a Bloom filter itself and does
+ * not have an internal bit-array)
  */
-public interface WindowOperator<A, V, R, E> extends Serializable {
+public interface WindowOperator<A, R, E> extends Serializable {
     List<String> getSupportedQueryTypes();
 
     /** Create an empty aggregate (containing zero elements) */
@@ -23,8 +22,8 @@ public interface WindowOperator<A, V, R, E> extends Serializable {
     /** Union a sequence of aggregates into one */
     A merge(Stream<A> aggrs);
 
-    /** Insert val into aggr and return the updated aggregate */
-    A insert(A aggr, long timestamp, V val);
+    /** Insert (the potentially multi-dimensional) val into aggr and return the updated aggregate */
+    A insert(A aggr, long timestamp, Object[] val);
 
     /**
      * Optional. Operators are free to ignore the Estimator API and directly implement query()

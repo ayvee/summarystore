@@ -79,7 +79,7 @@ public class AgeLengthSampler {
             AgeLengthClass.Range<Long> ageRange = new AgeLengthClass.Range<>(ageMarkers[a], ageMarkers[a+1] - 1);
             for (int l = 0; l < nLengthClasses; ++l) {
                 AgeLengthClass.Range<Long> lengthRange = new AgeLengthClass.Range<>(lengthMarkers[l], lengthMarkers[l+1] - 1);
-                ret.add(new AgeLengthClass(a, ageRange, l, lengthRange));
+                ret.add(new AgeLengthClass(ageRange, lengthRange));
             }
         }
         return ret;

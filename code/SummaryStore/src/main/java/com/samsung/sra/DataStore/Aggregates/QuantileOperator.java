@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-public class QuantileOperator implements WindowOperator<QDigest, Long, Long, Long> {
+public class QuantileOperator implements WindowOperator<QDigest, Long, Long> {
     private static final List<String> supportedQueries = Collections.singletonList("quantile");
 
     private long comprFactor = 64;
@@ -45,8 +45,8 @@ public class QuantileOperator implements WindowOperator<QDigest, Long, Long, Lon
     }
 
     @Override
-    public QDigest insert(QDigest aggr, long ts, Long val) {
-	aggr.insert(val);
+    public QDigest insert(QDigest aggr, long ts, Object... val) {
+	    aggr.insert((long)val[0]);
         return aggr;
     }
 

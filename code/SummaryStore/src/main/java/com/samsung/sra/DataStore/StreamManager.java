@@ -125,7 +125,7 @@ class StreamManager implements Serializable {
 
     // TODO: add assertions
 
-    void append(long ts, Object value) throws RocksDBException, StreamException {
+    void append(long ts, Object[] value) throws RocksDBException, StreamException {
         if (ts <= stats.getTimeRangeEnd()) throw new StreamException("out-of-order insert in stream " + streamID +
                 ": <ts, val> = <" + ts + ", " + value + ">, last arrival = " + stats.getTimeRangeEnd());
         stats.append(ts, value);
@@ -180,7 +180,7 @@ class StreamManager implements Serializable {
         }
     }
 
-    void insertValueIntoBucket(Bucket bucket, long ts, Object value) {
+    void insertValueIntoBucket(Bucket bucket, long ts, Object[] value) {
         assert bucket.tStart <= ts && (bucket.tEnd == -1 || ts <= bucket.tEnd)
                 && operators.length == bucket.aggregates.length;
         for (int i = 0; i < operators.length; ++i) {
