@@ -26,7 +26,7 @@ public class RandomWorkloadGenerator implements WorkloadGenerator {
         Random random = new Random(0);
         Workload ret = new Workload();
         // Age/length classes will sample query ranges from [0, T1-T0]. We will add T0 below to compensate
-        List<AgeLengthClass> alClasses = LogarithmicAgeLengths.getAgeLengthClasses(T1-T0+1, T1-T0+1, A, L);
+        List<AgeLengthClass> alClasses = LogarithmicAgeLengths.getAgeLengthClasses(T1-T0, T1-T0, A, L);
         for (AgeLengthClass alClass : alClasses) {
             List<Query> thisClassQueries = new ArrayList<>();
             for (int q = 0; q < Q; ++q) {
@@ -34,7 +34,7 @@ public class RandomWorkloadGenerator implements WorkloadGenerator {
                 long age = al.getFirst(), length = al.getSecond();
                 long r = T1 - age, l = r - length + 1;
                 if (T0 <= l && r <= T1) {
-                    Query query = new Query(operatorType, l + T0, r + T0, operatorIndex, null, 0L);
+                    Query query = new Query(operatorType, l, r, operatorIndex, null, 0L);
                     thisClassQueries.add(query);
                 }
             }

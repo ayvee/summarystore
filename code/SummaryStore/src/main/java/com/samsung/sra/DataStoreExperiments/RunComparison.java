@@ -8,7 +8,6 @@ import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.ArgumentParserException;
 import net.sourceforge.argparse4j.inf.Namespace;
 import org.apache.commons.lang.SerializationUtils;
-import org.apache.commons.math3.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,10 +74,9 @@ class RunComparison {
                         try {
                             logger.trace("Running query [{}, {}], true answer = {}", q.l, q.r, q.trueAnswer);
                             long trueAnswer = q.trueAnswer;
-                            ResultError<Double, Pair<Double, Double>> estimate =
-                                    (ResultError<Double, Pair<Double, Double>>) store.query(streamID, q.l, q.r, q.operatorNum, 0.95);
-                            //double error = Math.abs(estimate.result - trueAnswer) / (1d + trueAnswer);
-                            double error = estimate.error.getFirst() <= trueAnswer && trueAnswer <= estimate.error.getSecond() ? 0 : 1;
+                            ResultError estimate = (ResultError) store.query(streamID, q.l, q.r, q.operatorNum, q.params);
+                            double error = Math.abs(((Number) estimate.result).doubleValue() - trueAnswer) / (1d + trueAnswer);
+                            //double error = estimate.error.getFirst() <= trueAnswer && trueAnswer <= estimate.error.getSecond() ? 0 : 1;
                             stats.addObservation(error);
                         } catch (Exception e) {
                             throw new RuntimeException(e);

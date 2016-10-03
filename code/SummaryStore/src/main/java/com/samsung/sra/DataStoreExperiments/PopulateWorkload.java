@@ -30,10 +30,9 @@ public class PopulateWorkload {
         LongRangeMultiSet lrms = builder.getMultiSet(false, true);
         int[] matchedIndexes = new int[Q];
 
+        long[] N = {0};
         streamGenerator.generate(T0, T1, (t, v) -> {
-            if (t % 1_000_000 == 0) {
-                logger.info("t = {}", t);
-            }
+            if (++N[0] % 1_000_000 == 0) logger.info("Processed {} data points", N[0]);
             int matchCount = lrms.lookup(t, matchedIndexes);
             for (int i = 0; i < matchCount; ++i) {
                 Workload.Query q = queries.get(matchedIndexes[i]);

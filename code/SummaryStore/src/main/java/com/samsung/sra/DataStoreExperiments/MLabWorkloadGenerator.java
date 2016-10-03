@@ -27,6 +27,13 @@ public class MLabWorkloadGenerator implements WorkloadGenerator {
     private final long Q;
     private final int cmsOpIndex;
 
+    /** Example config.toml spec:
+     *
+     * [workload]
+     * workload-generator = "MLabWorkloadGenerator"
+     * queries-per-group = 1000
+     * cms-operator-index = 0
+     */
     public MLabWorkloadGenerator(Toml conf) {
         this.Q = conf.getLong("queries-per-group");
         this.cmsOpIndex = conf.getLong("cms-operator-index").intValue();
@@ -36,8 +43,8 @@ public class MLabWorkloadGenerator implements WorkloadGenerator {
     public Workload generate(long T0, long T1) {
         Random rand = new Random(0);
         Workload workload = new Workload();
-        // Age/length classes will sample query ranges from [0, T1-T0]. We will add T0 below to compensate
-        List<AgeLengthClass> alClasses = CalendarAgeLengths.getClasses(T1 - T0 + 1);
+        // Age/length classes will sample query ranges from [0s, (T1-T0) in seconds]. We will rescale below to correct
+        List<AgeLengthClass> alClasses = CalendarAgeLengths.getClasses((T1 - T0) / (long)1e9); // MLab is in nanoseconds
         for (int i = 0; i < IPs.length; ++i) {
             Object[] cmsParams = {IPs[i]}; // CMS lookup on the IP address IPs[i]
             for (AgeLengthClass alCls: alClasses) {
@@ -46,9 +53,13 @@ public class MLabWorkloadGenerator implements WorkloadGenerator {
                 List<Query> groupQueries = new ArrayList<>();
                 workload.put(groupName, groupQueries);
                 for (int q = 0; q < Q; ++q) {
-                    Pair<Long, Long> ageLength = alCls.sample(rand);
-                    long age = T0 + ageLength.getFirst(), length = ageLength.getSecond();
-                    long r = T1 - age, l = r - length + 1;
+                    Pair<Long, Long> ageLength = alCls.sample(rand); // both in seconds, we need to convert to ns
+                    long age = ageLength.getFirst() * (long)1e9, length = ageLength.getSecond() * (long)1e9;
+                    //assert 0 <= age && age <= T1-T0 && 0 <= length && length <= T1-T0;
+                    long r = T1 - age, l = r - length + (long)1e9;
+                    assert T0 <= l && l <= r && r <= T1 :
+                            String.format("[T0, T1] = [%s, %s], age = %s, length = %s, [l, r] = [%s, %s]",
+                                    T0, T1, age, length, l, r);
                     Query query = new Query(Query.Type.CMS, l, r, cmsOpIndex, cmsParams, 0L);
                     groupQueries.add(query);
                 }

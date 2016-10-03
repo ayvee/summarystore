@@ -13,5 +13,5 @@ done
 
 className=$1
 shift
-java -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.$className $*
+java -ea -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.$className $*
 #java -cp $cp com.samsung.sra.WindowingOptimizer.UpperBoundOptimizer 2> opt.log | tee opt.tsv

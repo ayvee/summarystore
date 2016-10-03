@@ -28,6 +28,11 @@ public class CalendarAgeLengths {
         return getClasses(maxAgeInSeconds, null);
     }
 
+    /**
+     * @param maxAgeInSeconds    Time range = [0s, maxAgeInSeconds]
+     * @param smallestBin        One of "subsecond", "seconds", "minutes", ...
+     * @return
+     */
     public static List<AgeLengthClass> getClasses(long maxAgeInSeconds, String smallestBin) {
         List<Bin> legalBins;
         if (smallestBin == null) {
@@ -48,6 +53,9 @@ public class CalendarAgeLengths {
         List<AgeLengthClass> ret = new ArrayList<>();
         for (Bin ageBin: legalBins) {
             for (Bin lengthBin: legalBins) {
+                if (lengthBin.getStart() == 0) {
+                    continue; // length should be at least 1. FIXME: cleanup/verify?
+                }
                 if (ageBin.getStart() + lengthBin.getStart() - 1 <= maxAgeInSeconds) {
                     ret.add(new AgeLengthClass(ageBin, lengthBin, maxAgeInSeconds));
                 }

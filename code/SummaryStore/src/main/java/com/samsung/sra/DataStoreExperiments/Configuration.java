@@ -2,6 +2,7 @@ package com.samsung.sra.DataStoreExperiments;
 
 import com.moandjiezana.toml.Toml;
 import com.samsung.sra.DataStore.*;
+import com.samsung.sra.DataStore.Aggregates.CMSOperator;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
 import java.io.File;
@@ -22,11 +23,6 @@ public class Configuration {
         toml = new Toml().read(file);
     }
 
-    /** Get working directory, where all files will be input/output */
-    public String getDirectory() {
-        return toml.getString("directory");
-    }
-
     /** Optional prefix to add onto every input file */
     public String getPrefix() {
         return toml.getString("prefix", "");
@@ -41,18 +37,28 @@ public class Configuration {
         return toml.getLong("ingest-buffer-size", 0L).intValue();
     }
 
+    /** Where all SummaryStore data will be stored */
+    private String getDataDirectory() {
+        return toml.getString("data-dir");
+    }
+
+    /** Where all experiment files will be input/output */
+    private String getResultsDirectory() {
+        return toml.getString("results-dir");
+    }
+
     /** Get prefix of all SummaryStore output files. {@link #getHash} explains why we use a hash here */
     public String getStorePrefix(String decayName) {
-        return String.format("%s/%sS%s.D%s", getDirectory(), getPrefix(), getHash(toml.getTable("data")), decayName);
+        return String.format("%s/%sS%s.D%s", getDataDirectory(), getPrefix(), getHash(toml.getTable("data")), decayName);
     }
 
     public String getWorkloadFile() {
         return String.format("%s/%sS%s.W%s.workload",
-                getDirectory(), getPrefix(), getHash(toml.getTable("data")), getHash(toml.getTable("workload")));
+                getResultsDirectory(), getPrefix(), getHash(toml.getTable("data")), getHash(toml.getTable("workload")));
     }
 
     public String getProfileFile() {
-        return String.format("%s/%sS%s.W%s.D%s.profile", getDirectory(), getPrefix(),
+        return String.format("%s/%sS%s.W%s.D%s.profile", getResultsDirectory(), getPrefix(),
                 getHash(toml.getTable("data")), getHash(toml.getTable("workload")), getHash(toml.getList("decay-functions")));
     }
 
@@ -150,10 +156,18 @@ public class Configuration {
         WindowOperator[] operators = new WindowOperator[operatorNames.size()];
         for (int i = 0; i < operators.length; ++i) {
             String opname = operatorNames.get(i);
-            try {
-                operators[i] = (WindowOperator)Class.forName("com.samsung.sra.DataStore.Aggregates." + opname).newInstance();
-            } catch (ReflectiveOperationException e) {
-                throw new IllegalArgumentException("could not construct operator " + opname, e);
+            if (opname.startsWith("CMSOperator")) {
+                String[] params = opname.substring("CMSOperator".length()).split(",");
+                int depth = Integer.parseInt(params[0]);
+                int width = Integer.parseInt(params[1]);
+                int seed = Integer.parseInt(params[2]);
+                operators[i] = new CMSOperator(depth, width, seed);
+            } else {
+                try {
+                    operators[i] = (WindowOperator) Class.forName("com.samsung.sra.DataStore.Aggregates." + opname).newInstance();
+                } catch (ReflectiveOperationException e) {
+                    throw new IllegalArgumentException("could not construct operator " + opname, e);
+                }
             }
         }
         return operators;
