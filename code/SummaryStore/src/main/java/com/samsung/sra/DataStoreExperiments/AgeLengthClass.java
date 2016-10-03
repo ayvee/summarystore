@@ -8,7 +8,7 @@ import java.util.Random;
 public class AgeLengthClass implements Serializable {
     public static class Bin implements Serializable {
         public final String name;
-        public final long start, end, multiplier;
+        private final long start, end, multiplier;
 
         /**
          * The contents of this bin are the values
@@ -30,6 +30,10 @@ public class AgeLengthClass implements Serializable {
 
         public long sample(Random rand) {
             return multiplier * (start + (Math.abs(rand.nextLong()) % (end - start + 1)));
+        }
+
+        public long getStart() {
+            return start * multiplier;
         }
 
         @Override
@@ -54,7 +58,7 @@ public class AgeLengthClass implements Serializable {
 
     /** Return random age, random length */
     public Pair<Long, Long> sample(Random random) {
-        // TODO: verify rejection sampling is unbiased
+        // TODO: verify rejection sampling (1) is unbiased; (2) does not stall in sparse bins
         while (true) {
             long age = ageBin.sample(random);
             long length = lengthBin.sample(random);

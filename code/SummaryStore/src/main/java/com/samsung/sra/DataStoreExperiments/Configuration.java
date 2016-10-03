@@ -56,9 +56,14 @@ public class Configuration {
                 getHash(toml.getTable("data")), getHash(toml.getTable("workload")), getHash(toml.getList("decay-functions")));
     }
 
-    /** Data/queries will span the time range [0, T] */
-    public long getT() {
-        return toml.getLong("data.T");
+    /** Data/queries will span the time range [tstart, tend] */
+    public long getTstart() {
+        return toml.getLong("data.tstart");
+    }
+
+    /** Data/queries will span the time range [tstart, tend] */
+    public long getTend() {
+        return toml.getLong("data.tend");
     }
 
     public StreamGenerator getStreamGenerator() {
@@ -154,7 +159,7 @@ public class Configuration {
         return operators;
     }
 
-    public WorkloadGenerator<Long> getWorkloadGenerator() {
+    public WorkloadGenerator getWorkloadGenerator() {
         Toml conf = toml.getTable("workload");
         return constructObjectViaReflection(
                 "com.samsung.sra.DataStoreExperiments." + conf.getString("workload-generator"),

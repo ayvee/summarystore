@@ -1,17 +1,15 @@
 package com.samsung.sra.DataStoreExperiments;
 
 import com.moandjiezana.toml.Toml;
-import com.samsung.sra.DataStore.*;
 import com.samsung.sra.DataStore.Aggregates.SimpleBloomFilterOperator;
 import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
+import com.samsung.sra.DataStore.*;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.commons.math3.util.Pair;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 /**
  * Created by n.agrawal1 on 7/21/16.
@@ -63,7 +61,7 @@ public class SimpleTester {
         //BiConsumer<Long, Long> printer = (ts, v) -> System.out.println(ts + "\t" + v);
         //BiConsumer<Long, Long> myvals = (ts, v) -> store.append(streamID, ts, v);
 
-        generator.generate(T, (t, v) -> {
+        generator.generate(0, T, (t, v) -> {
             try {
                 //logger.debug("Inserting " + v + " at Time " + t);
                 for (SummaryStore astore: stores.values()) {

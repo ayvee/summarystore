@@ -15,13 +15,13 @@ public class CalendarAgeLengths {
         new Bin("seconds", 1, 59, 1), // the discrete set {1s, 2s, ..., 59s}
         new Bin("minutes", 1, 59, 60), // {1m, 2m, ..., 59m} = {60s, 120s, ..., 3540s}
         new Bin("hours", 1, 23, 3600), // {1h, 2h, ..., 23h} = {3600s, 7200s, ..., 3600 * 23 s}
-        new Bin("days", 1, 6, 86400L), // {1d, 2d, ..., 6d} = {86400s, 2 * 86400s, ..., 6 * 86400s}
-        new Bin("weeks", 1, 3, 7 * 86400L), // {1w, 2w, 3w} = {7 * 86400s, 14 * 86400s, 21 * 86400s}
+        new Bin("days", 1, 29, 86400L), // {1d, 2d, ..., 29d} = {86400s, 2 * 86400s, ..., 29 * 86400s}
+        //new Bin("weeks", 1, 3, 7 * 86400L), // {1w, 2w, 3w} = {7 * 86400s, 14 * 86400s, 21 * 86400s}
         new Bin("months", 1, 11, 30 * 86400L), // {30 * 86400s, 60 * 86400s, ..., 330 * 86400s}
-        // WARNING: ignoring leap years. Could do 3653/36525 in decades/centuries to mitigate partially
         new Bin("years", 1, 9, 365 * 86400L), // {365 * 86400s, 730 * 86400s, ..., 9 * 365 * 86400s}
-        new Bin("decades", 1, 9, 3650 * 86400L), // {10 * 365 * 86400s, 20 * 365 * 86400s, ..., 90 * 365 * 86400s}
-        new Bin("centuries", 1, 9, 36500 * 86400L) // {100 * 365 * 86400s, 200 * 365 * 86400s, ..., 900 * 365 * 86400s}
+        // decades and centuries have a few extra days to deal with leap years
+        new Bin("decades", 1, 9, 3652 * 86400L), // {3652 * 86400s, 2 * 3652 * 86400s, ..., 9 * 3652 * 86400s}
+        new Bin("centuries", 1, 9, 36525 * 86400L) // {36525 * 86400s, 2 * 36525 * 86400s, ..., 9 * 36525 * 86400s}
     );
 
     public static List<AgeLengthClass> getClasses(long maxAgeInSeconds) {
@@ -48,7 +48,7 @@ public class CalendarAgeLengths {
         List<AgeLengthClass> ret = new ArrayList<>();
         for (Bin ageBin: legalBins) {
             for (Bin lengthBin: legalBins) {
-                if (ageBin.start + lengthBin.start - 1 <= maxAgeInSeconds) {
+                if (ageBin.getStart() + lengthBin.getStart() - 1 <= maxAgeInSeconds) {
                     ret.add(new AgeLengthClass(ageBin, lengthBin, maxAgeInSeconds));
                 }
             }

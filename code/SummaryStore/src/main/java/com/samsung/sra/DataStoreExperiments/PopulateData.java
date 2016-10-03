@@ -33,7 +33,7 @@ public class PopulateData {
                         new CountBasedWBMH(config.parseDecayFunction(decay), config.getIngestBufferSize()),
                         config.getOperators());
                 streamgen.reset();
-                streamgen.generate(config.getT(), (t, v) -> {
+                streamgen.generate(config.getTstart(), config.getTend(), (t, v) -> {
                     try {
                         store.append(streamID, t, v);
                     } catch (Exception e) {

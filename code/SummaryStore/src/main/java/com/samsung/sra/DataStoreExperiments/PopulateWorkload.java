@@ -16,7 +16,7 @@ import java.util.List;
 public class PopulateWorkload {
     private static Logger logger = LoggerFactory.getLogger(PopulateWorkload.class);
 
-    private static void computeTrueAnswers(long T, StreamGenerator streamGenerator, Workload workload) throws IOException {
+    private static void computeTrueAnswers(long T0, long T1, StreamGenerator streamGenerator, Workload workload) throws IOException {
         ArrayList<LongRange> intervals = new ArrayList<>();
         ArrayList<Workload.Query> queries = new ArrayList<>();
         for (List<Workload.Query> classQueries: workload.values()) {
@@ -26,19 +26,30 @@ public class PopulateWorkload {
             }
         }
         int Q = queries.size();
-        Builder builder = new Builder(intervals.toArray(new LongRange[Q]), 0, T);
+        Builder builder = new Builder(intervals.toArray(new LongRange[Q]), T0, T1);
         LongRangeMultiSet lrms = builder.getMultiSet(false, true);
         int[] matchedIndexes = new int[Q];
 
-        streamGenerator.generate(T, (t, v) -> {
+        streamGenerator.generate(T0, T1, (t, v) -> {
             if (t % 1_000_000 == 0) {
                 logger.info("t = {}", t);
             }
             int matchCount = lrms.lookup(t, matchedIndexes);
             for (int i = 0; i < matchCount; ++i) {
                 Workload.Query q = queries.get(matchedIndexes[i]);
-                assert q.queryType.equalsIgnoreCase("count"); // TODO: other kinds of queries
-                ++q.trueAnswer;
+                switch (q.queryType) {
+                    case COUNT:
+                        ++q.trueAnswer;
+                        break;
+                    case SUM:
+                        q.trueAnswer += (long) v[0];
+                        break;
+                    case CMS:
+                        if (v[0].equals(q.params[0])) {
+                            q.trueAnswer += v.length > 1 ? (long) v[1] : 1;
+                        }
+                        break;
+                }
             }
         });
     }
@@ -76,11 +87,11 @@ public class PopulateWorkload {
             logger.warn("Workload file {} already exists, skipping generation", config.getWorkloadFile());
             System.exit(1);
         }
-        long T = config.getT();
+        long T0 = config.getTstart(), T1 = config.getTend();
         try (StreamGenerator streamGenerator = config.getStreamGenerator()) {
-            WorkloadGenerator<Long> workloadGenerator = config.getWorkloadGenerator();
-            Workload workload = workloadGenerator.generate(T);
-            computeTrueAnswers(T, streamGenerator, workload);
+            WorkloadGenerator workloadGenerator = config.getWorkloadGenerator();
+            Workload workload = workloadGenerator.generate(T0, T1);
+            computeTrueAnswers(T0, T1, streamGenerator, workload);
             try (FileOutputStream fos = new FileOutputStream(config.getWorkloadFile())) {
                 SerializationUtils.serialize(workload, fos);
             }

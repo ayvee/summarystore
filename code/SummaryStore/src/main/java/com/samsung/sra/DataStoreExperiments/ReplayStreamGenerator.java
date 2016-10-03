@@ -64,8 +64,8 @@ public class ReplayStreamGenerator implements StreamGenerator {
     }
 
     @Override
-    public void generate(long T, BiConsumer<Long, Object[]> consumer) throws IOException {
-        while (currTimestamp != null && currTimestamp <= T) {
+    public void generate(long T0, long T1, BiConsumer<Long, Object[]> consumer) throws IOException {
+        while (currTimestamp != null && currTimestamp >= T0 && currTimestamp <= T1) {
             consumer.accept(currTimestamp, currValue);
             readNextLine();
         }
@@ -96,7 +96,7 @@ public class ReplayStreamGenerator implements StreamGenerator {
         long ts = System.currentTimeMillis();
         for (int i = 0; i < 1; ++i) {
             long baseT = i * 2506199602822L;
-            generator.generate(Long.MAX_VALUE, (t, v) -> {
+            generator.generate(0, Long.MAX_VALUE, (t, v) -> {
                 try {
                     store.append(streamID, baseT + t, v);
                 } catch (Exception e) {

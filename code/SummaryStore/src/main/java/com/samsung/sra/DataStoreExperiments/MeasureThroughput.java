@@ -26,7 +26,7 @@ public class MeasureThroughput {
 
             StreamGenerator generator = new RandomStreamGenerator(new Toml().read(streamConf));
             long w0 = System.currentTimeMillis();
-            generator.generate(T, (t, v) -> {
+            generator.generate(0, T, (t, v) -> {
                 try {
                     store.append(streamID, t, v);
                 } catch (Exception e) {
