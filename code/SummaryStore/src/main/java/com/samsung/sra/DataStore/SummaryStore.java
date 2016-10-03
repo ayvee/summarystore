@@ -5,6 +5,8 @@ import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
 import org.rocksdb.RocksDBException;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -179,6 +181,26 @@ public class SummaryStore implements DataStore {
             }
         }
         */
+        return ret;
+    }
+
+    /**
+     * Get number of windows (buckets) in specified stream. Use a null streamID to get total count over all streams
+     */
+    public long getNumWindows(Long streamID) {
+        // FIXME: does not sanity-check streamID argument, unlike every other SummaryStore function
+        Collection<StreamManager> managers = streamID != null
+                ? Collections.singletonList(streamManagers.get(streamID))
+                : streamManagers.values();
+        long ret = 0;
+        for (StreamManager sm: managers) {
+            sm.lock.readLock().lock();
+            try {
+                ret += (long) sm.temporalIndex.size();
+            } finally {
+                sm.lock.readLock().unlock();
+            }
+        }
         return ret;
     }
 

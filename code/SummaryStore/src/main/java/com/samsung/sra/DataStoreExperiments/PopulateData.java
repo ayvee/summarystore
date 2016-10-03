@@ -41,7 +41,7 @@ public class PopulateData {
                     }
                 });
                 store.flush(streamID);
-                logger.info("{} = {} bytes", outprefix, store.getStoreSizeInBytes());
+                logger.info("{} = {} windows", outprefix, store.getNumWindows(streamID));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

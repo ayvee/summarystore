@@ -24,11 +24,11 @@ class RunComparison {
     private static final long streamID = 0;
 
     private static class StoreStats implements Serializable {
-        final long sizeInBytes;
+        final long numWindows;
         final LinkedHashMap<String, Statistics> queryStats;
 
-        StoreStats(long sizeInBytes, Collection<String> queryClasses) {
-            this.sizeInBytes = sizeInBytes;
+        StoreStats(long numWindows, Collection<String> queryClasses) {
+            this.numWindows = numWindows;
             queryStats = new LinkedHashMap<>();
             queryClasses.forEach(qClass -> queryStats.put(qClass, new Statistics(true)));
         }
@@ -66,7 +66,7 @@ class RunComparison {
                 store.warmupCache();
 
                 List<String> queryClasses = new ArrayList<>(workload.keySet());
-                storeStats = new StoreStats(store.getStoreSizeInBytes(), queryClasses);
+                storeStats = new StoreStats(store.getNumWindows(streamID), queryClasses);
                 final Set<String> pending = Collections.synchronizedSet(new HashSet<>(queryClasses));
                 queryClasses.parallelStream().forEach(queryClass -> {
                     Statistics stats = storeStats.queryStats.get(queryClass);
@@ -98,7 +98,7 @@ class RunComparison {
         // sort by store size
         LinkedHashMap<String, StoreStats> sorted = new LinkedHashMap<>();
         unsorted.entrySet().stream().
-                sorted(Comparator.comparing(e -> e.getValue().sizeInBytes)).
+                sorted(Comparator.comparing(e -> e.getValue().numWindows)).
                 forEach(e -> sorted.put(e.getKey(), e.getValue()));
 
         if (memoFile != null) {
@@ -166,7 +166,7 @@ class RunComparison {
         Map<String, StoreStats> results = computeStatistics(config, workloadFile, memoFile);
 
         if (metric != null) {
-            System.out.println("#decay\tstore size (bytes)\tcost");
+            System.out.println("#decay\tstore size (# windows)\tcost");
             results.forEach((decayFunction, stats) -> {
                 Collection<Statistics> eachClassStatistics = stats.queryStats.values();
                 Collection<Double> eachClassWeight = stats.queryStats.keySet().stream().
@@ -175,7 +175,7 @@ class RunComparison {
                 // construct the aggregate weighted mixture distribution over all the classes
                 Statistics mixtureStats = new Statistics(eachClassStatistics, eachClassWeight);
                 double cost = metric.applyAsDouble(mixtureStats);
-                System.out.println(decayFunction + "\t" + stats.sizeInBytes + "\t" + cost);
+                System.out.println(decayFunction + "\t" + stats.numWindows + "\t" + cost);
             });
         }
     }
