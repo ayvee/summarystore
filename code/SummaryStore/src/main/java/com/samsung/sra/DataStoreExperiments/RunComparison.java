@@ -173,7 +173,7 @@ class RunComparison {
         Map<String, StoreStats> results = computeStatistics(config, workloadFile, memoFile);
 
         if (!metrics.isEmpty()) {
-            System.out.print("#decay\tstore size (# windows)\tquery group");
+            System.out.print("#decay\tstore size (# windows)\tquery\tage class\tlength class");
             for (String metricName: metrics.keySet()) {
                 System.out.print("\t" + metricName);
             }

@@ -70,10 +70,6 @@ public class AgeLengthClass implements Serializable {
 
     @Override
     public String toString() {
-        return "<" +
-                "age " + ageBin + ", " +
-                "length " + lengthBin +
-                (maxAge != null ? (", maxAge = " + maxAge) : "") +
-                ">";
+        return String.format("%s\t%s", ageBin, lengthBin);
     }
 }

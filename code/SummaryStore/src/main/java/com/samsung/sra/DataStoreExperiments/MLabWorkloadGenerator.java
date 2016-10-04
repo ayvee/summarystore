@@ -48,7 +48,7 @@ public class MLabWorkloadGenerator implements WorkloadGenerator {
         for (int i = 0; i < IPs.length; ++i) {
             Object[] cmsParams = {IPs[i]}; // CMS lookup on the IP address IPs[i]
             for (AgeLengthClass alCls: alClasses) {
-                String groupName = i + alCls.toString();
+                String groupName = String.format("Q%d\t%s", i, alCls);
                 logger.debug("Generating group {}", groupName);
                 List<Query> groupQueries = new ArrayList<>();
                 workload.put(groupName, groupQueries);

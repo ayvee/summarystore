@@ -1,8 +1,8 @@
 package com.samsung.sra.DataStoreExperiments;
 
 import java.io.Serializable;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *      ...
  * }
  */
-public class Workload extends ConcurrentHashMap<String, List<Workload.Query>> {
+public class Workload extends LinkedHashMap<String, List<Workload.Query>> {
     public static class Query implements Serializable {
         public enum Type {
             COUNT,
