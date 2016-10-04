@@ -17,7 +17,6 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.ToDoubleFunction;
-import java.util.stream.Collectors;
 
 class RunComparison {
     private static Logger logger = LoggerFactory.getLogger(RunComparison.class);
@@ -118,32 +117,40 @@ class RunComparison {
                         "and optionally print weighted stats if a weight function and metric are specified").
                 defaultHelp(true);
         parser.addArgument("conf").help("config file").type(File.class);
-        parser.addArgument("-metric").help("error metric (allowed: \"mean\", \"p<percentile>\", e.g. \"p50\")");
-        parser.addArgument("-weight").help("function assigning weights to each query class (allowed: \"uniform\")");
+        parser.addArgument("-metrics")
+                .nargs("*")
+                .help("error metrics (allowed: \"mean\", \"p<percentile>\", e.g. \"p50\")");
+        //parser.addArgument("-weight").help("function assigning weights to each query class (allowed: \"uniform\")");
         parser.addArgument("-force-run").help("force running workload, ignoring any memoized results").action(Arguments.storeTrue());
 
         Configuration config;
-        ToDoubleFunction<Statistics> metric;
-        ToDoubleFunction<String> weightFunction;
+        LinkedHashMap<String, ToDoubleFunction<Statistics>> metrics = new LinkedHashMap<>();
+        //ToDoubleFunction<String> weightFunction;
         try {
             Namespace parsed = parser.parseArgs(args);
             config = new Configuration(parsed.get("conf"));
             if (parsed.getBoolean("force_run")) {
                 Files.deleteIfExists(Paths.get(config.getProfileFile()));
             }
-            String metricName = parsed.get("metric");
-            String weightFunctionName = parsed.get("weight");
+            List<String> metricNames = parsed.getList("metrics");
+            if (metricNames != null) {
+                for (String metricName : metricNames) {
+                    ToDoubleFunction<Statistics> metric;
+                    if (metricName.equalsIgnoreCase("mean")) {
+                        metric = Statistics::getMean;
+                    } else if (metricName.toLowerCase().startsWith("p")) {
+                        double quantile = Double.valueOf(metricName.substring(1)) * 0.01;
+                        metric = s -> s.getQuantile(quantile);
+                    } else {
+                        throw new IllegalArgumentException("unknown metric " + metricName);
+                    }
+                    metrics.put(metricName, metric);
+                }
+            }
+            /*String weightFunctionName = parsed.get("weight");
             if (metricName != null || weightFunctionName != null) { // TODO: move into Configuration?
                 if (metricName == null || weightFunctionName == null) {
                     throw new IllegalArgumentException("either both metric and weight function should be specified or neither");
-                }
-                if (metricName.equalsIgnoreCase("mean")) {
-                    metric = Statistics::getMean;
-                } else if (metricName.toLowerCase().startsWith("p")) {
-                    double quantile = Double.valueOf(metricName.substring(1)) * 0.01;
-                    metric = s -> s.getQuantile(quantile);
-                } else {
-                    throw new IllegalArgumentException("unknown metric " + metricName);
                 }
                 if (weightFunctionName.equalsIgnoreCase("uniform")) {
                     weightFunction = e -> 1;
@@ -153,7 +160,7 @@ class RunComparison {
             } else {
                 metric = null;
                 weightFunction = null;
-            }
+            }*/
         } catch (ArgumentParserException | IllegalArgumentException e) {
             System.err.println("ERROR: " + e.getMessage());
             parser.printHelp(new PrintWriter(System.err, true));
@@ -165,7 +172,29 @@ class RunComparison {
         String memoFile = config.getProfileFile();
         Map<String, StoreStats> results = computeStatistics(config, workloadFile, memoFile);
 
-        if (metric != null) {
+        if (!metrics.isEmpty()) {
+            System.out.print("#decay\tstore size (# windows)\tquery group");
+            for (String metricName: metrics.keySet()) {
+                System.out.print("\t" + metricName);
+            }
+            System.out.println();
+            for (Map.Entry<String, StoreStats> statsEntry: results.entrySet()) {
+                String decay = statsEntry.getKey();
+                StoreStats storeStats = statsEntry.getValue();
+                long storeSize = storeStats.numWindows;
+                for (Map.Entry<String, Statistics> groupEntry: storeStats.queryStats.entrySet()) {
+                    String group = groupEntry.getKey();
+                    Statistics stats = groupEntry.getValue();
+                    System.out.printf("%s\t%d\t%s", decay, storeSize, group);
+                    for (ToDoubleFunction<Statistics> statsFunc: metrics.values()) {
+                        System.out.printf("\t%f", statsFunc.applyAsDouble(stats));
+                    }
+                    System.out.println();
+                }
+            }
+        }
+
+        /*if (metric != null) {
             System.out.println("#decay\tstore size (# windows)\tcost");
             results.forEach((decayFunction, stats) -> {
                 Collection<Statistics> eachClassStatistics = stats.queryStats.values();
@@ -177,6 +206,6 @@ class RunComparison {
                 double cost = metric.applyAsDouble(mixtureStats);
                 System.out.println(decayFunction + "\t" + stats.numWindows + "\t" + cost);
             });
-        }
+        }*/
     }
 }
