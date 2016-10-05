@@ -66,8 +66,8 @@ public class TSMWorkloadGenerator implements WorkloadGenerator {
                             break;
                         case CMS:
                             assert cmsIdx != null && numNodes != null;
-                            Object[] params = {Math.abs(rand.nextLong()) % numNodes};
-                            query = new Query(Query.Type.CMS, l, r, cmsIdx.intValue(), params, 0L);
+                            long nodeID = Math.abs(rand.nextLong()) % numNodes;
+                            query = new Query(Query.Type.CMS, l, r, cmsIdx.intValue(), new Object[]{nodeID}, 0L);
                             break;
                         default:
                             throw new IllegalStateException("hit unreachable code");
