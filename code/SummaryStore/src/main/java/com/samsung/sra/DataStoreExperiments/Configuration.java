@@ -180,9 +180,21 @@ public class Configuration {
                 conf);
     }
 
+    /**
+     * Compute true answers to queries in parallel when generating workload. WARNING: stream seeking adds a couple
+     * of minutes of overhead, only worth enabling for large workloads.
+     */
     public boolean isWorkloadParallelismEnabled() {
-        Toml conf = toml.getTable("workload");
-        return conf.getBoolean("enable-parallelism", false);
+        Toml conf = toml.getTable("performance");
+        return conf != null && conf.getBoolean("parallel-workload-gen", false);
+    }
+
+    /**
+     * Drop kernel page/inode/dentries caches before testing each SummaryStore in RunComparison
+     */
+    public boolean dropKernelCaches() {
+        Toml conf = toml.getTable("performance");
+        return conf != null && conf.getBoolean("drop-caches", false);
     }
 
     public static Distribution<Long> parseDistribution(Toml conf) {
