@@ -6,10 +6,14 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.stream.Collectors;
 
+/**
+ * Min/max/avg/CDF over a set of numeric observations. Use the specialized {@link QueryStatistics} instead if the
+ * observations are measurements of query error.
+ */
 public class Statistics implements Serializable {
     private static final int defaultNCDFBins = 10000;
-    private int N = 0;
-    private double avg = 0, sqsum = 0;
+    private long N = 0;
+    private double sum = 0, sqsum = 0;
     private double min = Double.MAX_VALUE, max = Double.MIN_VALUE;
     private CDF cdf = null;
 
@@ -36,7 +40,7 @@ public class Statistics implements Serializable {
             Statistics stat = (Statistics)statsi.next();
             double probability = (Double)weighti.next() / totalWeight;
             N += stat.N;
-            avg += probability * stat.avg;
+            sum += probability * stat.sum;
             sqsum += probability * stat.sqsum; // FIXME
             min = Math.min(min, stat.min);
             max = Math.max(max, stat.max);
@@ -48,20 +52,24 @@ public class Statistics implements Serializable {
     }
 
     public synchronized void addObservation(double obs) {
-        avg = (avg * N + obs) / (N + 1);
         ++N;
+        sum += obs;
         sqsum += obs * obs;
         min = Math.min(min, obs);
         max = Math.max(max, obs);
         if (cdf != null) cdf.addValue(obs);
     }
 
+    public long getCount() {
+        return N;
+    }
+
     public synchronized double getMean() {
-        return avg;
+        return N > 0 ? sum / N : 0;
     }
 
     public synchronized double getStandardDeviation() {
-        return N > 1 ? Math.sqrt((sqsum - avg) / (N-1)) : 0;
+        return N > 1 ? Math.sqrt((sqsum - sum / N) / (N-1)) : 0;
     }
 
     /** Return P(X <= x) */

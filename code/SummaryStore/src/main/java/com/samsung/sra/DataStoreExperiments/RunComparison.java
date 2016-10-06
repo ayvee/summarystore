@@ -25,12 +25,12 @@ class RunComparison {
 
     private static class StoreStats implements Serializable {
         final long numWindows;
-        final LinkedHashMap<String, Statistics> queryStats;
+        final LinkedHashMap<String, QueryStatistics> queryStats;
 
         StoreStats(long numWindows, Collection<String> queryClasses) {
             this.numWindows = numWindows;
             queryStats = new LinkedHashMap<>();
-            queryClasses.forEach(qClass -> queryStats.put(qClass, new Statistics(true)));
+            queryClasses.forEach(qClass -> queryStats.put(qClass, new QueryStatistics()));
         }
     }
 
@@ -87,15 +87,15 @@ class RunComparison {
                 storeStats = new StoreStats(store.getNumWindows(streamID), queryClasses);
                 final Set<String> pending = Collections.synchronizedSet(new HashSet<>(queryClasses));
                 queryClasses.parallelStream().forEach(queryClass -> {
-                    Statistics stats = storeStats.queryStats.get(queryClass);
+                    QueryStatistics stats = storeStats.queryStats.get(queryClass);
                     workload.get(queryClass).parallelStream().forEach(q -> {
                         try {
                             logger.trace("Running query [{}, {}], true answer = {}", q.l, q.r, q.trueAnswer);
                             long trueAnswer = q.trueAnswer.get();
-                            ResultError estimate = (ResultError) store.query(streamID, q.l, q.r, q.operatorNum, q.params);
-                            double error = Math.abs(((Number) estimate.result).doubleValue() - trueAnswer) / (1d + trueAnswer);
-                            //double error = estimate.error.getFirst() <= trueAnswer && trueAnswer <= estimate.error.getSecond() ? 0 : 1;
-                            stats.addObservation(error);
+                            long ts = System.currentTimeMillis();
+                            ResultError re = (ResultError) store.query(streamID, q.l, q.r, q.operatorNum, q.params);
+                            long te = System.currentTimeMillis();
+                            stats.addResult(trueAnswer, re, te - ts);
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
@@ -138,12 +138,13 @@ class RunComparison {
         parser.addArgument("conf").help("config file").type(File.class);
         parser.addArgument("-metrics")
                 .nargs("*")
-                .help("error metrics (allowed: \"mean\", \"p<percentile>\", e.g. \"p50\")");
+                .help("error metrics (allowed: \"mean\", \"p<percentile>\", e.g. \"p50\", \"ci-miss-rate\")");
+        // TODO: get latency metrics
         //parser.addArgument("-weight").help("function assigning weights to each query class (allowed: \"uniform\")");
         parser.addArgument("-force-run").help("force running workload, ignoring any memoized results").action(Arguments.storeTrue());
 
         Configuration config;
-        LinkedHashMap<String, ToDoubleFunction<Statistics>> metrics = new LinkedHashMap<>();
+        LinkedHashMap<String, ToDoubleFunction<QueryStatistics>> metrics = new LinkedHashMap<>();
         //ToDoubleFunction<String> weightFunction;
         try {
             Namespace parsed = parser.parseArgs(args);
@@ -154,12 +155,14 @@ class RunComparison {
             List<String> metricNames = parsed.getList("metrics");
             if (metricNames != null) {
                 for (String metricName : metricNames) {
-                    ToDoubleFunction<Statistics> metric;
+                    ToDoubleFunction<QueryStatistics> metric;
                     if (metricName.equalsIgnoreCase("mean")) {
-                        metric = Statistics::getMean;
+                        metric = qs -> qs.getErrorStats().getMean();
                     } else if (metricName.toLowerCase().startsWith("p")) {
                         double quantile = Double.valueOf(metricName.substring(1)) * 0.01;
-                        metric = s -> s.getQuantile(quantile);
+                        metric = qs -> qs.getErrorStats().getQuantile(quantile);
+                    } else if (metricName.equalsIgnoreCase("ci-miss-rate")) {
+                        metric = QueryStatistics::getCIMissRate;
                     } else {
                         throw new IllegalArgumentException("unknown metric " + metricName);
                     }
@@ -201,11 +204,11 @@ class RunComparison {
                 String decay = statsEntry.getKey();
                 StoreStats storeStats = statsEntry.getValue();
                 long storeSize = storeStats.numWindows;
-                for (Map.Entry<String, Statistics> groupEntry: storeStats.queryStats.entrySet()) {
+                for (Map.Entry<String, QueryStatistics> groupEntry: storeStats.queryStats.entrySet()) {
                     String group = groupEntry.getKey();
-                    Statistics stats = groupEntry.getValue();
+                    QueryStatistics stats = groupEntry.getValue();
                     System.out.printf("%s\t%d\t%s", decay, storeSize, group);
-                    for (ToDoubleFunction<Statistics> statsFunc: metrics.values()) {
+                    for (ToDoubleFunction<QueryStatistics> statsFunc: metrics.values()) {
                         System.out.printf("\t%f", statsFunc.applyAsDouble(stats));
                     }
                     System.out.println();

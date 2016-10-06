@@ -17,8 +17,9 @@ decay-functions = [
 # Dataset (stream generator) specification
 [data]
 tstart = 0                                   # all queries/data will span [tstart, tend]
-tend = 1_000_000_000
-operators = ["SimpleCountOperator"]          # list of operators to maintain in each SummaryStore
+tend = 100_000_000
+operators = ["SimpleCountOperator", "SumOperator"]
+                                             # list of operators to maintain in each SummaryStore
                                              # (names of classes in the com.samsung.sra.DataStore.Aggregates package)
 stream-generator = "RandomStreamGenerator"   # name of class in the com.samsung.sra.DataStoreExperiments package
 interarrivals = {distribution = "ExponentialDistribution", lambda = 1.0}
@@ -34,13 +35,11 @@ random-seed = 0                              # RandomStreamGenerator seed. Optio
 
 # Workload specification
 [workload]
-# Use com.samsung.sra.DataStoreExperiments.RandomWorkloadGenerator,
-# with 8 age/length classes and a 1000 queries per class
-workload-generator = "RandomWorkloadGenerator"
-A = 8
-L = 8
-Q = 1000
+# Use com.samsung.sra.DataStoreExperiments.CalendarWorkloadGenerator
+workload-generator = "CalendarWorkloadGenerator"
+queries-per-group = 1000
 operator = {index = 0, type = "count"}
+#operator = {index = 3, type = "cms", param = {distribution = "UniformDistribution", min = 0, max = 100}}
 
 
 [performance]
