@@ -16,7 +16,7 @@ message ProtoSimpleCount {
     required int64 count = 1;
 }
 
-message ProtoSimpleSum {
+message ProtoSum {
     required int64 sum = 1;
 }
 
@@ -47,7 +47,7 @@ message ProtoBucket {
     optional int64 cStart = 6;
     optional int64 cEnd = 7;
     optional ProtoSimpleCount pcount = 8;
-    optional ProtoSimpleSum psum = 9;
+    optional ProtoSum psum = 9;
     optional ProtoSimpleBloomFilter pbloom = 10;
     optional ProtoCMS pcms = 11;
 }
