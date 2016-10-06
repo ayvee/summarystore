@@ -6,21 +6,23 @@ import org.apache.commons.math3.util.Pair;
 
 import java.util.*;
 
-/** Generate a workload of random count/sum/(TODO) queries with calendar age/lengths */
+/** Generate a workload of random count/sum/(TODO) queries with calendar age/lengths. */
 public class CalendarWorkloadGenerator implements WorkloadGenerator {
     private final int operatorIndex;
     private final Query.Type operatorType;
     private final Distribution<Long> cmsParamDistr;
+    private final long ticksPerS;
     private final long Q;
 
     public CalendarWorkloadGenerator(Toml conf) {
         operatorIndex = conf.getLong("operator.index").intValue();
-        operatorType = Query.Type.valueOf(conf.getString("operator.type"));
+        operatorType = Query.Type.valueOf(conf.getString("operator.type").toUpperCase());
         Toml cmsParamSpec = conf.getTable("operator.param");
         cmsParamDistr = cmsParamSpec != null
                 ? Configuration.parseDistribution(cmsParamSpec)
                 : null;
         Q = conf.getLong("queries-per-group");
+        ticksPerS = conf.getLong("ticks-per-second", 1L);
     }
 
     @Override
@@ -28,15 +30,15 @@ public class CalendarWorkloadGenerator implements WorkloadGenerator {
         Random rand = new Random(0);
         Workload workload = new Workload();
         // Age/length classes will sample query ranges from [0s, (T1-T0) in seconds]. We will rescale below to correct
-        List<AgeLengthClass> alClasses = CalendarAgeLengths.getClasses((T1 - T0) / (long)1e9); // TSM is in nanoseconds
+        List<AgeLengthClass> alClasses = CalendarAgeLengths.getClasses((T1 - T0) / ticksPerS);
         for (AgeLengthClass alCls : alClasses) {
             String groupName = String.format("%s\t%s", operatorType, alCls.toString());
             List<Query> groupQueries = new ArrayList<>();
             workload.put(groupName, groupQueries);
             for (int q = 0; q < Q; ++q) {
-                Pair<Long, Long> ageLength = alCls.sample(rand); // both in seconds, we need to convert to ns
-                long age = ageLength.getFirst() * (long) 1e9, length = ageLength.getSecond() * (long) 1e9;
-                long r = T1 - age, l = r - length + (long) 1e9;
+                Pair<Long, Long> ageLength = alCls.sample(rand); // both in seconds
+                long age = ageLength.getFirst() * ticksPerS, length = ageLength.getSecond() * ticksPerS;
+                long r = T1 - age, l = r - length + ticksPerS;
                 assert T0 <= l && l <= r && r <= T1 :
                         String.format("[T0, T1] = [%s, %s], age = %s, length = %s, [l, r] = [%s, %s]",
                                 T0, T1, age, length, l, r);

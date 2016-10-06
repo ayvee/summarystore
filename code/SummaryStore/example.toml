@@ -40,11 +40,12 @@ workload-generator = "CalendarWorkloadGenerator"
 queries-per-group = 1000
 operator = {index = 0, type = "count"}
 #operator = {index = 3, type = "cms", param = {distribution = "UniformDistribution", min = 0, max = 100}}
+ticks-per-second = 1   # optional, default 1. E.g. set to 1000 if data timestamps are in ms
 
 
 [performance]
 # Process queries in parallel when generating workload. Adds a couple of
 # minutes of stream management overhead, only recommended in large streams
-parallel-workload-gen = false  # optional, default false
+parallel-workload-gen = true   # optional, default false
 # TODO: drop kernel page/inode/dentries caches before starting RunComparison
 drop-caches = false            # optional, default false
