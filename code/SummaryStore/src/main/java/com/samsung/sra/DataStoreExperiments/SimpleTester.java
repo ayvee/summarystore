@@ -1,7 +1,7 @@
 package com.samsung.sra.DataStoreExperiments;
 
 import com.moandjiezana.toml.Toml;
-import com.samsung.sra.DataStore.Aggregates.SimpleBloomFilterOperator;
+import com.samsung.sra.DataStore.Aggregates.BloomFilterOperator;
 import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
 import com.samsung.sra.DataStore.*;
 import org.rocksdb.RocksDBException;
@@ -44,7 +44,7 @@ public class SimpleTester {
             store.registerStream(streamID, new CountBasedWBMH(windowing),
                     new SimpleCountOperator()
                     // new SimpleCountOperator(SimpleCountOperator.Estimator.PROPORTIONAL),
-                    ,new SimpleBloomFilterOperator()
+                    ,new BloomFilterOperator()
                     );
             stores.put("expstore", store);
         } catch (Exception e) {

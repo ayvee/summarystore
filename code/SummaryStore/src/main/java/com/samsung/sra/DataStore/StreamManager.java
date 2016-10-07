@@ -3,14 +3,12 @@ package com.samsung.sra.DataStore;
 import com.clearspring.analytics.stream.frequency.CountMinSketch;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.samsung.sra.DataStore.Aggregates.BloomFilter;
-import com.samsung.sra.DataStoreExperiments.PairTwo;
 import com.samsung.sra.protocol.Summarybucket.ProtoBucket;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
-import java.util.HashMap;
 import java.util.Random;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -61,30 +59,6 @@ class StreamManager implements Serializable {
     transient BucketStore bucketStore;
     transient ExecutorService executorService;
 
-    transient HashMap<String, PairTwo<WindowOperator, Integer>> objectStringMap = new HashMap<>();
-
-    //FIXME: NA String map; needs to contain string names for operator classes
-    void constructOperatorNameMap() {
-        int op = 0;
-        String[] opNames = new String[operators.length];
-        for (int i = 0; i < operators.length; ++i) {
-            objectStringMap.put(operators[i].getClass().toString(), new PairTwo<>(operators[i], i));
-        }
-
-        opNames[++op] = java.lang.Long.class.toString();
-        opNames[++op] = BloomFilter.class.toString();
-
-        /*
-        opNames[++op] = SimpleCountOperator.class.toString();
-        opNames[++op] = HyperLogLogOperator.class.toString();
-        opNames[++op] = SimpleBloomFilterOperator.class.toString();
-        */
-
-        // ensure that all operators have been added to this array
-        assert (op == operators.length);
-
-    }
-
     //FIXME: NA; part of String map code
     int lookupOperatorTypeByClass(WindowOperator wo) {
         return 0;
@@ -105,19 +79,6 @@ class StreamManager implements Serializable {
         this.windowingMechanism = windowingMechanism;
         this.operators = operators;
         this.stats = new StreamStatistics();
-
-        /** no longer needed
-         * bytesPerBucket = Bucket.METADATA_BYTECOUNT +
-         * Stream.of(operators).mapToInt(WindowOperator::getBytecount).sum();
-         */
-
-        //FIXME: NA; part of String map code
-        int i = 0;
-        for (WindowOperator operator : operators) {
-            objectStringMap.put(operator.getClass().toString(), new PairTwo<>(operator, ++i));
-        }
-        // display map
-        //System.out.println("Window Operator Map: " + objectStringMap.toString());
     }
 
     // TODO: add assertions
