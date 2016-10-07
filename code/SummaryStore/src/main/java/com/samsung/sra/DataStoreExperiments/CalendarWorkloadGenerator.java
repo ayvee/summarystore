@@ -8,21 +8,47 @@ import java.util.*;
 
 /** Generate a workload of random count/sum/(TODO) queries with calendar age/lengths. */
 public class CalendarWorkloadGenerator implements WorkloadGenerator {
-    private final int operatorIndex;
-    private final Query.Type operatorType;
-    private final Distribution<Long> cmsParamDistr;
+    private final List<OperatorInfo> operators = new ArrayList<>();
     private final long ticksPerS;
     private final long Q;
 
+    private static class OperatorInfo {
+        final int index;
+        final Query.Type type;
+        final Distribution<Long> cmsParamDistr;
+
+        OperatorInfo(Toml conf) {
+            index = conf.getLong("index").intValue();
+            type = Query.Type.valueOf(conf.getString("type").toUpperCase());
+            if (type == Query.Type.CMS) {
+                Toml cmsParamSpec = conf.getTable("param");
+                assert cmsParamSpec != null;
+                cmsParamDistr = Configuration.parseDistribution(cmsParamSpec);
+            } else {
+                cmsParamDistr = null;
+            }
+        }
+
+        Query getNextQuery(long l, long r, Random rand) {
+            switch (type) {
+                case COUNT:
+                    return new Query(Query.Type.COUNT, l, r, index, null, 0L);
+                case SUM:
+                    return new Query(Query.Type.SUM, l, r, index, null, 0L);
+                case CMS:
+                    return new Query(Query.Type.CMS, l, r, index, new Object[]{cmsParamDistr.next(rand)}, 0L);
+                default:
+                    throw new IllegalStateException("hit unreachable code");
+            }
+        }
+    }
+
     public CalendarWorkloadGenerator(Toml conf) {
-        operatorIndex = conf.getLong("operator.index").intValue();
-        operatorType = Query.Type.valueOf(conf.getString("operator.type").toUpperCase());
-        Toml cmsParamSpec = conf.getTable("operator.param");
-        cmsParamDistr = cmsParamSpec != null
-                ? Configuration.parseDistribution(cmsParamSpec)
-                : null;
         Q = conf.getLong("queries-per-group");
         ticksPerS = conf.getLong("ticks-per-second", 1L);
+        for (Toml opConf: conf.getTables("operators")) {
+            operators.add(new OperatorInfo(opConf));
+        }
     }
 
     @Override
@@ -31,33 +57,21 @@ public class CalendarWorkloadGenerator implements WorkloadGenerator {
         Workload workload = new Workload();
         // Age/length classes will sample query ranges from [0s, (T1-T0) in seconds]. We will rescale below to correct
         List<AgeLengthClass> alClasses = CalendarAgeLengths.getClasses((T1 - T0) / ticksPerS);
-        for (AgeLengthClass alCls : alClasses) {
-            String groupName = String.format("%s\t%s", operatorType, alCls.toString());
-            List<Query> groupQueries = new ArrayList<>();
-            workload.put(groupName, groupQueries);
-            for (int q = 0; q < Q; ++q) {
-                Pair<Long, Long> ageLength = alCls.sample(rand); // both in seconds
-                long age = ageLength.getFirst() * ticksPerS, length = ageLength.getSecond() * ticksPerS;
-                long r = T1 - age, l = r - length + ticksPerS;
-                assert T0 <= l && l <= r && r <= T1 :
-                        String.format("[T0, T1] = [%s, %s], age = %s, length = %s, [l, r] = [%s, %s]",
-                                T0, T1, age, length, l, r);
-                Query query;
-                switch (operatorType) {
-                    case COUNT:
-                        query = new Query(Query.Type.COUNT, l, r, operatorIndex, null, 0L);
-                        break;
-                    case SUM:
-                        query = new Query(Query.Type.SUM, l, r, operatorIndex, null, 0L);
-                        break;
-                    case CMS:
-                        assert cmsParamDistr != null;
-                        query = new Query(Query.Type.CMS, l, r, operatorIndex, new Object[]{cmsParamDistr.next(rand)}, 0L);
-                        break;
-                    default:
-                        throw new IllegalStateException("hit unreachable code");
+        // FIXME? will not work properly if user specifies more than one operator of the same type (e.g. two CMS operators)
+        for (OperatorInfo operator: operators) {
+            for (AgeLengthClass alCls : alClasses) {
+                String groupName = String.format("%s\t%s", operator.type, alCls.toString());
+                List<Query> groupQueries = new ArrayList<>();
+                workload.put(groupName, groupQueries);
+                for (int q = 0; q < Q; ++q) {
+                    Pair<Long, Long> ageLength = alCls.sample(rand); // both in seconds
+                    long age = ageLength.getFirst() * ticksPerS, length = ageLength.getSecond() * ticksPerS;
+                    long r = T1 - age, l = r - length + ticksPerS;
+                    assert T0 <= l && l <= r && r <= T1 :
+                            String.format("[T0, T1] = [%s, %s], age = %s, length = %s, [l, r] = [%s, %s]",
+                                    T0, T1, age, length, l, r);
+                    groupQueries.add(operator.getNextQuery(l, r, rand));
                 }
-                groupQueries.add(query);
             }
         }
         return workload;
