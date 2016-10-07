@@ -13,9 +13,6 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-//import com.samsung.sra.DataStoreExperiments.Pair;
-
-/** TODO?: return confidence level along with each CI? */
 public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Double,Double>> {
     private static Logger logger = LoggerFactory.getLogger(SimpleCountOperator.class);
 
@@ -42,10 +39,17 @@ public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Doub
     }
 
     /**
-     * Given counts for [t0, t1), [t1, t2), ..., [tk, t{k+1}), store count/endpoints of
-     * (first bucket), (all middle buckets), (last bucket)
+     * Statistical estimation logic for a single query.
+     *
+     * NOTE: if you're copying this code as a template, be aware it is more complex than it needs to be. You may be
+     *       able to write a simpler impl from scratch.
+     *
+     * Details: code is more general than it needs to be. It can answer any query contained in [T0, T1], not just the
+     * particular [t0, t1] posed by the user. (An older version, now in git history, could even handle queries not
+     * contained in [T0, T1].) This was meant to plug into the "fuzzy cache" we were talking about, but we're not
+     * getting around to that any time soon.
      */
-    public static class SimpleCountEstimator implements Estimator<Double, Pair<Double, Double>> {
+    static class QueryEstimator {
         private long ts = -1; // start timestamp of first bucket
         private long tml = -1; // 1 + end timestamp of first bucket (= start timestamp of 2nd bucket if there is > 1 bucket)
         private long tmr = -1; // start timestamp of last bucket (if there is > 1 bucket)
@@ -53,8 +57,40 @@ public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Doub
         private long Cl = -1; // count of first bucket
         private long Cm = -1; // count of all middle buckets (if there are > 2 buckets)
         private long Cr = -1; // count of last bucket (if there is > 1 bucket)
-        // consider getting these at query time instead of storing
-        private double sigma_t = 0, mu_t = 0; // mean and variance of interarrival time
+
+        QueryEstimator(long T0, long T1, Stream<Bucket> buckets, Function<Bucket, Long> countRetriever) {
+            MutableLong numBuckets = new MutableLong(0L); // not a plain long because of Java Stream limitations
+            buckets.forEach(b -> {
+                numBuckets.increment();
+                if (numBuckets.toLong() == 1) { // first bucket
+                    assert b.tStart == T0;
+                    ts = T0;
+                    Cl = countRetriever.apply(b);
+                } else if (numBuckets.toLong() == 2) { // second bucket
+                    tml = b.tStart;
+                    Cm = Cr = countRetriever.apply(b);
+                    tmr = b.tStart;
+                } else { // third or later bucket
+                    tmr = b.tStart;
+                    Cr = countRetriever.apply(b);
+                    Cm += Cr;
+                }
+            });
+            assert numBuckets.toLong() > 0;
+            if (numBuckets.toLong() == 1) { // no middle or right buckets
+                tml = T1+1;
+                te = T1;
+                Cm = -1;
+                Cr = -1;
+            } else if (numBuckets.toLong() == 2) { // no middle bucket
+                te = T1;
+                Cm = -1;
+            } else {
+                te = T1;
+                // the loop above set estimator.Cm = count of all buckets starting from 2nd including last; subtract last now
+                Cm -= Cr;
+            }
+        }
 
         /** What is the length of [l, r]? */
         private static long length(long l, long r) {
@@ -68,7 +104,7 @@ public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Doub
 
         /**
          * Given count[T0, T1] = C, update mean, 1/cv_t * variance and 100% confidence bounds
-         * for count(portion of[t0, t1] that intersects [T0, T1])
+         * for our distribution on count(portion of[t0, t1] that intersects [T0, T1])
          */
         private static void conditionalEstimate(MutableDouble mean, MutableDouble var,
                                                 MutableDouble lowerbound, MutableDouble upperbound,
@@ -86,39 +122,19 @@ public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Doub
             }
         }
 
-        /** Unconditional estimate for a time interval of length T */
-        private static void unconditionalEstimate(MutableDouble mean, MutableDouble var,
-                                                  MutableDouble lowerbound, MutableDouble upperbound,
-                                                  long T, double mu_t) {
-            assert T >= 0;
-            if (T > 0) {
-                logger.trace("unconditional estimate: overlap = {}", T);
-                mean.add(T / mu_t);
-                var.add(T / mu_t);
-                upperbound.setValue(Double.POSITIVE_INFINITY);
-            }
-        }
-
-        public ResultError<Double, Pair<Double, Double>> estimate(long t0, long t1, Object... params) {
-            double confidenceLevel = 1;
-            if (params != null && params.length > 0) {
-                confidenceLevel = ((Number)params[0]).doubleValue();
-            }
-
+        public ResultError<Double, Pair<Double, Double>> estimate(
+                StreamStatistics streamStats, long t0, long t1, double confidenceLevel) {
+            assert ts <= t0 && t0 <= t1 && t1 <= te;
             // Check overlap with each of these intervals:
-            //     (-inf, ts-1], [ts, tml-1], [tml, tmr-1], [tmr, te], [te+1, inf)
-            // Middle three intervals: we know counts, do a conditional estimate (proportional count)
-            // First and last intervals: do an unconditional estimate (T / mu)
+            //     [ts, tml-1], [tml, tmr-1], [tmr, te]
+            // and do a proportional count on each
             logger.trace("timestamps = [{}, {}, {}, {}], counts = ({}, {}, {})", ts, tml, tmr, te, Cl, Cm, Cr);
             MutableDouble
                     mean = new MutableDouble(0), var = new MutableDouble(0),
                     lowerbound = new MutableDouble(0), upperbound = new MutableDouble(0);
-            // FIXME: should we use C/T instead of long-term average mu_t for unconditional?
-            unconditionalEstimate(mean, var, lowerbound, upperbound, overlap(t0, t1, Long.MIN_VALUE, ts-1), mu_t);
             conditionalEstimate(mean, var, lowerbound, upperbound, Cl, ts, tml-1, t0, t1);
             conditionalEstimate(mean, var, lowerbound, upperbound, Cm, tml, tmr-1, t0, t1);
             conditionalEstimate(mean, var, lowerbound, upperbound, Cr, tmr, te, t0, t1);
-            unconditionalEstimate(mean, var, lowerbound, upperbound, overlap(t0, t1, te+1, Long.MAX_VALUE), mu_t);
 
             double ans = mean.toDouble();
             double CIl, CIr;
@@ -127,7 +143,7 @@ public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Doub
                 CIl = lowerbound.toDouble();
                 CIr = upperbound.toDouble();
             } else {
-                double sd = sigma_t / mu_t * Math.sqrt(var.toDouble());
+                double sd = streamStats.getCVInterarrival() * Math.sqrt(var.toDouble());
                 CIl = Math.max(ans - numSDs * sd, lowerbound.toDouble());
                 CIr = Math.min(ans + numSDs * sd, upperbound.toDouble());
             }
@@ -136,51 +152,17 @@ public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Doub
     }
 
     @Override
-    public Estimator<Double, Pair<Double, Double>> buildEstimator(StreamStatistics streamStats,
-                                                                  long T0, long T1, Stream<Bucket> buckets, Function<Bucket, Long> countRetriever) {
-        SimpleCountEstimator estimator = new SimpleCountEstimator();
-        MutableLong numBuckets = new MutableLong(0L); // not a plain long because of Java Stream limitations
-        buckets.forEach(b -> {
-            numBuckets.increment();
-            if (numBuckets.toLong() == 1) { // first bucket
-                assert b.tStart == T0;
-                estimator.ts = T0;
-                estimator.Cl = countRetriever.apply(b);
-            } else if (numBuckets.toLong() == 2) { // second bucket
-                estimator.tml = b.tStart;
-                estimator.Cm = estimator.Cr = countRetriever.apply(b);
-                estimator.tmr = b.tStart;
-            } else { // third or later bucket
-                estimator.tmr = b.tStart;
-                estimator.Cr = countRetriever.apply(b);
-                estimator.Cm += estimator.Cr;
-            }
-        });
-        assert numBuckets.toLong() > 0;
-        if (numBuckets.toLong() == 1) { // no middle or right buckets
-            estimator.tml = T1+1;
-            estimator.te = T1;
-            estimator.Cm = -1;
-            estimator.Cr = -1;
-        } else if (numBuckets.toLong() == 2) { // no middle bucket
-            estimator.te = T1;
-            estimator.Cm = -1;
-        } else {
-            estimator.te = T1;
-            // the loop above set estimator.Cm = count of all buckets starting from 2nd including last; subtract last now
-            estimator.Cm -= estimator.Cr;
+    public ResultError<Double, Pair<Double, Double>> query(StreamStatistics streamStats,
+                                                           long T0, long T1,
+                                                           Stream<Bucket> buckets, Function<Bucket, Long> countRetriever,
+                                                           long t0, long t1, Object... params) {
+        QueryEstimator estimator = new QueryEstimator(T0, T1, buckets, countRetriever);
+        double confidenceLevel = 1;
+        if (params != null && params.length > 0) {
+            confidenceLevel = ((Number) params[0]).doubleValue();
         }
-        estimator.mu_t = streamStats.getMeanInterarrival();
-        estimator.sigma_t = streamStats.getSDInterarrival();
-        return estimator;
+        return estimator.estimate(streamStats, t0, t1, confidenceLevel);
     }
-
-    /*@Override
-    public ResultError<Long, Long> query(StreamStatistics streamStats, Stream<Bucket> buckets, Function<Bucket, Long> countRetriever, long t0, long t1, Object... params) {
-        return new ResultError<>(buckets.map(b ->
-                estimationAlgo.estimate(t0, t1, b.tStart, b.tEnd, countRetriever.apply(b))
-        ).mapToLong(Long::longValue).sum(), 0L);
-    }*/
 
     @Override
     public ResultError<Double, Pair<Double, Double>> getEmptyQueryResult() {

@@ -23,19 +23,19 @@ import java.util.stream.Stream;
  */
 
 //AVRE: Bloomfilter, Long, Boolean, Double
-public class SimpleBloomFilterOperator implements WindowOperator<BloomFilter, Boolean, Double>{
+public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean, Double>{
 
 
     private int filterSize = 128; //2^15;
     private int nrHashes = 7;
-    private static Logger logger = LoggerFactory.getLogger(SimpleBloomFilterOperator.class);
+    private static Logger logger = LoggerFactory.getLogger(BloomFilterOperator.class);
 
-    public SimpleBloomFilterOperator() {
+    public BloomFilterOperator() {
        //use default values; currently not used
     }
 
 
-    public SimpleBloomFilterOperator(int filterSize, int nrHashes) {
+    public BloomFilterOperator(int filterSize, int nrHashes) {
         this.filterSize = filterSize;
         this.nrHashes = nrHashes;
     }
@@ -94,20 +94,6 @@ public class SimpleBloomFilterOperator implements WindowOperator<BloomFilter, Bo
         return aggr;
     }
 
-    @Override
-    public Estimator<Boolean, Double> buildEstimator(StreamStatistics streamStatistics,
-                    long T0, long T1, Stream<Bucket> buckets, Function<Bucket, BloomFilter> aggregateRetriever) {
-        return null;
-    }
-
-    /**
-     *     default Estimator<R, E> buildEstimator(StreamStatistics streamStats,
-     long T0, long T1, Stream<Bucket> buckets, Function<Bucket, A> aggregateRetriever        s) {
-     return null;
-     }
-     */
-
-
     /**
      * Retrieve aggregates from a set of buckets and do a combined query over them. We pass full
      * Bucket objects instead of specific Aggregate objects of type A to allow query() to access
@@ -133,7 +119,7 @@ public class SimpleBloomFilterOperator implements WindowOperator<BloomFilter, Bo
         byte[] bytes = new byte[Long.SIZE];
         Utilities.longToByteArray((long) params[0],bytes,0);
         logger.debug("Bloom Query for value: " + params[0]);
-        return new ResultError<>(newBloom.isPresent(bytes), 0.0);
+        return new ResultError<>(newBloom.isPresent(bytes), null);
     }
 
 
@@ -145,15 +131,6 @@ public class SimpleBloomFilterOperator implements WindowOperator<BloomFilter, Bo
         return new ResultError<>(false, 0.0);
     }
 
-
-    public static class SimpleBloomEstimator implements Estimator<Boolean, Double> {
-
-        @Override
-        public ResultError<Boolean, Double> estimate(long t0, long t1, Object... params) {
-            return null;
-        }
-
-    }
 
     @Override
     public ProtoOperator.Builder protofy(BloomFilter aggr) {

@@ -25,44 +25,15 @@ public interface WindowOperator<A, R, E> extends Serializable {
     /** Insert (the potentially multi-dimensional) val into aggr and return the updated aggregate */
     A insert(A aggr, long timestamp, Object[] val);
 
-    /**
-     * Optional. Operators are free to ignore the Estimator API and directly implement query()
-     *
-     * Estimators are meant for use by a fuzzy query cache. Basic idea: first time you see a
-     * query, you retrieve a bunch of buckets spanning its time range, then construct a small
-     * object (the Estimator) encoding all the relevant info from those buckets. This
-     * estimator is capable of answering not just the original query [p, q], but also
-     * fuzzed queries [p, q] +/- delta. Fuzzy caches can choose to store estimators instead
-     * of just the query answer.
-     *
-     * See SimpleCountOperator for an example implementation.
-     */
-    interface Estimator<R, E> {
-        ResultError<R, E> estimate(long t0, long t1, Object... params);
-    }
-
-    /** Build an estimator for a set of buckets spanning [T0, T1] */
-    default Estimator<R, E> buildEstimator(StreamStatistics streamStats,
-                                           long T0, long T1, Stream<Bucket> buckets, Function<Bucket, A> aggregateRetriever) {
-        return null;
-    }
-
     /** Retrieve aggregates from a set of buckets spanning [T0, T1] and do a combined query over
      * them. We pass full Bucket objects instead of specific Aggregate objects of type A to allow
      * query() to access Bucket metadata.
      * TODO: pass an additional Function<Bucket, BucketMetadata> metadataRetriever as argument,
      *       instead of letting query() manhandle Bucket objects
      */
-    default ResultError<R, E> query(StreamStatistics streamStats,
+    ResultError<R, E> query(StreamStatistics streamStats,
                             long T0, long T1, Stream<Bucket> buckets, Function<Bucket, A> aggregateRetriever,
-                            long t0, long t1, Object... params) {
-        Estimator<R, E> estimator = buildEstimator(streamStats, T0, T1, buckets, aggregateRetriever);
-        if (estimator != null) {
-            return estimator.estimate(t0, t1, params);
-        } else {
-            throw new IllegalStateException("operators must implement at least one of query() and buildEstimator()");
-        }
-    }
+                            long t0, long t1, Object... params);
 
     /** Return the default answer to a query on an empty aggregate (containing zero elements) */
     ResultError<R, E> getEmptyQueryResult();

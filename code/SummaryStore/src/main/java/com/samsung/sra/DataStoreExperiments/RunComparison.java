@@ -37,8 +37,8 @@ class RunComparison {
     /**
      * Compute stats for each store. Results will be memoized to disk if the argument is true
      */
-    private static <R extends Number> Map<String, StoreStats> computeStatistics(
-            Configuration config, String workloadFile, String memoFile) throws Exception {
+    private static Map<String, StoreStats> computeStatistics(
+            Configuration config, String workloadFile, String memoFile, Double confidenceLevel) throws Exception {
         if (memoFile != null) {
             try (InputStream is = Files.newInputStream(Paths.get(memoFile))){
                 return (LinkedHashMap<String, StoreStats>) SerializationUtils.deserialize(is);
@@ -92,8 +92,19 @@ class RunComparison {
                         try {
                             logger.trace("Running query [{}, {}], true answer = {}", q.l, q.r, q.trueAnswer);
                             long trueAnswer = q.trueAnswer.get();
+                            Object[] params = q.params;
+                            if (confidenceLevel != null) {
+                                if (params == null || params.length == 0) {
+                                    params = new Object[]{confidenceLevel};
+                                } else {
+                                    Object[] newParams = new Object[params.length + 1];
+                                    System.arraycopy(params, 0, newParams, 0, params.length);
+                                    newParams[params.length] = confidenceLevel;
+                                    params = newParams;
+                                }
+                            }
                             long ts = System.currentTimeMillis();
-                            ResultError re = (ResultError) store.query(streamID, q.l, q.r, q.operatorNum, q.params);
+                            ResultError re = (ResultError) store.query(streamID, q.l, q.r, q.operatorNum, params);
                             long te = System.currentTimeMillis();
                             stats.addResult(trueAnswer, re, te - ts);
                         } catch (Exception e) {
@@ -136,21 +147,24 @@ class RunComparison {
                         "and optionally print weighted stats if a weight function and metric are specified").
                 defaultHelp(true);
         parser.addArgument("conf").help("config file").type(File.class);
+        parser.addArgument("-confidence").help("confidence level (no CIs computed if argument is not specified");
         parser.addArgument("-metrics")
-                .nargs("*")
+                .nargs("+")
                 .help("error metrics (allowed: \"mean\", \"p<percentile>\", e.g. \"p50\", \"ci-miss-rate\")");
-        // TODO: get latency metrics
+        // TODO: helper to print latency metrics
         //parser.addArgument("-weight").help("function assigning weights to each query class (allowed: \"uniform\")");
         parser.addArgument("-force-run").help("force running workload, ignoring any memoized results").action(Arguments.storeTrue());
 
         Configuration config;
         LinkedHashMap<String, ToDoubleFunction<QueryStatistics>> metrics = new LinkedHashMap<>();
+        String confidenceLevel;
         //ToDoubleFunction<String> weightFunction;
         try {
             Namespace parsed = parser.parseArgs(args);
             config = new Configuration(parsed.get("conf"));
+            confidenceLevel = parsed.getString("confidence");
             if (parsed.getBoolean("force_run")) {
-                Files.deleteIfExists(Paths.get(config.getProfileFile()));
+                Files.deleteIfExists(Paths.get(config.getProfileFile(confidenceLevel)));
             }
             List<String> metricNames = parsed.getList("metrics");
             if (metricNames != null) {
@@ -191,8 +205,9 @@ class RunComparison {
         }
 
         String workloadFile = config.getWorkloadFile();
-        String memoFile = config.getProfileFile();
-        Map<String, StoreStats> results = computeStatistics(config, workloadFile, memoFile);
+        String memoFile = config.getProfileFile(confidenceLevel);
+        Double confidence = confidenceLevel != null ? Double.parseDouble(confidenceLevel) : null;
+        Map<String, StoreStats> results = computeStatistics(config, workloadFile, memoFile, confidence);
 
         if (!metrics.isEmpty()) {
             System.out.print("#decay\tstore size (# windows)\tquery\tage class\tlength class");

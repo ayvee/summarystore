@@ -57,9 +57,12 @@ public class Configuration {
                 getResultsDirectory(), getPrefix(), getHash(toml.getTable("data")), getHash(toml.getTable("workload")));
     }
 
-    public String getProfileFile() {
-        return String.format("%s/%sS%s.W%s.D%s.profile", getResultsDirectory(), getPrefix(),
+    public String getProfileFile(String confidenceLevel) {
+        String prefix =  String.format("%s/%sS%s.W%s.D%s", getResultsDirectory(), getPrefix(),
                 getHash(toml.getTable("data")), getHash(toml.getTable("workload")), getHash(toml.getList("decay-functions")));
+        return prefix
+                + (confidenceLevel != null ? ".C" + confidenceLevel : "")
+                + ".profile";
     }
 
     /** Data/queries will span the time range [tstart, tend] */
