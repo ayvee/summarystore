@@ -29,17 +29,11 @@ public class CalendarWorkloadGenerator implements WorkloadGenerator {
             }
         }
 
-        Query getNextQuery(long l, long r, Random rand) {
-            switch (type) {
-                case COUNT:
-                    return new Query(Query.Type.COUNT, l, r, index, null, 0L);
-                case SUM:
-                    return new Query(Query.Type.SUM, l, r, index, null, 0L);
-                case CMS:
-                    return new Query(Query.Type.CMS, l, r, index, new Object[]{cmsParamDistr.next(rand)}, 0L);
-                default:
-                    throw new IllegalStateException("hit unreachable code");
-            }
+        Query getQuery(long l, long r, Random rand) {
+            Object[] params = (type == Query.Type.CMS)
+                    ? new Object[]{cmsParamDistr.next(rand)}
+                    : null;
+            return new Query(type, l, r, index, params);
         }
     }
 
@@ -70,7 +64,7 @@ public class CalendarWorkloadGenerator implements WorkloadGenerator {
                     assert T0 <= l && l <= r && r <= T1 :
                             String.format("[T0, T1] = [%s, %s], age = %s, length = %s, [l, r] = [%s, %s]",
                                     T0, T1, age, length, l, r);
-                    groupQueries.add(operator.getNextQuery(l, r, rand));
+                    groupQueries.add(operator.getQuery(l, r, rand));
                 }
             }
         }

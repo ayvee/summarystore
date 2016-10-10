@@ -60,7 +60,7 @@ public class MLabWorkloadGenerator implements WorkloadGenerator {
                     assert T0 <= l && l <= r && r <= T1 :
                             String.format("[T0, T1] = [%s, %s], age = %s, length = %s, [l, r] = [%s, %s]",
                                     T0, T1, age, length, l, r);
-                    Query query = new Query(Query.Type.CMS, l, r, cmsOpIndex, cmsParams, 0L);
+                    Query query = new Query(Query.Type.CMS, l, r, cmsOpIndex, cmsParams);
                     groupQueries.add(query);
                 }
             }

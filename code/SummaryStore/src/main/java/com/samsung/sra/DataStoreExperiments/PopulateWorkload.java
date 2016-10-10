@@ -139,7 +139,7 @@ public class PopulateWorkload {
         for (int q = 0; q < Q; ++q) {
             long a = Math.floorMod(random.nextLong(), T), b = Math.floorMod(random.nextLong(), T);
             long l = Math.min(a, b), r = Math.max(a, b);
-            queries.add(new Query(Query.Type.COUNT, l, r, 0, null, 0L));
+            queries.add(new Query(Query.Type.COUNT, l, r, 0, null));
         }
         computeTrueAnswers(conf, workload);
         for (Query q : queries) {

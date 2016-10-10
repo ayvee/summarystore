@@ -23,15 +23,14 @@ public class Workload extends LinkedHashMap<String, List<Workload.Query>> {
         long l, r;
         int operatorNum;
         Object[] params;
-        AtomicLong trueAnswer;
+        AtomicLong trueAnswer = new AtomicLong(0L);
 
-        public Query(Type queryType, long l, long r, int operatorNum, Object[] params, long trueAnswer) {
+        public Query(Type queryType, long l, long r, int operatorNum, Object[] params) {
             this.queryType = queryType;
             this.l = l;
             this.r = r;
             this.operatorNum = operatorNum;
             this.params = params;
-            this.trueAnswer = new AtomicLong(trueAnswer);
         }
 
         @Override

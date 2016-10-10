@@ -32,7 +32,7 @@ public class TSMStreamGenerator implements StreamGenerator {
                 hasNonCMS = true;
             }
         }
-        if (hasCMS == hasNonCMS) { // i.e. NOT (hasCMS XOR hasNoneCMS)
+        if (hasCMS == hasNonCMS) { // NOT (hasCMS XOR hasNoneCMS)
             throw new IllegalArgumentException("TSM does not allow mixing CMS with other operators");
         }
         return hasCMS;

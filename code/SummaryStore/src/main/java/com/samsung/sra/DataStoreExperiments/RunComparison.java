@@ -152,8 +152,8 @@ class RunComparison {
                 .nargs("+")
                 .help("error metrics (allowed: \"mean\", \"p<percentile>\", e.g. \"p50\", \"ci-miss-rate\")");
         // TODO: helper to print latency metrics
-        //parser.addArgument("-weight").help("function assigning weights to each query class (allowed: \"uniform\")");
         parser.addArgument("-force-run").help("force running workload, ignoring any memoized results").action(Arguments.storeTrue());
+        //parser.addArgument("-weight").help("function assigning weights to each query class (allowed: \"uniform\")");
 
         Configuration config;
         LinkedHashMap<String, ToDoubleFunction<QueryStatistics>> metrics = new LinkedHashMap<>();
