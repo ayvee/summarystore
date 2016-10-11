@@ -168,22 +168,6 @@ public class SummaryStore implements DataStore {
         }
     }
 
-    @Override
-    public long getStoreSizeInBytes() {
-        long ret = 0;
-        /*
-        for (StreamManager sm: streamManagers.values()) {
-            sm.lock.readLock().lock();
-            try {
-                ret += (long)sm.temporalIndex.size() * sm.bytesPerBucket;
-            } finally {
-                sm.lock.readLock().unlock();
-            }
-        }
-        */
-        return ret;
-    }
-
     /**
      * Get number of windows (buckets) in specified stream. Use a null streamID to get total count over all streams
      */
