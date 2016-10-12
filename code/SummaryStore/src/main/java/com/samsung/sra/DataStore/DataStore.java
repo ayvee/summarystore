@@ -20,13 +20,11 @@ public interface DataStore extends AutoCloseable {
 
     // TODO: query operator by name instead of by index
 
+    StreamStatistics getStreamStatistics(long streamID) throws StreamException;
+
     /** Flush any buffered values into bucket store. Does not flush bucket store to disk */
     default void flush(long streamID) throws RocksDBException, StreamException {}
 
-    long getStoreSizeInBytes();
-
-    StreamStatistics getStreamStatistics(long streamID) throws StreamException;
-
     @Override
-    void close() throws RocksDBException;
+    default void close() throws RocksDBException {}
 }
