@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 """Plot the output of a RunComparison execution to "plot.pdf".
 Generates a table with rows/columns = age/length class,
-cells = storage vs (some accuracy metric)
+cells = storage vs (some accuracy metric).
+Example: ./heatmap.py heatmap-example-input.tsv -metric p95 -enumsize 31536
 """
 
 import argparse
