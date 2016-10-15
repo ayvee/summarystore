@@ -24,7 +24,7 @@ public class PopulateData {
         config.getDecayFunctions()./*parallelStream().*/forEach(decay -> {
             String outprefix = config.getStorePrefix(decay);
             if ((new File(outprefix + ".bucketStore").exists())) {
-                logger.warn("Decay function {} already populated, skipping", decay);
+                logger.warn("Decay function {} already populated at {}.bucketStore, skipping", decay, outprefix);
                 return;
             }
             try (SummaryStore store = new SummaryStore(outprefix, config.getBucketCacheSize());
