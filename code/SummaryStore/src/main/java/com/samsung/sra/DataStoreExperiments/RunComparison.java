@@ -149,10 +149,14 @@ class RunComparison {
                         "and optionally print weighted stats if a weight function and metric are specified").
                 defaultHelp(true);
         parser.addArgument("conf").help("config file").type(File.class);
-        parser.addArgument("-confidence").help("confidence level (no CIs computed if argument is not specified");
+        parser.addArgument("-confidence")
+                .help("confidence level")
+                .type(Double.class)
+                .setDefault(0.95d);
         parser.addArgument("-metrics")
+                .help("metrics to print")
                 .nargs("+")
-                .help("error metrics (allowed: \"mean\", \"p<percentile>\", e.g. \"p50\", \"ci-miss-rate\")");
+                .setDefault("error:p95", "latency:p95", "ci-width:p95", "ci-miss-rate");
         // TODO: helper to print latency metrics
         parser.addArgument("-force-run").help("force running workload, ignoring any memoized results").action(Arguments.storeTrue());
         //parser.addArgument("-weight").help("function assigning weights to each query class (allowed: \"uniform\")");
@@ -168,39 +172,36 @@ class RunComparison {
             if (parsed.getBoolean("force_run")) {
                 Files.deleteIfExists(Paths.get(config.getProfileFile(confidenceLevel)));
             }
-            List<String> metricNames = parsed.getList("metrics");
-            if (metricNames != null) {
-                for (String metricName : metricNames) {
-                    ToDoubleFunction<QueryStatistics> metric;
-                    if (metricName.equals("ci-miss-rate")) {
-                        metric = QueryStatistics::getCIMissRate;
-                    } else {
-                        Function<QueryStatistics, Statistics> statsGetter;
-                        String[] vs = metricName.split(":");
-                        switch (vs[0]) {
-                            case "error":
-                                statsGetter = QueryStatistics::getErrorStats;
-                                break;
-                            case "latency":
-                                statsGetter = QueryStatistics::getLatencyStats;
-                                break;
-                            case "ci-width":
-                                statsGetter = QueryStatistics::getCIWidthStats;
-                                break;
-                            default:
-                                throw new IllegalArgumentException("unknown metric " + metricName);
-                        }
-                        if (vs[1].equals("mean")) {
-                            metric = qs -> statsGetter.apply(qs).getMean();
-                        } else if (vs[1].startsWith("p")) {
-                            double quantile = Double.valueOf(vs[1].substring(1)) * 0.01;
-                            metric = qs -> statsGetter.apply(qs).getQuantile(quantile);
-                        } else {
-                            throw new IllegalArgumentException("unknown metric " + vs[1]);
-                        }
+            for (String metricName : parsed.<String>getList("metrics")) {
+                ToDoubleFunction<QueryStatistics> metric;
+                if (metricName.equals("ci-miss-rate")) {
+                    metric = QueryStatistics::getCIMissRate;
+                } else {
+                    Function<QueryStatistics, Statistics> statsGetter;
+                    String[] vs = metricName.split(":");
+                    switch (vs[0]) {
+                        case "error":
+                            statsGetter = QueryStatistics::getErrorStats;
+                            break;
+                        case "latency":
+                            statsGetter = QueryStatistics::getLatencyStats;
+                            break;
+                        case "ci-width":
+                            statsGetter = QueryStatistics::getCIWidthStats;
+                            break;
+                        default:
+                            throw new IllegalArgumentException("unknown metric " + metricName);
                     }
-                    metrics.put(metricName, metric);
+                    if (vs[1].equals("mean")) {
+                        metric = qs -> statsGetter.apply(qs).getMean();
+                    } else if (vs[1].startsWith("p")) {
+                        double quantile = Double.valueOf(vs[1].substring(1)) * 0.01;
+                        metric = qs -> statsGetter.apply(qs).getQuantile(quantile);
+                    } else {
+                        throw new IllegalArgumentException("unknown metric " + vs[1]);
+                    }
                 }
+                metrics.put(metricName, metric);
             }
             /*String weightFunctionName = parsed.get("weight");
             if (metricName != null || weightFunctionName != null) { // TODO: move into Configuration?
