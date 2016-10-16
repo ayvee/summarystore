@@ -37,7 +37,6 @@ random-seed = 0                              # RandomStreamGenerator seed. Optio
 [workload]
 # Use com.samsung.sra.DataStoreExperiments.CalendarWorkloadGenerator
 workload-generator = "CalendarWorkloadGenerator"
-queries-per-group = 1000
 operators = [{index = 0, type = "count"}, {index = 1, type = "sum"}]
 #operators = [{index = 2, type = "cms", param = {distribution = "ZipfDistribution", N = 100, k = 1}}]
 ticks-per-second = 1   # optional, default 1. E.g. set to 1000 if data timestamps are in ms

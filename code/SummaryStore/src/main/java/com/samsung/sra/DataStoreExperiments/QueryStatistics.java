@@ -16,7 +16,7 @@ import java.io.Serializable;
  */
 public class QueryStatistics implements Serializable {
     private static final int defaultNCDFBins = 10000;
-    private final Statistics errorStats, latencyStats;
+    private final Statistics errorStats, latencyStats, ciWidthStats;
     private long NciMisses = 0; // # of queries where CI did not include true answer (\in [0, errorStats.N])
 
     public QueryStatistics() {
@@ -30,6 +30,7 @@ public class QueryStatistics implements Serializable {
     public QueryStatistics(boolean requireCDF, int nCDFBins) {
         errorStats = new Statistics(requireCDF, nCDFBins);
         latencyStats = new Statistics(requireCDF, nCDFBins);
+        ciWidthStats = new Statistics(requireCDF, nCDFBins);
     }
 
     public synchronized void addResult(long trueAnswer, ResultError re, double latencyMS) {
@@ -44,6 +45,7 @@ public class QueryStatistics implements Serializable {
             if (estimate < ci.getFirst() || estimate > ci.getSecond()) {
                 ++NciMisses;
             }
+            ciWidthStats.addObservation((ci.getSecond() - ci.getFirst()) / estimate);
         }
     }
 
@@ -53,6 +55,10 @@ public class QueryStatistics implements Serializable {
 
     public synchronized Statistics getLatencyStats() {
         return latencyStats;
+    }
+
+    public synchronized Statistics getCIWidthStats() {
+        return ciWidthStats;
     }
 
     public synchronized double getCIMissRate() {

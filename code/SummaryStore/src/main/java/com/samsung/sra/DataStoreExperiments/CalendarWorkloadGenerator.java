@@ -10,7 +10,6 @@ import java.util.*;
 public class CalendarWorkloadGenerator implements WorkloadGenerator {
     private final List<OperatorInfo> operators = new ArrayList<>();
     private final long ticksPerS;
-    private final long Q;
 
     private static class OperatorInfo {
         final int index;
@@ -38,7 +37,6 @@ public class CalendarWorkloadGenerator implements WorkloadGenerator {
     }
 
     public CalendarWorkloadGenerator(Toml conf) {
-        Q = conf.getLong("queries-per-group");
         ticksPerS = conf.getLong("ticks-per-second", 1L);
         for (Toml opConf: conf.getTables("operators")) {
             operators.add(new OperatorInfo(opConf));
@@ -57,8 +55,7 @@ public class CalendarWorkloadGenerator implements WorkloadGenerator {
                 String groupName = String.format("%s\t%s", operator.type, alCls.toString());
                 List<Query> groupQueries = new ArrayList<>();
                 workload.put(groupName, groupQueries);
-                for (int q = 0; q < Q; ++q) {
-                    Pair<Long, Long> ageLength = alCls.sample(rand); // both in seconds
+                for (Pair<Long, Long> ageLength: alCls.getAllAgeLengths()) {
                     long age = ageLength.getFirst() * ticksPerS, length = ageLength.getSecond() * ticksPerS;
                     long r = T1 - age, l = r - length + ticksPerS;
                     assert T0 <= l && l <= r && r <= T1 :

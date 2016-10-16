@@ -3,6 +3,9 @@ package com.samsung.sra.DataStoreExperiments;
 import org.apache.commons.math3.util.Pair;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Random;
 
 public class AgeLengthClass implements Serializable {
@@ -66,6 +69,19 @@ public class AgeLengthClass implements Serializable {
                 return new Pair<>(age, length);
             }
         }
+    }
+
+    /** Get all possible age/length combinations */
+    public Collection<Pair<Long, Long>> getAllAgeLengths() {
+        List<Pair<Long, Long>> ret = new ArrayList<>();
+        for (long a = ageBin.multiplier * ageBin.start; a <= ageBin.multiplier * ageBin.end; a += ageBin.multiplier) {
+            for (long l = lengthBin.multiplier * lengthBin.start; l <= lengthBin.multiplier * lengthBin.end; l += lengthBin.multiplier) {
+                if (maxAge == null || a + l - 1 <= maxAge) {
+                    ret.add(new Pair<>(a, l));
+                }
+            }
+        }
+        return ret;
     }
 
     @Override
