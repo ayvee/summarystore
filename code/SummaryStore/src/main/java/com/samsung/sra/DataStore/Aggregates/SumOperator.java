@@ -106,9 +106,9 @@ public class SumOperator implements WindowOperator<Long,Double,Pair<Double,Doubl
                                                 long S, long T0, long T1, long t0, long t1) {
             long overlap = overlap(T0, T1, t0, t1);
             if (S != -1 && overlap != 0) {
-                logger.trace("conditional estimate: S = {}, [T0, T1] = [{}, {}], [t0, t1] = [{}, {}], overlap = {}",
-                        S, T0, T1, t0, t1, overlap);
                 long length = length(T0, T1);
+                logger.trace("conditional estimate: S = {}, [T0, T1] = [{}, {}], [t0, t1] = [{}, {}], overlap / length = {} / {}",
+                        S, T0, T1, t0, t1, overlap, length);
                 if (overlap == length) lowerbound.add(S);
                 upperbound.add(S);
                 double ratio = overlap / (double)length;
@@ -123,7 +123,7 @@ public class SumOperator implements WindowOperator<Long,Double,Pair<Double,Doubl
             // Check overlap with each of these intervals:
             //     [ts, tml-1], [tml, tmr-1], [tmr, te]
             // and do a proportional sum on each
-            logger.trace("timestamps = [{}, {}, {}, {}], counts = ({}, {}, {})", ts, tml, tmr, te, Sl, Sm, Sr);
+            logger.trace("timestamps = [{}, {}, {}, {}], sums = ({}, {}, {})", ts, tml, tmr, te, Sl, Sm, Sr);
             MutableDouble
                     mean = new MutableDouble(0), var = new MutableDouble(0),
                     lowerbound = new MutableDouble(0), upperbound = new MutableDouble(0);
@@ -141,6 +141,8 @@ public class SumOperator implements WindowOperator<Long,Double,Pair<Double,Doubl
                 double cv_t = streamStats.getCVInterarrival(), cv_v = streamStats.getCVValue();
                 double mu_v = streamStats.getMeanValue();
                 double sd = Math.sqrt((cv_t * cv_t + cv_v * cv_v) * Math.sqrt(mu_v * var.toDouble()));
+                logger.trace("cv_t = {}, cv_v = {}, mu_v = {}, var = {}, sd = {}",
+                        cv_t, cv_v, mu_v, var, sd);
                 CIl = Math.max(ans - numSDs * sd, lowerbound.toDouble());
                 CIr = Math.min(ans + numSDs * sd, upperbound.toDouble());
             }
