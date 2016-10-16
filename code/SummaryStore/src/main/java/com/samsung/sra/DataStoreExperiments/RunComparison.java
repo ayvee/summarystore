@@ -17,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.function.Function;
 import java.util.function.ToDoubleFunction;
 
 class RunComparison {
@@ -24,10 +25,11 @@ class RunComparison {
     private static final long streamID = 0;
 
     private static class StoreStats implements Serializable {
-        final long numWindows;
+        final long numValues, numWindows;
         final LinkedHashMap<String, QueryStatistics> queryStats;
 
-        StoreStats(long numWindows, Collection<String> queryClasses) {
+        StoreStats(long numValues, long numWindows, Collection<String> queryClasses) {
+            this.numValues = numValues;
             this.numWindows = numWindows;
             queryStats = new LinkedHashMap<>();
             queryClasses.forEach(qClass -> queryStats.put(qClass, new QueryStatistics()));
@@ -84,7 +86,8 @@ class RunComparison {
                 store.warmupCache();
 
                 List<String> queryClasses = new ArrayList<>(workload.keySet());
-                storeStats = new StoreStats(store.getNumWindows(streamID), queryClasses);
+                storeStats = new StoreStats(
+                        store.getStreamStatistics(streamID).getNumValues(), store.getNumWindows(streamID), queryClasses);
                 final Set<String> pending = Collections.synchronizedSet(new HashSet<>(queryClasses));
                 queryClasses.parallelStream().forEach(queryClass -> {
                     QueryStatistics stats = storeStats.queryStats.get(queryClass);
@@ -113,11 +116,9 @@ class RunComparison {
                     });
                     pending.remove(queryClass);
                     synchronized (pending) {
-                        if (logger.isInfoEnabled()) {
-                            logger.info("pending({}):", decay);
-                            for (String pendingQueryClass : pending) {
-                                System.out.println("\t\t" + pendingQueryClass);
-                            }
+                        System.err.println("pending(" + decay + "):");
+                        for (String pendingQueryClass : pending) {
+                            System.err.println("\t\t" + pendingQueryClass);
                         }
                     }
                 });
@@ -170,15 +171,32 @@ class RunComparison {
             if (metricNames != null) {
                 for (String metricName : metricNames) {
                     ToDoubleFunction<QueryStatistics> metric;
-                    if (metricName.equalsIgnoreCase("mean")) {
-                        metric = qs -> qs.getErrorStats().getMean();
-                    } else if (metricName.toLowerCase().startsWith("p")) {
-                        double quantile = Double.valueOf(metricName.substring(1)) * 0.01;
-                        metric = qs -> qs.getErrorStats().getQuantile(quantile);
-                    } else if (metricName.equalsIgnoreCase("ci-miss-rate")) {
+                    if (metricName.equals("ci-miss-rate")) {
                         metric = QueryStatistics::getCIMissRate;
                     } else {
-                        throw new IllegalArgumentException("unknown metric " + metricName);
+                        Function<QueryStatistics, Statistics> statsGetter;
+                        String[] vs = metricName.split(":");
+                        switch (vs[0]) {
+                            case "error":
+                                statsGetter = QueryStatistics::getErrorStats;
+                                break;
+                            case "latency":
+                                statsGetter = QueryStatistics::getLatencyStats;
+                                break;
+                            case "ci-width":
+                                statsGetter = QueryStatistics::getCIWidthStats;
+                                break;
+                            default:
+                                throw new IllegalArgumentException("unknown metric " + metricName);
+                        }
+                        if (vs[1].equals("mean")) {
+                            metric = qs -> statsGetter.apply(qs).getMean();
+                        } else if (vs[1].startsWith("p")) {
+                            double quantile = Double.valueOf(vs[1].substring(1)) * 0.01;
+                            metric = qs -> statsGetter.apply(qs).getQuantile(quantile);
+                        } else {
+                            throw new IllegalArgumentException("unknown metric " + vs[1]);
+                        }
                     }
                     metrics.put(metricName, metric);
                 }
@@ -210,7 +228,7 @@ class RunComparison {
         Map<String, StoreStats> results = computeStatistics(config, workloadFile, memoFile, confidence);
 
         if (!metrics.isEmpty()) {
-            System.out.print("#decay\tstore size (# windows)\tquery\tage class\tlength class");
+            System.out.print("#decay\t# windows in store\t# elements in stream\tquery\tage class\tlength class");
             for (String metricName: metrics.keySet()) {
                 System.out.print("\t" + metricName);
             }
@@ -218,11 +236,10 @@ class RunComparison {
             for (Map.Entry<String, StoreStats> statsEntry: results.entrySet()) {
                 String decay = statsEntry.getKey();
                 StoreStats storeStats = statsEntry.getValue();
-                long storeSize = storeStats.numWindows;
                 for (Map.Entry<String, QueryStatistics> groupEntry: storeStats.queryStats.entrySet()) {
                     String group = groupEntry.getKey();
                     QueryStatistics stats = groupEntry.getValue();
-                    System.out.printf("%s\t%d\t%s", decay, storeSize, group);
+                    System.out.printf("%s\t%d\t%d\t%s", decay, storeStats.numWindows, storeStats.numValues, group);
                     for (ToDoubleFunction<QueryStatistics> statsFunc: metrics.values()) {
                         System.out.printf("\t%f", statsFunc.applyAsDouble(stats));
                     }
