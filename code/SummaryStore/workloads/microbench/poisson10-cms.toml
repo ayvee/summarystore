@@ -1,0 +1,63 @@
+data-dir = "/mnt/sdb/summarystore"
+results-dir = "/home/sstore/summarystore/code/SummaryStore/output"
+bucket-cache-size = 1_000_000
+ingest-buffer-size = 2_000_000
+
+decay-functions = [
+"exponential2",
+"rationalPower1,1,1,1",
+"rationalPower1,1,2,1",
+"rationalPower1,1,4,1",
+"rationalPower1,1,8,1",
+"rationalPower1,1,16,1",
+"rationalPower1,1,32,1",
+"rationalPower1,1,64,1",
+"rationalPower1,1,128,1",
+#"rationalPower1,2,1,1",
+#"rationalPower1,2,2,1",
+#"rationalPower1,2,4,1",
+#"rationalPower1,2,8,1",
+#"rationalPower1,2,16,1",
+#"rationalPower1,2,32,1",
+#"rationalPower1,4,1,1",
+#"rationalPower1,4,2,1",
+#"rationalPower1,4,4,1",
+#"rationalPower1,4,8,1",
+#"rationalPower1,4,16,1",
+#"rationalPower1,4,32,1",
+#"rationalPower1,8,1,1",
+#"rationalPower1,8,2,1",
+#"rationalPower1,8,4,1",
+#"rationalPower1,8,8,1",
+#"rationalPower1,8,16,1",
+#"rationalPower1,8,32,1",
+#"rationalPower1,16,1,1",
+#"rationalPower1,16,2,1",
+#"rationalPower1,16,4,1",
+#"rationalPower1,16,8,1",
+#"rationalPower1,16,16,1",
+#"rationalPower1,16,32,1",
+#"rationalPower1,32,1,1",
+#"rationalPower1,32,2,1",
+#"rationalPower1,32,4,1",
+#"rationalPower1,32,8,1",
+#"rationalPower1,32,16,1",
+#"rationalPower1,32,32,1",
+]
+
+[data]
+tstart = 0 # ms
+tend = 31_536_000_000 # ms (1 year)
+operators = ["CMSOperator5,1000"]
+stream-generator = "RandomStreamGenerator"
+interarrivals = {distribution = "ExponentialDistribution", lambda = 0.01} # 0.01/ms or 10/s
+values = {distribution = "UniformDistribution", min = 1, max = 100}
+
+[workload]
+workload-generator = "CalendarWorkloadGenerator"
+ticks-per-second = 1000 # timestamps are in ms
+operators = [{index = 0, type = "cms", param = {distribution = "UniformDistribution", min = 1, max = 100}}]
+
+[performance]
+drop-caches = true
+parallel-workload-gen = true

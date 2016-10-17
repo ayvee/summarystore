@@ -5,13 +5,13 @@ then
 	exit 2
 fi
 root=`dirname $0`
-Xmx=`./xmx.sh`
+Xmx=`$root/xmx.sh`
 cp="$root:$root/target/SummaryStore-1.0-SNAPSHOT.jar"
 for jar in $root/target/lib/*
 do
 	cp="$cp:$jar"
 done
-cp="$cp:scripts" # put all scripts on classpath, so they can be found with class.getResource()
+cp="$cp:$root/scripts" # put all scripts on classpath, so they can be found with class.getResource()
 
 className=$1
 shift
