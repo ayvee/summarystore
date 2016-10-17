@@ -156,7 +156,7 @@ public class Configuration {
     }
 
     public WindowOperator[] getOperators() {
-        List<String> operatorNames = toml.getList("data.operators");
+        List<String> operatorNames = toml.getList("operators");
         WindowOperator[] operators = new WindowOperator[operatorNames.size()];
         for (int i = 0; i < operators.length; ++i) {
             String opname = operatorNames.get(i);
