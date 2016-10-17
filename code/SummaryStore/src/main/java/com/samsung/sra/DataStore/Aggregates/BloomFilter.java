@@ -18,17 +18,13 @@
 
 package com.samsung.sra.DataStore.Aggregates;
 
-import javafx.scene.effect.Bloom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-
 import java.util.BitSet;
-
-import org.apache.commons.io.input.*;
 
 public class BloomFilter extends Filter {
 

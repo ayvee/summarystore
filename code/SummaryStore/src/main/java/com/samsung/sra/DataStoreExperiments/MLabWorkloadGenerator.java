@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 
 public class MLabWorkloadGenerator implements WorkloadGenerator {
     private static final Logger logger = LoggerFactory.getLogger(MLabWorkloadGenerator.class);
@@ -24,24 +23,20 @@ public class MLabWorkloadGenerator implements WorkloadGenerator {
             1976935968L // 1
     };
 
-    private final long Q;
     private final int cmsOpIndex;
 
     /** Example config.toml spec:
      *
      * [workload]
      * workload-generator = "MLabWorkloadGenerator"
-     * queries-per-group = 1000
      * cms-operator-index = 0
      */
     public MLabWorkloadGenerator(Toml conf) {
-        this.Q = conf.getLong("queries-per-group");
         this.cmsOpIndex = conf.getLong("cms-operator-index").intValue();
     }
 
     @Override
     public Workload generate(long T0, long T1) {
-        Random rand = new Random(0);
         Workload workload = new Workload();
         // Age/length classes will sample query ranges from [0s, (T1-T0) in seconds]. We will rescale below to correct
         List<AgeLengthClass> alClasses = CalendarAgeLengths.getClasses((T1 - T0) / (long)1e9); // MLab is in nanoseconds
@@ -52,8 +47,8 @@ public class MLabWorkloadGenerator implements WorkloadGenerator {
                 logger.debug("Generating group {}", groupName);
                 List<Query> groupQueries = new ArrayList<>();
                 workload.put(groupName, groupQueries);
-                for (int q = 0; q < Q; ++q) {
-                    Pair<Long, Long> ageLength = alCls.sample(rand); // both in seconds, we need to convert to ns
+                for (Pair<Long, Long> ageLength: alCls.getAllAgeLengths()) {
+                    // pair is in seconds, need to convert to ns first
                     long age = ageLength.getFirst() * (long)1e9, length = ageLength.getSecond() * (long)1e9;
                     //assert 0 <= age && age <= T1-T0 && 0 <= length && length <= T1-T0;
                     long r = T1 - age, l = r - length + (long)1e9;
