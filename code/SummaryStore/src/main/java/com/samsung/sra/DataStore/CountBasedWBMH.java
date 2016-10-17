@@ -143,10 +143,6 @@ public class CountBasedWBMH implements WindowingMechanism {
     }
 
     public void appendUnbuffered(StreamManager streamManager, long ts, Object[] value) throws RocksDBException {
-        if (logger.isDebugEnabled() && N % 1_000_000 == 0) {
-            logger.debug("N = {}, mergeCounts.size = {}", N, mergeCounts.getSize());
-        }
-
         // merge existing buckets
         processMergesUntil(streamManager, N + 1);
 
@@ -271,20 +267,6 @@ public class CountBasedWBMH implements WindowingMechanism {
             Bucket b2 = b1.nextBucketID == -1 ? null : streamManager.getBucket(b1.nextBucketID);
             Bucket bm1 = b0.prevBucketID == -1 ? null : streamManager.getBucket(b0.prevBucketID); // b{-1}
 
-
-            //if(logger.isDebugEnabled()) {
-            if(false) {
-                if(!( (long) (b0.aggregates[0]) == 0 || (long) (b1.aggregates[0]) == 0)) {
-                    String ret = " ======= In WBMH before merge with non empty Count ========= ";
-                    logger.debug(ret);
-                }
-                /*
-                logger.debug("======= In WBMH before merge ========= ");
-                logger.debug("b0: " + b0.toString());
-                logger.debug("b1: " + b1.toString());
-                logger.debug("======= End in WBMH before merge =========");
-                */
-            }
             streamManager.mergeBuckets(b0, b1);
 
             if (bm1 != null) bm1.nextBucketID = b0.thisBucketID;
