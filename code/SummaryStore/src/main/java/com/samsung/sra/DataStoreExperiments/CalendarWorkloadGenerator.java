@@ -14,23 +14,23 @@ public class CalendarWorkloadGenerator implements WorkloadGenerator {
     private static class OperatorInfo {
         final int index;
         final Query.Type type;
-        final Distribution<Long> cmsParamDistr;
+        final Distribution<Long> valueParamDistr;
 
         OperatorInfo(Toml conf) {
             index = conf.getLong("index").intValue();
             type = Query.Type.valueOf(conf.getString("type").toUpperCase());
-            if (type == Query.Type.CMS) {
+            if (type == Query.Type.BF || type == Query.Type.CMS) {
                 Toml cmsParamSpec = conf.getTable("param");
                 assert cmsParamSpec != null;
-                cmsParamDistr = Configuration.parseDistribution(cmsParamSpec);
+                valueParamDistr = Configuration.parseDistribution(cmsParamSpec);
             } else {
-                cmsParamDistr = null;
+                valueParamDistr = null;
             }
         }
 
         Query getQuery(long l, long r, Random rand) {
-            Object[] params = (type == Query.Type.CMS)
-                    ? new Object[]{cmsParamDistr.next(rand)}
+            Object[] params = (type == Query.Type.BF || type == Query.Type.CMS)
+                    ? new Object[]{valueParamDistr.next(rand)}
                     : null;
             return new Query(type, l, r, index, params);
         }

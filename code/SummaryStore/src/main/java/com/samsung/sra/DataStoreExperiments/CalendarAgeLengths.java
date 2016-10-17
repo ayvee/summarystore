@@ -28,10 +28,22 @@ public class CalendarAgeLengths {
         return getClasses(maxAgeInSeconds, null);
     }
 
+    /** e.g. getBinByName("years") */
+    public static Bin getBinByName(String name) {
+        return bins.stream()
+                .filter(b -> b.name.equals(name))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("invalid bin name " + name));
+    }
+
+    /** e.g. getClassByName("seconds", "hours") */
+    public static AgeLengthClass getClassByName(String ageName, String lengthName, long maxAgeInSeconds) {
+        return new AgeLengthClass(getBinByName(ageName), getBinByName(lengthName), maxAgeInSeconds);
+    }
+
     /**
      * @param maxAgeInSeconds    Time range = [0s, maxAgeInSeconds]
      * @param smallestBin        One of "subsecond", "seconds", "minutes", ...
-     * @return
      */
     public static List<AgeLengthClass> getClasses(long maxAgeInSeconds, String smallestBin) {
         List<Bin> legalBins;

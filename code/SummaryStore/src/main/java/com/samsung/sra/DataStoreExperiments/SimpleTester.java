@@ -44,7 +44,7 @@ public class SimpleTester {
             store.registerStream(streamID, new CountBasedWBMH(windowing),
                     new SimpleCountOperator()
                     // new SimpleCountOperator(SimpleCountOperator.Estimator.PROPORTIONAL),
-                    ,new BloomFilterOperator()
+                    ,new BloomFilterOperator(7, 128)
                     );
             stores.put("expstore", store);
         } catch (Exception e) {
@@ -81,13 +81,16 @@ public class SimpleTester {
         Object o[] = {new Long(50), new Long(0)};
         ResultError<Boolean,Double> re2 =
                 (ResultError<Boolean,Double>) store.query(streamID, 0, T-1, 1, o[0]);
-        logger.debug("Bloom.ispresent(" + o[0] + "): " + re2.result);
+        logger.debug("Bloom.ispresent(" + o[0] + "): " + re2.result + " with error prob " + re2.error);
 
 
         Object o2[] = {new Long(82)};
         re2 = (ResultError<Boolean,Double>) store.query(streamID, 0, T-1, 1, o2[0]);
-        logger.debug("Bloom.ispresent(" + o2[0] + "): " + re2.result);
+        logger.debug("Bloom.ispresent(" + o2[0] + "): " + re2.result + " with error prob " + re2.error);
 
+        Object o3[] = {new Long(10)};
+        re2 = (ResultError<Boolean,Double>) store.query(streamID, 0, T-1, 1, o3[0]);
+        logger.debug("Bloom.ispresent(" + o3[0] + "): " + re2.result + " with error prob " + re2.error);
 
         /*
         ResultError<Double,Pair<Double, Double>> re =

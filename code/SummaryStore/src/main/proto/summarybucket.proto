@@ -7,20 +7,6 @@ option java_package = "com.samsung.sra.protocol";
 //         either reuse an existing entry in ProtoOperator for it, or add a new
 //         entry.
 
-// by itself just a bitset; used by BloomFilters for now, but potentially others
-message ProtoBitset {
-    // TODO: is repeated redundant here? bytes is already an arbit length bytestring
-    repeated bytes bitsetbytes = 1;
-}
-
-// TODO: filtersize and numhashes are fixed for a stream. Don't need here, can
-//       store once per stream in the Operator object
-message ProtoSimpleBloomFilter {
-    required int32 filtersize = 1;
-    required int32 numhashes = 2;
-    required ProtoBitset bitset = 3;
-}
-
 message ProtoCMS {
     required int64 size = 1;
     repeated int64 hashA = 2;  // long[depth]
@@ -34,7 +20,7 @@ message ProtoCMS {
 message ProtoOperator {
     oneof operator {
         int64 long = 1; // e.g. sum, count
-        ProtoSimpleBloomFilter bloom_filter = 2;
+        bytes bytearray = 2;
         ProtoCMS cms = 3;
     }
 }

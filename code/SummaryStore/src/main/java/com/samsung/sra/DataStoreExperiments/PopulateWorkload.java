@@ -98,6 +98,11 @@ public class PopulateWorkload {
                 case SUM:
                     q.trueAnswer.addAndGet((long) v[0]);
                     break;
+                case BF:
+                    if (v[0].equals(q.params[0])) {
+                        q.trueAnswer.set(1);
+                    }
+                    break;
                 case CMS:
                     if (v[0].equals(q.params[0])) {
                         if (v.length > 1) {

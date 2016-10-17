@@ -17,7 +17,9 @@ public class Workload extends LinkedHashMap<String, List<Workload.Query>> {
         public enum Type {
             COUNT,
             SUM,
-            CMS
+            BF,
+            CMS,
+            QDIGEST
         }
         Type queryType;
         long l, r;

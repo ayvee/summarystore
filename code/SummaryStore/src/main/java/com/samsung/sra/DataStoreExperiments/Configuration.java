@@ -2,6 +2,7 @@ package com.samsung.sra.DataStoreExperiments;
 
 import com.moandjiezana.toml.Toml;
 import com.samsung.sra.DataStore.*;
+import com.samsung.sra.DataStore.Aggregates.BloomFilterOperator;
 import com.samsung.sra.DataStore.Aggregates.CMSOperator;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
@@ -163,8 +164,13 @@ public class Configuration {
                 String[] params = opname.substring("CMSOperator".length()).split(",");
                 int depth = Integer.parseInt(params[0]);
                 int width = Integer.parseInt(params[1]);
-                int seed = Integer.parseInt(params[2]);
+                int seed = 0;
                 operators[i] = new CMSOperator(depth, width, seed);
+            } else if (opname.startsWith("BloomFilterOperator")) {
+                String[] params = opname.substring("BloomFilterOperator".length()).split(",");
+                int numHashes = Integer.parseInt(params[0]);
+                int filterSize = Integer.parseInt(params[1]);
+                operators[i] = new BloomFilterOperator(numHashes, filterSize);
             } else {
                 try {
                     operators[i] = (WindowOperator) Class.forName("com.samsung.sra.DataStore.Aggregates." + opname).newInstance();

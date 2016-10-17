@@ -93,7 +93,6 @@ class RunComparison {
                     QueryStatistics stats = storeStats.queryStats.get(queryClass);
                     workload.get(queryClass).parallelStream().forEach(q -> {
                         try {
-                            long trueAnswer = q.trueAnswer.get();
                             Object[] params = q.params;
                             if (confidenceLevel != null) {
                                 if (params == null || params.length == 0) {
@@ -110,7 +109,15 @@ class RunComparison {
                             long te = System.currentTimeMillis();
                             logger.trace("Running query [{}, {}] {}, true answer = {}, estimate = {}",
                                     q.l, q.r, q.queryType, q.trueAnswer, re);
-                            stats.addResult(trueAnswer, re, te - ts);
+                            if (q.queryType != Workload.Query.Type.BF) {
+                                long trueAnswer = q.trueAnswer.get();
+                                stats.addNumericResult(trueAnswer, re, te - ts);
+                            } else {
+                                long longAns = q.trueAnswer.get();
+                                assert longAns == 0 || longAns == 1;
+                                boolean trueAnswer = (longAns == 1);
+                                stats.addBooleanResult(trueAnswer, re, te - ts);
+                            }
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }

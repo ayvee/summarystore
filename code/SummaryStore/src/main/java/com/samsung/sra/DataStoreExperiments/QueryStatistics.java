@@ -33,7 +33,7 @@ public class QueryStatistics implements Serializable {
         ciWidthStats = new Statistics(requireCDF, nCDFBins);
     }
 
-    public synchronized void addResult(long trueAnswer, ResultError re, double latencyMS) {
+    public synchronized void addNumericResult(long trueAnswer, ResultError re, double latencyMS) {
         double estimate = ((Number) re.result).doubleValue();
         double error = Math.abs(estimate - trueAnswer) / (1d + trueAnswer);
         errorStats.addObservation(error);
@@ -45,8 +45,21 @@ public class QueryStatistics implements Serializable {
             if (estimate < ci.getFirst() || estimate > ci.getSecond()) {
                 ++NciMisses;
             }
-            ciWidthStats.addObservation((ci.getSecond() - ci.getFirst()) / estimate);
+            {
+                double ciWidth = ci.getSecond() - ci.getFirst();
+                double ciBase = (ci.getSecond() + ci.getFirst()) / 2d;
+                if (ciBase > 1e-6) { // basically epsilon, to avoid getting NaN
+                    ciWidthStats.addObservation(ciWidth / ciBase);
+                }
+            }
         }
+    }
+
+    public synchronized void addBooleanResult(boolean trueAnswer, ResultError re, double latencyMS) {
+        boolean estimate = (boolean) re.result;
+        errorStats.addObservation(estimate ==  trueAnswer ? 0 : 1);
+        latencyStats.addObservation(latencyMS / 1000);
+        ciWidthStats.addObservation((double) re.error);
     }
 
     public synchronized Statistics getErrorStats() {

@@ -20,22 +20,17 @@ import java.util.stream.Stream;
  *
  * Bloom Filter:
  * https://github.com/addthis/stream-lib/tree/master/src/main/java/com/clearspring/analytics/stream/membership
+ *
+ * Returns <base answer, probability base answer may be wrong>
  */
 
 //AVRE: Bloomfilter, Long, Boolean, Double
-public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean, Double>{
-
-
-    private int filterSize = 128; //2^15;
-    private int nrHashes = 7;
+public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean, Double> {
+    private int filterSize; // = 128
+    private int nrHashes; // = 7
     private static Logger logger = LoggerFactory.getLogger(BloomFilterOperator.class);
 
-    public BloomFilterOperator() {
-       //use default values; currently not used
-    }
-
-
-    public BloomFilterOperator(int filterSize, int nrHashes) {
+    public BloomFilterOperator(int nrHashes, int filterSize) {
         this.filterSize = filterSize;
         this.nrHashes = nrHashes;
     }
@@ -64,7 +59,6 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
      */
     @Override
     public BloomFilter merge(Stream<BloomFilter> aggrs) {
-
         BloomFilter newBloomFilter = createEmpty();
         //logger.debug(newBloomFilter.toString());
 
@@ -110,16 +104,25 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
     @Override
     public ResultError<Boolean, Double> query(StreamStatistics streamStatistics, long T0, long T1,
          Stream<Bucket> buckets, Function<Bucket, BloomFilter> bloomRetriever, long t0, long t1, Object... params) {
-
-        BloomFilter newBloom = createEmpty();
+        byte[] value = new byte[Long.SIZE];
+        Utilities.longToByteArray((long) params[0],value,0);
+        boolean answer = buckets.map(bloomRetriever).map(bf -> bf.isPresent(value)).anyMatch(e -> e);
+        if (!answer) { // true negative
+            return new ResultError<>(false, 0d);
+        } else {
+            // FIXME!! Assuming BF is configured with FP rate 0.01
+            double pTruePositive = 0.99 * (t1 - t0 + 1d) / (T1 - T0 + 1d);
+            return new ResultError<>(true, 1 - pTruePositive);
+        }
+        /*BloomFilter newBloom = createEmpty();
         for(Bucket bucketItem : (Iterable<Bucket>) buckets::iterator) {
             newBloom = BloomFilter.unionOf(newBloom, bloomRetriever.apply(bucketItem));
         }
 
-        byte[] bytes = new byte[Long.SIZE];
-        Utilities.longToByteArray((long) params[0],bytes,0);
         logger.debug("Bloom Query for value: " + params[0]);
-        return new ResultError<>(newBloom.isPresent(bytes), null);
+        byte[] value = new byte[Long.SIZE];
+        Utilities.longToByteArray((long) params[0],value,0);
+        return new ResultError<>(newBloom.isPresent(value), null);*/
     }
 
 
@@ -128,46 +131,23 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
      */
     @Override
     public ResultError<Boolean, Double> getEmptyQueryResult() {
-        return new ResultError<>(false, 0.0);
+        return new ResultError<>(false, 0d);
     }
 
 
     @Override
     public ProtoOperator.Builder protofy(BloomFilter aggr) {
-
-        // First construct builder for BitSet
-        Summarybucket.ProtoBitset.Builder pbBuilder = Summarybucket.ProtoBitset.
-                newBuilder().
-                addBitsetbytes(ByteString.copyFrom(aggr.filter().toByteArray()));
-
-        // Base Bloom filter builder
-        Summarybucket.ProtoSimpleBloomFilter.Builder bfBuilder = Summarybucket
-                .ProtoSimpleBloomFilter
-                .newBuilder()
-                .setBitset(pbBuilder)
-                .setFiltersize(aggr.getFilterSize())
-                .setNumhashes(aggr.getHashCount());
-
-        // Wrap inside operator
         return Summarybucket
                 .ProtoOperator
                 .newBuilder()
-                .setBloomFilter(bfBuilder);
+                .setBytearray(ByteString.copyFrom(aggr.filter().toByteArray()));
     }
 
     @Override
     public BloomFilter deprotofy(ProtoOperator protoOperator) {
-        Summarybucket.ProtoSimpleBloomFilter protoFilter = protoOperator.getBloomFilter();
         return new BloomFilter(
-                protoFilter.getNumhashes(),
-                // TODO: should technically be something like getBitset().getBitsetBytes().asByteBuffer()
-                BitSet.valueOf(protoFilter.getBitset().toByteArray()),
-                protoFilter.getFiltersize());
-        /*// BitSet is a nested proto message
-        BloomFilter bf = new BloomFilter (
-                ((Summarybucket.ProtoSimpleBloomFilter.Builder) builder).getNumhashes(),
-                BitSet.valueOf(((Summarybucket.ProtoSimpleBloomFilter.Builder) builder).getBitset().toByteArray()),
-                ((Summarybucket.ProtoSimpleBloomFilter.Builder) builder).getFiltersize());
-        return bf;*/
+                nrHashes,
+                BitSet.valueOf(protoOperator.getBytearray().toByteArray()),
+                filterSize);
     }
 }
