@@ -12,9 +12,9 @@ import java.util.List;
 public class MLabWorkloadGenerator implements WorkloadGenerator {
     private static final Logger logger = LoggerFactory.getLogger(MLabWorkloadGenerator.class);
 
-    private static final long[] IPs = {
-            400851043L,  // 10M occurences in entire stream
-            3482766751L, // 1M occurences
+    private static final long[] clientIPs = {
+            400851043L,  // 10M occurrences in entire stream
+            3482766751L, // 1M occurrences
             1249724727L, // 100K
             1286406217L, // 10K
             1194699896L, // 1K
@@ -22,6 +22,19 @@ public class MLabWorkloadGenerator implements WorkloadGenerator {
             1566985853L, // 10
             1976935968L // 1
     };
+
+    private static final long[] serverIPs = {
+            643468428L,  // 2M occurrences in entire stream
+            644499116L,  // 1M occurrences
+            69351948L,   // 100K
+            1131075532L, // 10K
+            1093545638L, // 1K
+            3162013449L, // 100
+            1023933462L, // 10
+            69463753L    // 1
+    };
+
+    private final long[] IPs;
 
     private final int cmsOpIndex;
 
@@ -33,6 +46,16 @@ public class MLabWorkloadGenerator implements WorkloadGenerator {
      */
     public MLabWorkloadGenerator(Toml conf) {
         this.cmsOpIndex = conf.getLong("cms-operator-index").intValue();
+        switch (conf.getString("mode").toLowerCase()) {
+            case "server":
+                IPs = serverIPs;
+                break;
+            case "client":
+                IPs = clientIPs;
+                break;
+            default:
+                throw new IllegalArgumentException("unknown mode");
+        }
     }
 
     @Override
