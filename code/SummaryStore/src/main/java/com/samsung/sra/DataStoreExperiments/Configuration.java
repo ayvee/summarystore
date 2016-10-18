@@ -50,7 +50,9 @@ public class Configuration {
 
     /** Get prefix of all SummaryStore output files. {@link #getHash} explains why we use a hash here */
     public String getStorePrefix(String decayName) {
-        return String.format("%s/%sS%s.D%s", getDataDirectory(), getPrefix(), getHash(toml.getTable("data")), decayName);
+        return String.format("%s/%sS%s.O%s.D%s",
+                getDataDirectory(), getPrefix(),
+                getHash(toml.getTable("data")), getHash(toml.getList("operators")), decayName);
     }
 
     public String getWorkloadFile() {
