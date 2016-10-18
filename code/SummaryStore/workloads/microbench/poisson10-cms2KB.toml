@@ -26,7 +26,7 @@ decay-functions = [
 "rationalPower1,4,16,1",
 "rationalPower1,4,32,1",
 ]
-operators = ["BloomFilterOperator5,1000"]
+operators = ["CMSOperator5,94"]
 
 [data]
 tstart = 0 # ms
@@ -38,7 +38,7 @@ values = {distribution = "UniformDistribution", min = 1, max = 100}
 [workload]
 workload-generator = "CalendarWorkloadGenerator"
 ticks-per-second = 1000 # timestamps are in ms
-operators = [{index = 0, type = "bf", param = {distribution = "UniformDistribution", min = 1, max = 100}}]
+operators = [{index = 0, type = "cms", param = {distribution = "UniformDistribution", min = 1, max = 100}}]
 
 [performance]
 drop-caches = true

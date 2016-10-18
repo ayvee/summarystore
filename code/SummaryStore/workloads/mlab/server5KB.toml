@@ -26,20 +26,22 @@ decay-functions = [
 "rationalPower1,4,16,1",
 "rationalPower1,4,32,1",
 ]
-operators = ["BloomFilterOperator5,1000"]
+operators = ["CMSOperator5,248"]
+
 
 [data]
-tstart = 0 # ms
-tend = 31_536_000_000 # ms (1 year)
-stream-generator = "RandomStreamGenerator"
-interarrivals = {distribution = "ExponentialDistribution", lambda = 0.01} # 0.01/ms or 10/s
-values = {distribution = "UniformDistribution", min = 1, max = 100}
+tstart = 1420070400000000000
+tend = 1451606399000000004
+stream-generator = "ReplayStreamGenerator"
+file = "/home/sstore/summarystore/code/SummaryStore/workloads/mlab/paris-serverIPs.sstore"
+
 
 [workload]
-workload-generator = "CalendarWorkloadGenerator"
-ticks-per-second = 1000 # timestamps are in ms
-operators = [{index = 0, type = "bf", param = {distribution = "UniformDistribution", min = 1, max = 100}}]
+workload-generator = "MLabWorkloadGenerator"
+cms-operator-index = 0
+mode = "server"
+
 
 [performance]
-drop-caches = true
 parallel-workload-gen = true
+drop-caches = true
