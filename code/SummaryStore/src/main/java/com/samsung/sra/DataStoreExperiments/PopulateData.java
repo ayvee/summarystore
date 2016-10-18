@@ -33,14 +33,19 @@ public class PopulateData {
                         new CountBasedWBMH(config.parseDecayFunction(decay), config.getIngestBufferSize()),
                         config.getOperators());
                 streamgen.reset();
+                long[] N = {0};
                 streamgen.generate(config.getTstart(), config.getTend(), (t, v) -> {
                     try {
+                        if (++N[0] % 10_000_000 == 0) {
+                            logger.info("Inserted {} elements", N[0]);
+                        }
                         store.append(streamID, t, v);
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
                 });
                 store.flush(streamID);
+                logger.info("Inserted {} elements", N[0]);
                 logger.info("{} = {} windows", outprefix, store.getNumWindows(streamID));
             } catch (Exception e) {
                 throw new RuntimeException(e);
