@@ -61,8 +61,9 @@ public class Configuration {
     }
 
     public String getProfileFile(String confidenceLevel) {
-        String prefix =  String.format("%s/%sS%s.W%s.D%s", getResultsDirectory(), getPrefix(),
-                getHash(toml.getTable("data")), getHash(toml.getTable("workload")), getHash(toml.getList("decay-functions")));
+        String prefix =  String.format("%s/%sS%s.W%s.O%s.D%s", getResultsDirectory(), getPrefix(),
+                getHash(toml.getTable("data")), getHash(toml.getTable("workload")),
+                getHash(toml.getList("operators")), getHash(toml.getList("decay-functions")));
         return prefix
                 + (confidenceLevel != null ? ".C" + confidenceLevel : "")
                 + ".profile";
