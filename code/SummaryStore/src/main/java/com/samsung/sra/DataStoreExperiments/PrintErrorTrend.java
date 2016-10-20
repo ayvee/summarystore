@@ -31,9 +31,10 @@ public class PrintErrorTrend {
             return;
         }
         long T0 = Long.parseLong(args[3]), T1 = Long.parseLong(args[4]);
+        long numQueries = 1000L;
 
         List<Query> queries = new ArrayList<>();
-        for (long T = T0; T <= T1; ++T) {
+        for (long T = T0; T <= T1; T += (T1 - T0) / numQueries) {
             Object[] params;
             switch (queryType) {
                 case COUNT:
