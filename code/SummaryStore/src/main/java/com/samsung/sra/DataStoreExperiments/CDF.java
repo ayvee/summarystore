@@ -70,6 +70,7 @@ public class CDF implements Serializable {
 
     /** P(X <= x) */
     public synchronized double getCumulativeDensity(double x) {
+        if (values.isEmpty()) return 0;
         if (x < min) return 0;
         if (x >= max) return 1;
         buildCDF();
@@ -77,6 +78,7 @@ public class CDF implements Serializable {
     }
 
     public synchronized double getQuantile(double Q) {
+        if (values.isEmpty()) return 0;
         if (Q < 0) return min;
         if (Q >= 1) return max;
         buildCDF();
