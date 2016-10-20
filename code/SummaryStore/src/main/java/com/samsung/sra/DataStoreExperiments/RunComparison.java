@@ -257,18 +257,44 @@ class RunComparison {
             }
         }
 
-        /*if (metric != null) {
-            System.out.println("#decay\tstore size (# windows)\tcost");
-            results.forEach((decayFunction, stats) -> {
-                Collection<Statistics> eachClassStatistics = stats.queryStats.values();
-                Collection<Double> eachClassWeight = stats.queryStats.keySet().stream().
-                        mapToDouble(weightFunction).
-                        boxed().collect(Collectors.toList());
-                // construct the aggregate weighted mixture distribution over all the classes
-                Statistics mixtureStats = new Statistics(eachClassStatistics, eachClassWeight);
-                double cost = metric.applyAsDouble(mixtureStats);
-                System.out.println(decayFunction + "\t" + stats.numWindows + "\t" + cost);
-            });
+        /*{
+            System.out.println("#decay\tstore size (#windows)\tquery\tage class\tlength class\terror:p95\tlatency:p95\tci-width:p95");
+            List<Function<QueryStatistics, Statistics>> statsGetters = Arrays.asList(
+                    QueryStatistics::getErrorStats,
+                    QueryStatistics::getLatencyStats,
+                    QueryStatistics::getCIWidthStats
+            );
+            List<Double> cdfWeights = Arrays.asList(1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d); // 8 for Q0-Q7
+            for (Map.Entry<String, StoreStats> statsEntry: results.entrySet()) { // iterate over decay functions
+                String decay = statsEntry.getKey();
+                StoreStats storeStats = statsEntry.getValue();
+                Map<String, List<QueryStatistics>> allForALClass = new LinkedHashMap<>(); // group by AL Class
+                for (Map.Entry<String, QueryStatistics> groupEntry: storeStats.queryStats.entrySet()) {
+                    String group = groupEntry.getKey();
+                    QueryStatistics stats = groupEntry.getValue();
+                    String alClass = group.split("\t", 1)[1];
+                    if (!allForALClass.containsKey(alClass)) {
+                        allForALClass.put(alClass, new ArrayList<>());
+                    }
+                    allForALClass.get(alClass).add(stats);
+                }
+                for (Map.Entry<String, List<QueryStatistics>> alEntry: allForALClass.entrySet()) {
+                    String alClass = alEntry.getKey();
+                    assert alEntry.getValue().size() == cdfWeights.size();
+                    List<Statistics> errorCDFs = new ArrayList<>(), latencyCDFs = new ArrayList<>(), ciWidthCDFs = new ArrayList<>();
+                    for (QueryStatistics qs: alEntry.getValue()) {
+                        errorCDFs.add(qs.getErrorStats());
+                        latencyCDFs.add(qs.getLatencyStats());
+                        ciWidthCDFs.add(qs.getCIWidthStats());
+                    }
+                    Statistics
+                            errorCDF = new Statistics(errorCDFs, cdfWeights),
+                            latencyCDF = new Statistics(latencyCDFs, cdfWeights),
+                            ciWidthCDF = new Statistics(ciWidthCDFs, cdfWeights);
+                    System.out.printf("%s\t%d\t%d\tCMS\t%s\t%f\t%f\t%f", decay, storeStats.numWindows, storeStats.numValues, alClass,
+                            errorCDF.getQuantile(0.95), latencyCDF.getQuantile(0.95), ciWidthCDF.getQuantile(0.95));
+                }
+            }
         }*/
     }
 }
