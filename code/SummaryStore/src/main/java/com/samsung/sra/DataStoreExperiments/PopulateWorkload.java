@@ -23,7 +23,7 @@ import java.util.stream.IntStream;
 public class PopulateWorkload {
     private static Logger logger = LoggerFactory.getLogger(PopulateWorkload.class);
 
-    private static void computeTrueAnswers(Configuration conf, Workload workload) throws Exception {
+    static void computeTrueAnswers(Configuration conf, Workload workload) throws Exception {
         long T0 = conf.getTstart(), T1 = conf.getTend();
         ArrayList<LongRange> intervals = new ArrayList<>();
         ArrayList<Query> queries = new ArrayList<>();
