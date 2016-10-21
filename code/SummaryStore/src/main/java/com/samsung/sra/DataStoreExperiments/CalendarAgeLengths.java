@@ -4,6 +4,7 @@ import com.samsung.sra.DataStoreExperiments.AgeLengthClass.Bin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 public class CalendarAgeLengths {
@@ -28,17 +29,8 @@ public class CalendarAgeLengths {
         return getClasses(maxAgeInSeconds, null);
     }
 
-    /** e.g. getBinByName("years") */
-    public static Bin getBinByName(String name) {
-        return bins.stream()
-                .filter(b -> b.name.equals(name))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("invalid bin name " + name));
-    }
-
-    /** e.g. getClassByName("seconds", "hours") */
-    public static AgeLengthClass getClassByName(String ageName, String lengthName, long maxAgeInSeconds) {
-        return new AgeLengthClass(getBinByName(ageName), getBinByName(lengthName), maxAgeInSeconds);
+    public static Collection<Bin> getAllBins() {
+        return bins; // TODO: copy
     }
 
     /**
