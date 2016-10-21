@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.List;
+import java.util.Map;
 
 public class MeasureLatency {
     private static final long streamID = 0;
@@ -25,8 +26,10 @@ public class MeasureLatency {
         Statistics stats = new Statistics();
         try (SummaryStore store = new SummaryStore(conf.getStorePrefix(decay), conf.getBucketCacheSize())) {
             store.warmupCache();
-            for (List<Workload.Query> queries: wl.values()) {
-                queries.forEach(q -> {
+            for (Map.Entry<String, List<Workload.Query>> entry: wl.entrySet()) {
+                System.out.println("Group " + entry.getKey());
+                List<Workload.Query> queries = entry.getValue();
+                queries.parallelStream().forEach(q -> {
                     try {
                         long ts = System.currentTimeMillis();
                         store.query(streamID, q.l, q.r, q.operatorNum, q.params);
