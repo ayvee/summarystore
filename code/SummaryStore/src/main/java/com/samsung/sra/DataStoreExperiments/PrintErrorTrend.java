@@ -31,10 +31,11 @@ public class PrintErrorTrend {
             return;
         }
         long T0 = Long.parseLong(args[3]), T1 = Long.parseLong(args[4]);
-        long numQueries = 1000L;
+        long numQueries = 100L;
 
         List<Query> queries = new ArrayList<>();
-        for (long T = T0; T <= T1; T += (T1 - T0) / numQueries) {
+        long incr = (T1 - T0) / numQueries;
+        for (long T = T0; T < T1 + incr; T += incr) {
             Object[] params;
             switch (queryType) {
                 case COUNT:
@@ -46,24 +47,27 @@ public class PrintErrorTrend {
                 default:
                     throw new IllegalArgumentException("only support COUNT and BF");
             }
-            queries.add(new Query(queryType, T0, T, operatorIndex, params));
+            queries.add(new Query(queryType, T0, T <= T1 ? T : T1, operatorIndex, params));
         }
         Workload workload = new Workload();
         workload.put("all", queries);
         PopulateWorkload.computeTrueAnswers(conf, workload);
         try (SummaryStore store = new SummaryStore(conf.getStorePrefix(decay), conf.getBucketCacheSize())) {
-            System.out.println("#length\ttrue answer\testimate\tCI width");
+            if (queryType == Query.Type.COUNT) {
+                System.out.println("#length\ttrue answer\testimate\tCI left\tCI right");
+            } else if (queryType == Query.Type.BF) {
+                System.out.println("#length\ttrue answer\testimate\tFP");
+            }
             for (Query q: queries) {
                 ResultError re = (ResultError) store.query(streamID, q.l, q.r, q.operatorNum, q.params);
                 if (q.queryType == Query.Type.COUNT) {
-                    double estimate = (double) re.error;
+                    double estimate = (double) re.result;
                     Pair<Double, Double> ci = (Pair) re.error;
-                    double ciWidth = ci.getSecond() - ci.getFirst();
-                    System.out.printf("%d\t%d\t%f\t%f\n", q.r - q.l + 1, q.trueAnswer.get(), estimate, ciWidth);
+                    System.out.printf("%d\t%d\t%f\t%f\t%f\n", q.r - q.l + 1, q.trueAnswer.get(), estimate, ci.getFirst(), ci.getSecond());
                 } else if (q.queryType == Query.Type.BF) {
                     long estimate = ((boolean) re.result) ? 1 : 0;
-                    double ciWidth = (double) re.error;
-                    System.out.printf("%d\t%d\t%d\t%f\n", q.r - q.l + 1, q.trueAnswer.get(), estimate, ciWidth);
+                    double fp = (double) re.error;
+                    System.out.printf("%d\t%d\t%d\t%f\n", q.r - q.l + 1, q.trueAnswer.get(), estimate, fp);
                 }
             }
         }
