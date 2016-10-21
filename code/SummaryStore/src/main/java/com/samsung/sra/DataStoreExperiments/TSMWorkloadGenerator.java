@@ -32,7 +32,7 @@ public class TSMWorkloadGenerator implements WorkloadGenerator {
         workload.put("Q6\tsubsecond\tdays", Collections.singletonList(
                 new Query(Query.Type.SUM, dayStart(T0, 364), T1, sumOp, null)));*/
         {
-            AgeLengthClass.Bin lengthBin = new AgeLengthClass.Bin("day", 86400, 86400, 1); // length is exactly one day
+            AgeLengthClass.Bin lengthBin = new AgeLengthClass.Bin("days", 86400, 86400, 1); // length is exactly one day
             for (AgeLengthClass.Bin ageBin: CalendarAgeLengths.getAllBins()) {
                 if (ageBin.getStart() + lengthBin.getStart() - 1 <= maxAgeInSeconds) {
                     AgeLengthClass alClass = new AgeLengthClass(ageBin, lengthBin, maxAgeInSeconds);
