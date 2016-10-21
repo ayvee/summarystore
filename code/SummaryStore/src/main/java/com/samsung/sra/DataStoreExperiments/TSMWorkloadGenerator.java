@@ -1,5 +1,6 @@
 package com.samsung.sra.DataStoreExperiments;
 
+import com.moandjiezana.toml.Toml;
 import com.samsung.sra.DataStoreExperiments.Workload.Query;
 import org.apache.commons.math3.util.Pair;
 
@@ -18,6 +19,8 @@ public class TSMWorkloadGenerator implements WorkloadGenerator {
         assert 0 <= day && day < 365;
         return T0 + day * oneday;
     }
+
+    public TSMWorkloadGenerator(Toml params) {}
 
     @Override
     public Workload generate(long T0, long T1) {
