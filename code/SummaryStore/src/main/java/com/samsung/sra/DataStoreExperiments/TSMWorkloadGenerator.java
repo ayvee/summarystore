@@ -24,7 +24,7 @@ public class TSMWorkloadGenerator implements WorkloadGenerator {
 
     @Override
     public Workload generate(long T0, long T1) {
-        assert dayStart(T0, 364) < T1 && T1 < dayStart(T0, 365);
+        //assert dayStart(T0, 364) < T1 && T1 < dayStart(T0, 365);
         long maxAgeInSeconds = (T1 - T0) / ticksPerS;
         Workload workload = new Workload();
         /*workload.put("Q1\tsubsecond\tweeks", Collections.singletonList(
