@@ -14,7 +14,7 @@ public class MeasureLatency {
 
     public static void main(String[] args) throws Exception {
         File configFile;
-        if (args.length != 1 || !(configFile = new File(args[0])).isFile()) {
+        if (args.length != 2 || !(configFile = new File(args[0])).isFile()) {
             System.err.println("SYNTAX: MeasureLatency config.toml decay");
             System.exit(2);
             return;
@@ -23,16 +23,25 @@ public class MeasureLatency {
         String decay = args[1];
 
         Workload wl = conf.getWorkloadGenerator().generate(conf.getTstart(), conf.getTend());
-        Statistics stats = new Statistics();
+        Statistics stats = new Statistics(true);
         try (SummaryStore store = new SummaryStore(conf.getStorePrefix(decay), conf.getBucketCacheSize())) {
-            store.warmupCache();
+            //store.warmupCache();
             for (Map.Entry<String, List<Workload.Query>> entry: wl.entrySet()) {
                 System.out.println("Group " + entry.getKey());
                 List<Workload.Query> queries = entry.getValue();
                 queries.parallelStream().forEach(q -> {
                     try {
+                        Object[] params = q.params;
+                        if (params == null || params.length == 0) {
+                            params = new Object[]{0.95d};
+                        } else {
+                            Object[] newParams = new Object[params.length + 1];
+                            System.arraycopy(params, 0, newParams, 0, params.length);
+                            newParams[params.length] = 0.95d;
+                            params = newParams;
+                        }
                         long ts = System.currentTimeMillis();
-                        store.query(streamID, q.l, q.r, q.operatorNum, q.params);
+                        store.query(streamID, q.l, q.r, q.operatorNum, params);
                         long te = System.currentTimeMillis();
                         stats.addObservation((te - ts) / 1000d);
                     } catch (Exception e) {

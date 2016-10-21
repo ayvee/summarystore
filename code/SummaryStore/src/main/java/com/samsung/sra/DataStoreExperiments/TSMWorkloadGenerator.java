@@ -24,7 +24,7 @@ public class TSMWorkloadGenerator implements WorkloadGenerator {
 
     @Override
     public Workload generate(long T0, long T1) {
-        assert dayStart(T0, 364) < T1 && T1 < dayStart(T0, 365);
+        //assert dayStart(T0, 364) < T1 && T1 < dayStart(T0, 365);
         long maxAgeInSeconds = (T1 - T0) / ticksPerS;
         Workload workload = new Workload();
         /*workload.put("Q1\tsubsecond\tweeks", Collections.singletonList(
@@ -32,7 +32,7 @@ public class TSMWorkloadGenerator implements WorkloadGenerator {
         workload.put("Q6\tsubsecond\tdays", Collections.singletonList(
                 new Query(Query.Type.SUM, dayStart(T0, 364), T1, sumOp, null)));*/
         {
-            AgeLengthClass.Bin lengthBin = new AgeLengthClass.Bin("day", 86400, 86400, 1); // length is exactly one day
+            AgeLengthClass.Bin lengthBin = new AgeLengthClass.Bin("days", 86400, 86400, 1); // length is exactly one day
             for (AgeLengthClass.Bin ageBin: CalendarAgeLengths.getAllBins()) {
                 if (ageBin.getStart() + lengthBin.getStart() - 1 <= maxAgeInSeconds) {
                     AgeLengthClass alClass = new AgeLengthClass(ageBin, lengthBin, maxAgeInSeconds);
