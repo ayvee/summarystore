@@ -272,7 +272,7 @@ class RunComparison {
                 for (Map.Entry<String, QueryStatistics> groupEntry: storeStats.queryStats.entrySet()) {
                     String group = groupEntry.getKey();
                     QueryStatistics stats = groupEntry.getValue();
-                    String alClass = group.split("\t", 1)[1];
+                    String alClass = group.split("\t", 2)[1];
                     if (!allForALClass.containsKey(alClass)) {
                         allForALClass.put(alClass, new ArrayList<>());
                     }
@@ -291,7 +291,7 @@ class RunComparison {
                             errorCDF = new Statistics(errorCDFs, cdfWeights),
                             latencyCDF = new Statistics(latencyCDFs, cdfWeights),
                             ciWidthCDF = new Statistics(ciWidthCDFs, cdfWeights);
-                    System.out.printf("%s\t%d\t%d\tCMS\t%s\t%f\t%f\t%f", decay, storeStats.numWindows, storeStats.numValues, alClass,
+                    System.out.printf("%s\t%d\t%d\tCMS\t%s\t%f\t%f\t%f\n", decay, storeStats.numWindows, storeStats.numValues, alClass,
                             errorCDF.getQuantile(0.95), latencyCDF.getQuantile(0.95), ciWidthCDF.getQuantile(0.95));
                 }
             }
