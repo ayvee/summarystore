@@ -1,4 +1,4 @@
-data-dir = "/mnt/sdb/summarystore"
+data-dir = "/mnt/sdc/summarystore"
 results-dir = "/home/sstore/summarystore/code/SummaryStore/output"
 bucket-cache-size = 1_000_000
 ingest-buffer-size = 2_000_000
@@ -12,7 +12,7 @@ decay-functions = [
 "rationalPower1,1,16,1",
 "rationalPower1,1,32,1",
 "rationalPower1,1,64,1",
-"rationalPower1,1,128,1",
+#"rationalPower1,1,128,1",
 "rationalPower1,2,1,1",
 "rationalPower1,2,2,1",
 "rationalPower1,2,4,1",
@@ -26,7 +26,7 @@ decay-functions = [
 "rationalPower1,4,16,1",
 "rationalPower1,4,32,1",
 ]
-operators = ["CMSOperator5,1016"]
+operators = ["CMSOperator5,5000"]
 
 
 [data]
