@@ -1,0 +1,45 @@
+data-dir = "/mnt/sdb/summarystore"
+results-dir = "/home/sstore/summarystore/code/SummaryStore/output"
+bucket-cache-size = 1_000_000
+ingest-buffer-size = 2_000_000
+
+decay-functions = [
+"exponential2",
+"rationalPower1,1,1,1",
+"rationalPower1,1,2,1",
+"rationalPower1,1,4,1",
+"rationalPower1,1,8,1",
+"rationalPower1,1,16,1",
+"rationalPower1,1,32,1",
+"rationalPower1,1,64,1",
+"rationalPower1,1,128,1",
+"rationalPower1,2,1,1",
+"rationalPower1,2,2,1",
+"rationalPower1,2,4,1",
+"rationalPower1,2,8,1",
+"rationalPower1,2,16,1",
+"rationalPower1,2,32,1",
+"rationalPower1,4,1,1",
+"rationalPower1,4,2,1",
+"rationalPower1,4,4,1",
+"rationalPower1,4,8,1",
+"rationalPower1,4,16,1",
+"rationalPower1,4,32,1",
+]
+operators = ["BloomFilterOperator5,1000"]
+
+[data]
+tstart = 0 # ms
+tend = 31_536_000_000 # ms (1 year)
+stream-generator = "RandomStreamGenerator"
+interarrivals = {distribution = "ParetoDistribution", xm = 54.5454545454, alpha = 2.2} # mean = a xm / (a-1) = 100 ms. So rate = 10/s
+values = {distribution = "UniformDistribution", min = 1, max = 100}
+
+[workload]
+workload-generator = "CalendarWorkloadGenerator"
+ticks-per-second = 1000 # timestamps are in ms
+operators = [{index = 0, type = "bf", param = {distribution = "UniformDistribution", min = 1, max = 100}}]
+
+[performance]
+drop-caches = true
+parallel-workload-gen = true

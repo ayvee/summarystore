@@ -1,0 +1,28 @@
+data-dir = "/mnt/sdb/summarystore"
+results-dir = "/home/sstore/summarystore/code/SummaryStore/output"
+bucket-cache-size = 1_000_000
+ingest-buffer-size = 2_000_000
+
+decay-functions = [
+    "rationalPower1,1,2,1",
+]
+
+operators = ["SimpleCountOperator", "SumOperator", "BloomFilterOperator5,1000", "CMSOperator5,1000"]
+
+
+[data]
+tstart = 0
+tend = 300_000_000
+stream-generator = "RandomStreamGenerator"
+interarrivals = {distribution = "FixedDistribution", value = 1}
+values = {distribution = "UniformDistribution", min = 1, max = 100}
+
+
+[workload]
+workload-generator = "CalendarWorkloadGenerator"
+operators = [{index = 0, type = "count"}, {index = 1, type = "sum"}]
+
+
+[performance]
+parallel-workload-gen = true
+drop-caches = false
