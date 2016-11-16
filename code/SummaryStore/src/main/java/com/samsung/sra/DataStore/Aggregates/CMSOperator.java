@@ -67,7 +67,7 @@ public class CMSOperator implements WindowOperator<CountMinSketch,Double,Pair<Do
                                                            long T0, long T1, Stream<Bucket> buckets,
                                                            Function<Bucket, CountMinSketch> aggregateRetriever,
                                                            long t0, long t1, Object... params) {
-        assert params != null && params.length > 1;
+        assert params != null && params.length > 0;
         Function<Bucket, Long> countRetriever = aggregateRetriever.andThen(
                 cms -> cms.estimateCount((long) params[0])
         );
