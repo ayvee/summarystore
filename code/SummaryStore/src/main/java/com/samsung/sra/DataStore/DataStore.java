@@ -8,9 +8,7 @@ import org.rocksdb.RocksDBException;
  *   EnumeratedStore: stores all values explicitly enumerated
  */
 public interface DataStore extends AutoCloseable {
-    void registerStream(long streamID,
-                        WindowingMechanism windowingMechanism,
-                        WindowOperator operators[]) throws StreamException, RocksDBException;
+    void registerStream(long streamID, Object... params) throws StreamException, RocksDBException;
 
     void append(long streamID, long timestamp, Object... value) throws StreamException, RocksDBException;
 

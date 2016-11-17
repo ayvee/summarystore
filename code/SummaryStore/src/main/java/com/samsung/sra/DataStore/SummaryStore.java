@@ -5,9 +5,7 @@ import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
 import org.rocksdb.RocksDBException;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -21,6 +19,7 @@ public class SummaryStore implements DataStore {
 
     private final ExecutorService executorService;
 
+    // TODO: make a ConcurrentHashMap
     private final HashMap<Long, StreamManager> streamManagers;
 
     private void persistStreamsInfo() throws RocksDBException {
@@ -55,16 +54,16 @@ public class SummaryStore implements DataStore {
         this(null);
     }
 
-    public void registerStream(final long streamID,
-                               WindowingMechanism windowingMechanism,
-                               WindowOperator... operators) throws StreamException, RocksDBException {
+    public void registerStream(final long streamID, Object... params) throws StreamException, RocksDBException {
+        assert params != null && params.length > 0;
+        WindowingMechanism windowingMechanism = (WindowingMechanism) params[0];
+        WindowOperator[] operators = new WindowOperator[params.length - 1];
+        for (int i = 1; i < params.length; ++i) {
+            operators[i-1] = (WindowOperator) params[i];
+        }
+
         synchronized (streamManagers) {
             if (streamManagers.containsKey(streamID)) {
-                //FIXME: NA; temporarily removing and then creating a new stream
-                //streamManagers.remove(streamID);
-                //streamManagers.put(streamID, new StreamManager(bucketStore, streamID, windowingMechanism, operators));
-
-                // FIXME: NA; uncomment this
                  throw new StreamException("attempting to register streamID " + streamID + " multiple times");
             } else {
                 streamManagers.put(streamID, new StreamManager(bucketStore, executorService, streamID, windowingMechanism, operators));

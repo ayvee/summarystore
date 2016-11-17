@@ -1,0 +1,10 @@
+syntax = "proto2";
+package com.samsung.sra.protocol;
+option java_package = "com.samsung.sra.protocol";
+
+// We store a sample of the stream in RocksDB, each entry = one sampled value, with key = timestamp, value = this message
+message ProtoSampledValue {
+    required int64 count = 1; // oldest element has count = 0, newest has count = (# values in stream - 1)
+    required double pKeep = 2; // probability this element should be in the sample
+    required int64 value = 3; // FIXME: arbitrary value types eventually
+}

@@ -35,10 +35,6 @@ class StreamManager implements Serializable {
     final WindowOperator[] operators;
     final StreamStatistics stats;
 
-    String a = java.lang.Long.class.toString();
-    String b = BloomFilter.class.toString();
-    String c = CountMinSketch.class.toString();
-
     final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     /**
@@ -53,16 +49,8 @@ class StreamManager implements Serializable {
      */
     final WindowingMechanism windowingMechanism;
 
-    // for testing only
-    Random rand = new Random();
-
     transient BucketStore bucketStore;
     transient ExecutorService executorService;
-
-    //FIXME: NA; part of String map code
-    int lookupOperatorTypeByClass(WindowOperator wo) {
-        return 0;
-    }
 
     void populateTransientFields(BucketStore bucketStore, ExecutorService executorService) {
         this.bucketStore = bucketStore;
@@ -91,15 +79,6 @@ class StreamManager implements Serializable {
     }
 
     Object query(int operatorNum, long t0, long t1, Object[] queryParams) throws RocksDBException {
-
-/*
-        if (t0 > stats.lastArrivalTimestamp) {
-            logger.warn("Returning empty query result due to t0: " + t0);
-            return operators[operatorNum].getEmptyQueryResult();
-        } else if (t1 > stats.lastArrivalTimestamp) {
-            logger.warn("Resetting t1: " + t1 + " to " + stats.lastArrivalTimestamp);
-            t1 = stats.lastArrivalTimestamp;
-*/
         long T0 = stats.getTimeRangeStart(), T1 = stats.getTimeRangeEnd();
         if (t0 > T1) {
             return operators[operatorNum].getEmptyQueryResult();
