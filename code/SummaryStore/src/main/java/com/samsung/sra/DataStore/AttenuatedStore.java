@@ -21,7 +21,7 @@ import java.util.function.ToDoubleFunction;
  *
  * FIXME: right now user has to call resample manually. Should auto-resample every K appends, where K is a param
  */
-public class AttenuatedStore implements DataStore {
+public class AttenuatedStore implements AutoCloseable {
     private static class StreamInfo {
         final long streamID;
         final ToDoubleFunction<Long> decayFunction;
@@ -50,23 +50,17 @@ public class AttenuatedStore implements DataStore {
     }
 
     /**
-     * Must pass a single argument, a decay function, specified as a
-     * ToDoubleFunction<Long> mapping age -> probability element remains in the sample, where age >= 0.
+     * Argument should map element age -> probability element should remain in the sample, where age >= 0.
      *
      * FIXME: currently only decay based on count, should eventually also support decay based on time, taking a flag as
      *        argument indicating which for a given stream
      */
-    @Override
-    public void registerStream(long streamID, Object... params) throws StreamException, RocksDBException {
-        assert params.length > 0;
-        ToDoubleFunction<Long> decayFunction = (ToDoubleFunction<Long>) params[0];
-
+    public void registerStream(long streamID, ToDoubleFunction<Long> decayFunction) throws StreamException, RocksDBException {
         if (streamsInfo.put(streamID, new StreamInfo(streamID, decayFunction)) != null) {
             throw new StreamException("attempting to register streamID " + streamID + " multiple times");
         }
     }
 
-    @Override
     public void append(long streamID, long timestamp, Object... value) throws StreamException, RocksDBException {
         StreamInfo streamInfo = streamsInfo.get(streamID);
         if (streamInfo == null) {
@@ -80,7 +74,7 @@ public class AttenuatedStore implements DataStore {
             long count = streamInfo.stats.getNumValues();
             streamInfo.stats.append(timestamp, value);
             byte[] rocksKey = getRocksKey(streamID, timestamp);
-            byte[] rocksValue = Attenuation.ProtoSampledValue
+            byte[] rocksValue = Attenuation.ProtoSample
                     .newBuilder()
                     .setCount(count)
                     .setPKeep(1d)
@@ -108,7 +102,7 @@ public class AttenuatedStore implements DataStore {
                 if (parseRocksKeyStreamID(rocksKey) != streamID) {
                     break;
                 } else {
-                    Attenuation.ProtoSampledValue value = Attenuation.ProtoSampledValue.parseFrom(iter.value());
+                    Attenuation.ProtoSample value = Attenuation.ProtoSample.parseFrom(iter.value());
                     long age = N - 1 - value.getCount();
                     assert age >= 0;
                     double newPKeep = streamInfo.decayFunction.applyAsDouble(age);
@@ -138,7 +132,6 @@ public class AttenuatedStore implements DataStore {
     /**
      * FIXME! Ignores arguments and assumes a SUM query, doesn't do CIs
      */
-    @Override
     public Object query(long streamID, long t0, long t1, int operatorNumber, Object... queryParams) throws StreamException, QueryException, RocksDBException {
         StreamInfo streamInfo = streamsInfo.get(streamID);
         if (streamInfo == null) {
@@ -153,10 +146,10 @@ public class AttenuatedStore implements DataStore {
                 if (parseRocksKeyStreamID(rocksKey) != streamID || parseRocksKeyTimestamp(rocksKey) > t1) {
                     break;
                 }
-                Attenuation.ProtoSampledValue value = Attenuation.ProtoSampledValue.parseFrom(iter.value());
+                Attenuation.ProtoSample value = Attenuation.ProtoSample.parseFrom(iter.value());
                 sum += value.getValue() / value.getPKeep();
             }
-            return new ResultError<>(sum, 0d);
+            return new ResultError<Double, Double>(sum, null);
         } catch (InvalidProtocolBufferException e) {
             throw new StreamException(e);
         } finally {
@@ -180,7 +173,6 @@ public class AttenuatedStore implements DataStore {
         return Utilities.byteArrayToLong(key, 8);
     }
 
-    @Override
     public StreamStatistics getStreamStatistics(long streamID) throws StreamException {
         StreamInfo streamInfo = streamsInfo.get(streamID);
         if (streamInfo == null) {
@@ -189,7 +181,6 @@ public class AttenuatedStore implements DataStore {
         return new StreamStatistics(streamInfo.stats);
     }
 
-    @Override
     public void flush(long streamID) throws RocksDBException, StreamException {
         resample(streamID);
     }
@@ -207,7 +198,7 @@ public class AttenuatedStore implements DataStore {
                 if (parseRocksKeyStreamID(rocksKey) != streamID) {
                     break;
                 }
-                Attenuation.ProtoSampledValue value = Attenuation.ProtoSampledValue.parseFrom(iter.value());
+                Attenuation.ProtoSample value = Attenuation.ProtoSample.parseFrom(iter.value());
                 System.out.printf("t = %d, v = %d, count = %d, pKeep = %f\n",
                         parseRocksKeyTimestamp(rocksKey), value.getValue(), value.getCount(), value.getPKeep());
             }
@@ -216,7 +207,6 @@ public class AttenuatedStore implements DataStore {
         }
     }
 
-    @Override
     public void close() throws RocksDBException {
         // TODO: lock out new stream creates
         for (Map.Entry<Long, StreamInfo> entry: streamsInfo.entrySet()) {

@@ -12,7 +12,7 @@ import java.util.concurrent.Executors;
 /**
  * Time-decayed aggregate storage
  */
-public class SummaryStore implements DataStore {
+public class SummaryStore implements AutoCloseable {
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(SummaryStore.class);
 
     private final BucketStore bucketStore;
@@ -54,14 +54,7 @@ public class SummaryStore implements DataStore {
         this(null);
     }
 
-    public void registerStream(final long streamID, Object... params) throws StreamException, RocksDBException {
-        assert params != null && params.length > 0;
-        WindowingMechanism windowingMechanism = (WindowingMechanism) params[0];
-        WindowOperator[] operators = new WindowOperator[params.length - 1];
-        for (int i = 1; i < params.length; ++i) {
-            operators[i-1] = (WindowOperator) params[i];
-        }
-
+    public void registerStream(final long streamID, WindowingMechanism windowingMechanism, WindowOperator... operators) throws StreamException, RocksDBException {
         synchronized (streamManagers) {
             if (streamManagers.containsKey(streamID)) {
                  throw new StreamException("attempting to register streamID " + streamID + " multiple times");
@@ -71,7 +64,6 @@ public class SummaryStore implements DataStore {
         }
     }
 
-    @Override
     public Object query(long streamID, long t0, long t1, int aggregateNum, Object... queryParams) throws StreamException, QueryException, RocksDBException {
         if (t0 < 0 || t0 > t1) {
             throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
@@ -130,7 +122,6 @@ public class SummaryStore implements DataStore {
         bucketStore.warmupCache(streamManagers);
     }
 
-    @Override
     public void flush(long streamID) throws RocksDBException, StreamException {
         final StreamManager streamManager;
         synchronized (streamManagers) {
@@ -149,7 +140,6 @@ public class SummaryStore implements DataStore {
         }
     }
 
-    @Override
     public void close() throws RocksDBException {
         synchronized (streamManagers) {
             // wait for all in-process writes and reads to finish, and seal read index
@@ -187,7 +177,6 @@ public class SummaryStore implements DataStore {
         return ret;
     }
 
-    @Override
     public StreamStatistics getStreamStatistics(long streamID) throws StreamException {
         StreamManager streamManager;
         synchronized (streamManagers) {
