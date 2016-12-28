@@ -11,8 +11,8 @@ public class MeasureThroughput {
     private static final long streamID = 0;
     private static final long T = 100_000_000;
     private static final String streamConf =
-              "interarrivals = {distribution = \"Fixed\", value = 1}\n"
-            + "values = {distribution = \"Uniform\", min = 0, max = 100}\n"
+              "interarrivals = {distribution = \"FixedDistribution\", value = 1}\n"
+            + "values = {distribution = \"UniformDistribution\", min = 0, max = 100}\n"
             + "random-seed = 0";
 
 
