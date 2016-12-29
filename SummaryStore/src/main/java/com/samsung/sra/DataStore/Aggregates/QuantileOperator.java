@@ -6,6 +6,8 @@ import com.samsung.sra.DataStore.StreamStatistics;
 import com.samsung.sra.DataStore.WindowOperator;
 import com.samsung.sra.protocol.Summarybucket.ProtoOperator;
 
+import com.clearspring.analytics.stream.quantile.QDigest;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
@@ -46,7 +48,7 @@ public class QuantileOperator implements WindowOperator<QDigest, Long, Long> {
 
     @Override
     public QDigest insert(QDigest aggr, long ts, Object... val) {
-	    aggr.insert((long)val[0]);
+	    aggr.offer((long)val[0]);
         return aggr;
     }
 
