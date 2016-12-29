@@ -1,15 +1,12 @@
 package com.samsung.sra.DataStore;
 
-import com.clearspring.analytics.stream.frequency.CountMinSketch;
 import com.google.protobuf.InvalidProtocolBufferException;
-import com.samsung.sra.DataStore.Aggregates.BloomFilter;
 import com.samsung.sra.protocol.Summarybucket.ProtoBucket;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
-import java.util.Random;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;

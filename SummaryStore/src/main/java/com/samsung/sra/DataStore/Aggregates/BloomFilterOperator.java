@@ -1,13 +1,12 @@
 package com.samsung.sra.DataStore.Aggregates;
 
-import com.google.protobuf.ByteString;
+import com.clearspring.analytics.stream.membership.BFProtofier;
+import com.clearspring.analytics.stream.membership.BloomFilter;
 import com.samsung.sra.DataStore.*;
-import com.samsung.sra.protocol.Summarybucket;
 import com.samsung.sra.protocol.Summarybucket.ProtoOperator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
@@ -65,7 +64,7 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
         for (BloomFilter bfItem : (Iterable<BloomFilter>) aggrs::iterator) {
             //logger.debug("Item: " + bfItem.toString());
 
-            newBloomFilter = BloomFilter.unionOf(newBloomFilter, bfItem);
+            newBloomFilter.addAll(bfItem);
         }
 
         //logger.debug(newBloomFilter.toString());
@@ -137,17 +136,11 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
 
     @Override
     public ProtoOperator.Builder protofy(BloomFilter aggr) {
-        return Summarybucket
-                .ProtoOperator
-                .newBuilder()
-                .setBytearray(ByteString.copyFrom(aggr.filter().toByteArray()));
+        return BFProtofier.protofy(aggr);
     }
 
     @Override
     public BloomFilter deprotofy(ProtoOperator protoOperator) {
-        return new BloomFilter(
-                nrHashes,
-                BitSet.valueOf(protoOperator.getBytearray().toByteArray()),
-                filterSize);
+        return BFProtofier.deprotofy(protoOperator, nrHashes, filterSize);
     }
 }
