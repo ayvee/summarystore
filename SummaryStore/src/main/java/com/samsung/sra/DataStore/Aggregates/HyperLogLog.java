@@ -7,6 +7,16 @@ import org.slf4j.LoggerFactory;
 import java.util.Random;
 
 public class HyperLogLog {
+
+    /*
+
+    This implementation is based on the paper http://algo.inria.fr/flajolet/Publications/FlFuGaMe07.pdf
+    HyperLogLog: the analysis of a near-optimal cardinality estimation algorithm
+    Authors: Philippe Flajolet, Éric Fusy, Olivier Gandouet, Frédéric Meunier
+    */
+
+
+
     /** configuration for HLL estimation; these are applicable to all instances
      * of the HLL windows, and shouldn't be modified, hence static final.
      */
@@ -32,10 +42,8 @@ public class HyperLogLog {
         //System.out.println("Currently registered operators: " + WindowOperator.returnAggrOperatorTypes().size());
     }
 
-    protected static double getAlphaMM(final int p, final int m) {
-        // See the paper.
-
-        //logger.debug("alphamm for " + p + ":" + m +" = ...");
+    protected static double computeAlphaMsquared(final int p, final int m) {
+        // refer to http://algo.inria.fr/flajolet/Publications/FlFuGaMe07.pdf
         switch (p) {
             case 4:
                 return 0.673 * m * m;
@@ -64,7 +72,7 @@ public class HyperLogLog {
         }
 
         estimate=1/estimate;
-        estimate*=getAlphaMM(indexSize, numRegisters);
+        estimate*= computeAlphaMsquared(indexSize, numRegisters);
         //logger.debug("getEstimate buckets: " + estimateBuckets.length + "; estimate: "+ estimate);
 
         return Math.ceil(estimate);
