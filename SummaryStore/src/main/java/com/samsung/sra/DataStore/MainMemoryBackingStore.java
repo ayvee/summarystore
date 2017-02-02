@@ -6,14 +6,17 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
-public class MainMemoryBucketStore implements BucketStore {
+public class MainMemoryBackingStore implements BackingStore {
     private Map<Long, Map<Long, Bucket>> buckets = new HashMap<>();
 
     @Override
-    public Bucket getBucket(StreamManager streamManager, long bucketID, boolean delete) throws RocksDBException {
-        return delete ?
-                buckets.get(streamManager.streamID).remove(bucketID) :
-                buckets.get(streamManager.streamID).get(bucketID);
+    public Bucket getBucket(StreamManager streamManager, long bucketID) throws RocksDBException {
+        return buckets.get(streamManager.streamID).get(bucketID);
+    }
+
+    @Override
+    public Bucket deleteBucket(StreamManager streamManager, long bucketID) throws RocksDBException {
+        return buckets.get(streamManager.streamID).remove(bucketID);
     }
 
     @Override

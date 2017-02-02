@@ -142,19 +142,12 @@ public class CountBasedWBMH implements WindowingMechanism {
         if (bufferSize > 0) flush(manager);
     }
 
-    public void appendUnbuffered(StreamManager streamManager, long ts, Object[] value) throws RocksDBException {
+    private void appendUnbuffered(StreamManager streamManager, long ts, Object[] value) throws RocksDBException {
         // merge existing buckets
         processMergesUntil(streamManager, N + 1);
 
         // insert newest element, creating a new bucket for it if necessary
         Bucket lastBucket = lastBucketID == -1 ? null : streamManager.getBucket(lastBucketID);
-        /*
-        if (lastBucket != null)
-            logger.debug("lastbucket: " + lastBucketID);
-        else
-            logger.debug("null lastbucket: ");
-        */
-
         if (lastBucket != null && lastBucket.cEnd - lastBucket.cStart + 1 < windowing.getSizeOfFirstWindow()) {
             // last bucket isn't yet full; insert new value into it
             lastBucket.cEnd = N;
@@ -180,7 +173,7 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     /*NOTE: code here depends on the fact that append()/flush()/close() calls are serialized (by StreamManager).
             Else we would need more careful synchronization */
-    public void appendBuffered(StreamManager streamManager, long ts, Object[] value) throws RocksDBException{
+    private void appendBuffered(StreamManager streamManager, long ts, Object[] value) throws RocksDBException{
         while (activeBuffer == null) {
             try {
                 activeBuffer = emptyBuffers.take();
@@ -192,7 +185,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         if (activeBuffer.isFull()) { // buffer is full, flush
             // 1. Start flushing current active buffer in a different thread
             IngestBuffer flushingBuffer = activeBuffer;
-            streamManager.executorService.submit(() -> {
+            streamManager.getExecutorService().submit(() -> {
                 flushLock.lock();
                 try {
                     flushFullBuffer(streamManager, flushingBuffer);
@@ -250,9 +243,6 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     /** Advance count marker to N, apply the WBMH test, process any merges that result */
     private void processMergesUntil(StreamManager streamManager, long N) throws RocksDBException {
-
-
-
         while (!mergeCounts.isEmpty() && mergeCounts.getMinimum().getKey() <= N) {
             //logger.debug(" ======= In WBMH before merge ========= ");
 
@@ -263,7 +253,7 @@ public class CountBasedWBMH implements WindowingMechanism {
             // We will now merge b0's successor b1 into b0. We also need to update b{-1}'s and
             // b2's prev and next pointers and b{-1} and b0's heap entries
             assert b0.nextBucketID != -1;
-            Bucket b1 = streamManager.getBucket(b0.nextBucketID, true); // note: this deletes b1 from bucketStore
+            Bucket b1 = streamManager.deleteBucket(b0.nextBucketID);
             Bucket b2 = b1.nextBucketID == -1 ? null : streamManager.getBucket(b1.nextBucketID);
             Bucket bm1 = b0.prevBucketID == -1 ? null : streamManager.getBucket(b0.prevBucketID); // b{-1}
 

@@ -11,7 +11,9 @@ import java.util.stream.Stream;
  * Implements all the functions needed to manage aggregate data structures of type A which returns query answers of type
  * ResultError<R, E>. Note that WindowOperators manage aggregate objects, they are not aggregates themselves (i.e. a
  * BloomFilterOperator object only creates, updates and queries Bloom filters; it is not a Bloom filter itself and does
- * not have an internal bit-array)
+ * not have an internal bit-array). We maintain one WindowOperator instance per stream.
+ *
+ * If it helps think about things, this interface was originally called AggregateManager.
  */
 public interface WindowOperator<A, R, E> extends Serializable {
     List<String> getSupportedQueryTypes();

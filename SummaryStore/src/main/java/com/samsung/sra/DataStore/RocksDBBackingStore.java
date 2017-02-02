@@ -10,7 +10,7 @@ import java.io.Serializable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class RocksDBBucketStore implements BucketStore {
+public class RocksDBBackingStore implements BackingStore {
     private final RocksDB rocksDB;
     private final Options rocksDBOptions;
     private final long cacheSizePerStream;
@@ -22,7 +22,7 @@ public class RocksDBBucketStore implements BucketStore {
      * @param cacheSizePerStream  number of elements per stream to cache in main memory. Set to 0 to disable caching
      * @throws RocksDBException
      */
-    public RocksDBBucketStore(String rocksPath, long cacheSizePerStream) throws RocksDBException {
+    public RocksDBBackingStore(String rocksPath, long cacheSizePerStream) throws RocksDBException {
         this.cacheSizePerStream = cacheSizePerStream;
         cache = cacheSizePerStream > 0 ? new ConcurrentHashMap<>() : null;
         rocksDBOptions = new Options().setCreateIfMissing(true);
@@ -68,8 +68,7 @@ public class RocksDBBucketStore implements BucketStore {
         streamCache.put(bucketID, bucket);
     }
 
-    @Override
-    public Bucket getBucket(StreamManager streamManager, long bucketID, boolean delete) throws RocksDBException {
+    private Bucket getAndOrDeleteBucket(StreamManager streamManager, long bucketID, boolean delete) throws RocksDBException {
         ConcurrentHashMap<Long, Bucket> streamCache;
         if (cache == null) {
             streamCache = null;
@@ -94,6 +93,16 @@ public class RocksDBBucketStore implements BucketStore {
             }
             return bucket;
         }
+    }
+
+    @Override
+    public Bucket getBucket(StreamManager streamManager, long bucketID) throws RocksDBException {
+        return getAndOrDeleteBucket(streamManager, bucketID, false);
+    }
+
+    @Override
+    public Bucket deleteBucket(StreamManager streamManager, long bucketID) throws RocksDBException {
+        return getAndOrDeleteBucket(streamManager, bucketID, true);
     }
 
     @Override

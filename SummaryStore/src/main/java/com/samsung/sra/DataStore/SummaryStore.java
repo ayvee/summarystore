@@ -15,15 +15,15 @@ import java.util.concurrent.Executors;
 public class SummaryStore implements AutoCloseable {
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(SummaryStore.class);
 
-    private final BucketStore bucketStore;
+    private final BackingStore backingStore;
 
     private final ExecutorService executorService;
 
-    // TODO: make a ConcurrentHashMap
+    // TODO: make a ConcurrentHashMap?
     private final HashMap<Long, StreamManager> streamManagers;
 
     private void persistStreamsInfo() throws RocksDBException {
-        bucketStore.putMetadata(streamManagers);
+        backingStore.putMetadata(streamManagers);
     }
 
     /**
@@ -31,15 +31,15 @@ public class SummaryStore implements AutoCloseable {
      * start with filePrefix. To store everything in-memory use a null filePrefix
      */
     public SummaryStore(String filePrefix, long cacheSizePerStream) throws RocksDBException {
-        this.bucketStore = filePrefix != null ?
-                new RocksDBBucketStore(filePrefix + ".bucketStore", cacheSizePerStream) :
-                new MainMemoryBucketStore();
+        this.backingStore = filePrefix != null ?
+                new RocksDBBackingStore(filePrefix + ".dataStore", cacheSizePerStream) :
+                new MainMemoryBackingStore();
         executorService = Executors.newCachedThreadPool();
-        Object uncast = bucketStore.getMetadata();
+        Object uncast = backingStore.getMetadata();
         if (uncast != null) {
             streamManagers = (HashMap<Long, StreamManager>) uncast;
             for (StreamManager si: streamManagers.values()) {
-                si.populateTransientFields(bucketStore, executorService);
+                si.populateTransientFields(backingStore, executorService);
             }
         } else {
             streamManagers = new HashMap<>();
@@ -59,23 +59,28 @@ public class SummaryStore implements AutoCloseable {
             if (streamManagers.containsKey(streamID)) {
                  throw new StreamException("attempting to register streamID " + streamID + " multiple times");
             } else {
-                streamManagers.put(streamID, new StreamManager(bucketStore, executorService, streamID, windowingMechanism, operators));
+                streamManagers.put(streamID, new StreamManager(backingStore, executorService, streamID, windowingMechanism, operators));
             }
         }
+    }
+
+    private StreamManager getStreamManager(long streamID) throws StreamException {
+        final StreamManager streamManager;
+        synchronized (streamManagers) {
+            if (!streamManagers.containsKey(streamID)) {
+                throw new StreamException("invalid streamID " + streamID);
+            } else {
+                streamManager = streamManagers.get(streamID);
+            }
+        }
+        return streamManager;
     }
 
     public Object query(long streamID, long t0, long t1, int aggregateNum, Object... queryParams) throws StreamException, QueryException, RocksDBException {
         if (t0 < 0 || t0 > t1) {
             throw new QueryException("[" + t0 + ", " + t1 + "] is not a valid time interval");
         }
-        final StreamManager streamManager;
-        synchronized (streamManagers) {
-            if (!streamManagers.containsKey(streamID)) {
-                throw new StreamException("attempting to read from unregistered stream " + streamID);
-            } else {
-                streamManager = streamManagers.get(streamID);
-            }
-        }
+        StreamManager streamManager = getStreamManager(streamID);
         streamManager.lock.readLock().lock();
         try {
             return streamManager.query(aggregateNum, t0, t1, queryParams);
@@ -85,15 +90,7 @@ public class SummaryStore implements AutoCloseable {
     }
 
     public void append(long streamID, long ts, Object... value) throws StreamException, RocksDBException {
-        final StreamManager streamManager;
-        synchronized (streamManagers) {
-            if (!streamManagers.containsKey(streamID)) {
-                throw new StreamException("attempting to append to unregistered stream " + streamID);
-            } else {
-                streamManager = streamManagers.get(streamID);
-            }
-        }
-
+        StreamManager streamManager = getStreamManager(streamID);
         streamManager.lock.writeLock().lock();
         try {
             //logger.debug("Appending new value: <ts: " + ts + ", val: " + value + ">");
@@ -103,34 +100,27 @@ public class SummaryStore implements AutoCloseable {
         }
     }
 
-    public void printBucketState(long streamID, boolean printPerBucketState) throws RocksDBException {
-        StreamManager streamManager = streamManagers.get(streamID);
+    public void printBucketState(long streamID, boolean printPerBucketState) throws StreamException, RocksDBException {
+        StreamManager streamManager = getStreamManager(streamID);
         System.out.println("Stream " + streamID + " with " + streamManager.stats.getNumValues() + " elements in " +
                 streamManager.temporalIndex.size() + " windows");
         if (printPerBucketState) {
             for (Object bucketID : streamManager.temporalIndex.values()) {
-                System.out.println("\t" + bucketStore.getBucket(streamManager, (long) bucketID));
+                System.out.println("\t" + backingStore.getBucket(streamManager, (long) bucketID));
             }
         }
     }
 
-    public void printBucketState(long streamID) throws RocksDBException {
+    public void printBucketState(long streamID) throws StreamException, RocksDBException {
         printBucketState(streamID, false);
     }
 
     public void warmupCache() throws RocksDBException {
-        bucketStore.warmupCache(streamManagers);
+        backingStore.warmupCache(streamManagers);
     }
 
     public void flush(long streamID) throws RocksDBException, StreamException {
-        final StreamManager streamManager;
-        synchronized (streamManagers) {
-            if (!streamManagers.containsKey(streamID)) {
-                throw new StreamException("attempting to flush unregistered stream " + streamID);
-            } else {
-                streamManager = streamManagers.get(streamID);
-            }
-        }
+        StreamManager streamManager = getStreamManager(streamID);
 
         streamManager.lock.writeLock().lock();
         try {
@@ -140,6 +130,7 @@ public class SummaryStore implements AutoCloseable {
         }
     }
 
+    @Override
     public void close() throws RocksDBException {
         synchronized (streamManagers) {
             // wait for all in-process writes and reads to finish, and seal read index
@@ -150,10 +141,10 @@ public class SummaryStore implements AutoCloseable {
             // creates are already blocked because we're synchronizing on streamManagers
             for (StreamManager streamManager: streamManagers.values()) {
                 streamManager.windowingMechanism.close(streamManager);
-                bucketStore.flushCache(streamManager);
+                backingStore.flushCache(streamManager);
             }
             persistStreamsInfo();
-            bucketStore.close();
+            backingStore.close();
         }
     }
 
@@ -161,20 +152,24 @@ public class SummaryStore implements AutoCloseable {
      * Get number of windows (buckets) in specified stream. Use a null streamID to get total count over all streams
      */
     public long getNumWindows(Long streamID) {
-        // FIXME: does not sanity-check streamID argument, unlike every other SummaryStore function
-        Collection<StreamManager> managers = streamID != null
-                ? Collections.singletonList(streamManagers.get(streamID))
-                : streamManagers.values();
-        long ret = 0;
-        for (StreamManager sm: managers) {
-            sm.lock.readLock().lock();
-            try {
-                ret += (long) sm.temporalIndex.size();
-            } finally {
-                sm.lock.readLock().unlock();
+        try {
+            Collection<StreamManager> managers = streamID != null
+                    ? Collections.singletonList(getStreamManager(streamID))
+                    : streamManagers.values();
+            long ret = 0;
+            for (StreamManager sm: managers) {
+                sm.lock.readLock().lock();
+                try {
+                    ret += (long) sm.temporalIndex.size();
+                } finally {
+                    sm.lock.readLock().unlock();
+                }
             }
+            return ret;
+        } catch (StreamException e) {
+            e.printStackTrace();
+            return -1;
         }
-        return ret;
     }
 
     public StreamStatistics getStreamStatistics(long streamID) throws StreamException {
@@ -202,7 +197,6 @@ public class SummaryStore implements AutoCloseable {
             //store = new SummaryStore(null);
             long streamID = 0;
             if (!store.streamManagers.containsKey(streamID)) {
-                //store.registerStream(streamID, new CountBasedWBMH(streamID, new GenericWindowing(new ExponentialWindowLengths(2))));
                 Windowing windowing
                         = new GenericWindowing(new ExponentialWindowLengths(2));
                         //= new RationalPowerWindowing(1, 1);

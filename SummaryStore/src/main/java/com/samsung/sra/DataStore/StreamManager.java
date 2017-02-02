@@ -21,16 +21,17 @@ import java.util.stream.Stream;
  * and merge operations initiated by WBMH as well as the northbound append() and query()
  * operations initiated by clients via SummaryStore. Stores aggregate per-stream information
  * as well as in-memory indexes. The buckets themselves are not stored directly here, they
- * go into the underlying bucketStore.
+ * go into the underlying backingStore.
  * <p>
  * StreamManagers do not handle synchronization, callers are expected to manage the lock
  * object here.
  */
 class StreamManager implements Serializable {
     private static Logger logger = LoggerFactory.getLogger(StreamManager.class);
+
     final long streamID;
-    final WindowOperator[] operators;
     final StreamStatistics stats;
+    private final WindowOperator[] operators;
 
     final ReadWriteLock lock = new ReentrantReadWriteLock();
 
@@ -46,27 +47,29 @@ class StreamManager implements Serializable {
      */
     final WindowingMechanism windowingMechanism;
 
-    transient BucketStore bucketStore;
-    transient ExecutorService executorService;
+    private transient BackingStore backingStore;
+    private transient ExecutorService executorService;
 
-    void populateTransientFields(BucketStore bucketStore, ExecutorService executorService) {
-        this.bucketStore = bucketStore;
+    void populateTransientFields(BackingStore backingStore, ExecutorService executorService) {
+        this.backingStore = backingStore;
         this.executorService = executorService;
         windowingMechanism.populateTransientFields();
     }
 
-    StreamManager(BucketStore bucketStore, ExecutorService executorService,
+    ExecutorService getExecutorService() {
+        return executorService;
+    }
+
+    StreamManager(BackingStore backingStore, ExecutorService executorService,
                   long streamID,
                   WindowingMechanism windowingMechanism, WindowOperator... operators) {
         this.streamID = streamID;
-        this.bucketStore = bucketStore;
+        this.backingStore = backingStore;
         this.executorService = executorService;
         this.windowingMechanism = windowingMechanism;
         this.operators = operators;
         this.stats = new StreamStatistics();
     }
-
-    // TODO: add assertions
 
     void append(long ts, Object[] value) throws RocksDBException, StreamException {
         if (ts <= stats.getTimeRangeEnd()) throw new StreamException("out-of-order insert in stream " + streamID +
@@ -97,7 +100,7 @@ class StreamManager implements Serializable {
         SortedMap<Long, Long> spanningBucketsIDs = temporalIndex.subMap(l, true, r, false);
         Stream<Bucket> buckets = spanningBucketsIDs.values().stream().map(bucketID -> {
             try {
-                return bucketStore.getBucket(this, bucketID, false);
+                return backingStore.getBucket(this, bucketID);
             } catch (RocksDBException e) {
                 throw new RuntimeException(e);
             }
@@ -126,7 +129,6 @@ class StreamManager implements Serializable {
      * Replace buckets[0] with union(buckets)
      */
     void mergeBuckets(Bucket... buckets) {
-
         if (buckets.length == 0) return;
         buckets[0].cEnd = buckets[buckets.length - 1].cEnd;
         buckets[0].tEnd = buckets[buckets.length - 1].tEnd;
@@ -142,26 +144,23 @@ class StreamManager implements Serializable {
         return new Bucket(operators, prevBucketID, thisBucketID, nextBucketID, tStart, tEnd, cStart, cEnd);
     }
 
-    Bucket getBucket(long bucketID, boolean delete) throws RocksDBException {
-        Bucket bucket = bucketStore.getBucket(this, bucketID, delete);
-        if (delete) {
-            temporalIndex.remove(bucket.tStart);
-        }
-        return bucket;
+    Bucket getBucket(long bucketID) throws RocksDBException {
+        return backingStore.getBucket(this, bucketID);
     }
 
-    Bucket getBucket(long bucketID) throws RocksDBException {
-        return getBucket(bucketID, false);
+    Bucket deleteBucket(long bucketID) throws RocksDBException {
+        Bucket bucket = backingStore.deleteBucket(this, bucketID);
+        temporalIndex.remove(bucket.tStart);
+        return bucket;
     }
 
     void putBucket(long bucketID, Bucket bucket) throws RocksDBException {
         temporalIndex.put(bucket.tStart, bucketID);
-        bucketStore.putBucket(this, bucketID, bucket);
+        backingStore.putBucket(this, bucketID, bucket);
     }
 
 
-    byte[] serializeBucketProto(Bucket bucket) {
-
+    private byte[] serializeBucketProto(Bucket bucket) {
         if (bucket == null) {
             logger.error("NULL Bucket about to be serialized");
         }
@@ -196,8 +195,7 @@ class StreamManager implements Serializable {
         return protoBucket.build().toByteArray();
     }
 
-    Bucket deserializeBucketProto(ProtoBucket protoBucket) {
-
+    private Bucket deserializeBucketProto(ProtoBucket protoBucket) {
         Bucket bucket = new Bucket();
         bucket.thisBucketID = protoBucket.getThisBucketid();
         bucket.prevBucketID = protoBucket.getPrevBucketID();
@@ -207,7 +205,7 @@ class StreamManager implements Serializable {
         bucket.cStart = protoBucket.getCStart();
         bucket.cEnd = protoBucket.getCEnd();
 
-        /** find number of aggregates in protobucket or use operators.length
+        /* find number of aggregates in protobucket or use operators.length
          * eventually this assign and check should be dropped since the serialized object
          * is self describing; just check until iterate over all "hasProto*"
          */
@@ -228,12 +226,10 @@ class StreamManager implements Serializable {
     }
 
     Bucket deserializeBucket(byte[] bytes) {
-        Bucket bucket=null;
         try {
-            bucket = deserializeBucketProto(ProtoBucket.parseFrom(bytes));
+            return deserializeBucketProto(ProtoBucket.parseFrom(bytes));
         } catch (InvalidProtocolBufferException e) {
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
-        return bucket;
     }
 }

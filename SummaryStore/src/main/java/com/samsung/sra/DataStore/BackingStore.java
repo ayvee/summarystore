@@ -7,15 +7,13 @@ import java.util.Map;
 
 /**
  * Underlying key-value store holding all the buckets. Two implementations:
- *      RocksDBBucketStore
- *      MainMemoryBucketStore
+ *      RocksDBBackingStore
+ *      MainMemoryBackingStore
  */
-interface BucketStore extends AutoCloseable {
-    Bucket getBucket(StreamManager streamManager, long bucketID, boolean delete) throws RocksDBException;
+interface BackingStore extends AutoCloseable {
+    Bucket getBucket(StreamManager streamManager, long bucketID) throws RocksDBException;
 
-    default Bucket getBucket(StreamManager streamManager, long bucketID) throws RocksDBException {
-        return getBucket(streamManager, bucketID, false);
-    }
+    Bucket deleteBucket(StreamManager streamManager, long bucketID) throws RocksDBException;
 
     void putBucket(StreamManager streamManager, long bucketID, Bucket bucket) throws RocksDBException;
 

@@ -109,7 +109,7 @@ public class SimpleTester {
 
     private static void registerStore(Map<String, SummaryStore> stores, String storeName, WindowingMechanism windowingMechanism) throws RocksDBException, StreamException {
         SummaryStore store = new SummaryStore(loc_prefix + storeName);
-        //SummaryStore store = new SummaryStore(new MainMemoryBucketStore());
+        //SummaryStore store = new SummaryStore(new MainMemoryBackingStore());
         store.registerStream(streamID, windowingMechanism);
         stores.put(storeName, store);
     }
