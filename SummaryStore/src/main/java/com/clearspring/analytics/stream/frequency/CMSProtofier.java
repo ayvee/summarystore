@@ -1,6 +1,6 @@
 package com.clearspring.analytics.stream.frequency;
 
-import com.samsung.sra.protocol.Summarybucket.ProtoCMS;
+import com.samsung.sra.protocol.SummaryStore.ProtoCMS;
 
 public class CMSProtofier {
     public static ProtoCMS.Builder protofy(CountMinSketch cms) {

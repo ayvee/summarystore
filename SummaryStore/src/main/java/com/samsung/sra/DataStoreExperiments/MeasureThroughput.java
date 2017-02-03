@@ -36,7 +36,7 @@ public class MeasureThroughput {
             store.flush(streamID);
             long we = System.currentTimeMillis();
             System.out.println("Write throughput = " + (T * 1000d / (we - w0)) + " appends/s");
-            store.printBucketState(streamID);
+            store.printWindowState(streamID);
 
             long f0 = System.currentTimeMillis();
             store.query(streamID, 0, T - 1, 0);

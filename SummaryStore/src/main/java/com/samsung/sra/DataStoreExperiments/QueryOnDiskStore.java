@@ -34,7 +34,7 @@ public class QueryOnDiskStore {
         if (r == -1) {
             r = store.getStreamStatistics(streamID).getNumValues() - 1;
         }
-        store.printBucketState(streamID);
+        store.printWindowState(streamID);
         System.out.println(
                 "Store size = " + store.getNumWindows(streamID) + " windows; " +
                 "COUNT[" + l + ":" + r + "] = " + store.query(streamID, l, r, 0));

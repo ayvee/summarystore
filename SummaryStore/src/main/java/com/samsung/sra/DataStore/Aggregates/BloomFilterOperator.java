@@ -3,7 +3,7 @@ package com.samsung.sra.DataStore.Aggregates;
 import com.clearspring.analytics.stream.membership.BFProtofier;
 import com.clearspring.analytics.stream.membership.BloomFilter;
 import com.samsung.sra.DataStore.*;
-import com.samsung.sra.protocol.Summarybucket.ProtoOperator;
+import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,25 +87,12 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
         return aggr;
     }
 
-    /**
-     * Retrieve aggregates from a set of buckets and do a combined query over them. We pass full
-     * Bucket objects instead of specific Aggregate objects of type A to allow query() to access
-     * Bucket metadata.
-     * TODO: pass an additional Function<Bucket, BucketMetadata> metadataRetriever as argument,
-     * instead of letting query() manhandle Bucket objects
-     *
-     * @param buckets
-     * @param bloomRetriever
-     * @param t0
-     * @param t1
-     * @param params
-     */
     @Override
     public ResultError<Boolean, Double> query(StreamStatistics streamStatistics, long T0, long T1,
-         Stream<Bucket> buckets, Function<Bucket, BloomFilter> bloomRetriever, long t0, long t1, Object... params) {
+                                              Stream<SummaryWindow> summaryWindows, Function<SummaryWindow, BloomFilter> bloomRetriever, long t0, long t1, Object... params) {
         byte[] value = new byte[Long.SIZE];
         Utilities.longToByteArray((long) params[0],value,0);
-        boolean answer = buckets.map(bloomRetriever).map(bf -> bf.isPresent(value)).anyMatch(e -> e);
+        boolean answer = summaryWindows.map(bloomRetriever).map(bf -> bf.isPresent(value)).anyMatch(e -> e);
         if (!answer) { // true negative
             return new ResultError<>(false, 0d);
         } else {
@@ -113,15 +100,6 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
             double pTruePositive = 0.99 * (t1 - t0 + 1d) / (T1 - T0 + 1d);
             return new ResultError<>(true, 1 - pTruePositive);
         }
-        /*BloomFilter newBloom = createEmpty();
-        for(Bucket bucketItem : (Iterable<Bucket>) buckets::iterator) {
-            newBloom = BloomFilter.unionOf(newBloom, bloomRetriever.apply(bucketItem));
-        }
-
-        logger.debug("Bloom Query for value: " + params[0]);
-        byte[] value = new byte[Long.SIZE];
-        Utilities.longToByteArray((long) params[0],value,0);
-        return new ResultError<>(newBloom.isPresent(value), null);*/
     }
 
 

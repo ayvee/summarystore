@@ -1,10 +1,10 @@
 package com.samsung.sra.DataStore.Aggregates;
 
-import com.samsung.sra.DataStore.Bucket;
+import com.samsung.sra.DataStore.SummaryWindow;
 import com.samsung.sra.DataStore.ResultError;
 import com.samsung.sra.DataStore.StreamStatistics;
 import com.samsung.sra.DataStore.WindowOperator;
-import com.samsung.sra.protocol.Summarybucket.ProtoOperator;
+import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 
 import java.util.Collections;
 import java.util.List;
@@ -41,9 +41,9 @@ public class HyperLogLogOperator implements WindowOperator<HyperLogLog, Long, Lo
     }
 
     @Override
-    public ResultError<Long, Long> query(StreamStatistics streamStats, long T0, long T1, Stream<Bucket> buckets, Function<Bucket, HyperLogLog> aggregateRetriever, long t0, long t1, Object... params) {
+    public ResultError<Long, Long> query(StreamStatistics streamStats, long T0, long T1, Stream<SummaryWindow> summaryWindows, Function<SummaryWindow, HyperLogLog> aggregateRetriever, long t0, long t1, Object... params) {
         return new ResultError<>(
-                (long)Math.ceil(buckets.map(aggregateRetriever).mapToDouble(HyperLogLog::getEstimate).sum()),
+                (long)Math.ceil(summaryWindows.map(aggregateRetriever).mapToDouble(HyperLogLog::getEstimate).sum()),
                 0L);
     }
 

@@ -29,9 +29,9 @@ public class Configuration {
         return toml.getString("prefix", "");
     }
 
-    /** Size of SummaryStore bucket cache */
-    public long getBucketCacheSize() {
-        return toml.getLong("bucket-cache-size", 0L);
+    /** Size of SummaryStore window cache */
+    public long getWindowCacheSize() {
+        return toml.getLong("window-cache-size", 0L);
     }
 
     public int getIngestBufferSize() {

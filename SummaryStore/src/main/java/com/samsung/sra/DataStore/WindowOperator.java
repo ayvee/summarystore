@@ -1,6 +1,6 @@
 package com.samsung.sra.DataStore;
 
-import com.samsung.sra.protocol.Summarybucket.ProtoOperator;
+import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 
 import java.io.Serializable;
 import java.util.List;
@@ -27,27 +27,21 @@ public interface WindowOperator<A, R, E> extends Serializable {
     /** Insert (the potentially multi-dimensional) val into aggr and return the updated aggregate */
     A insert(A aggr, long timestamp, Object[] val);
 
-    /** Retrieve aggregates from a set of buckets spanning [T0, T1] and do a combined query over
-     * them. We pass full Bucket objects instead of specific Aggregate objects of type A to allow
-     * query() to access Bucket metadata.
-     * TODO: pass an additional Function<Bucket, BucketMetadata> metadataRetriever as argument,
-     *       instead of letting query() manhandle Bucket objects
+    /** Retrieve aggregates from a set of windows spanning [T0, T1] and do a combined query over
+     * them. We pass full SummaryWindow objects instead of specific Aggregate objects of type A to allow
+     * query() to access SummaryWindow metadata.
+     * TODO: pass an additional Function<SummaryWindow, SummaryWindowMetadata> metadataRetriever as argument,
+     *       instead of letting query() manhandle SummaryWindow objects
      */
     ResultError<R, E> query(StreamStatistics streamStats,
-                            long T0, long T1, Stream<Bucket> buckets, Function<Bucket, A> aggregateRetriever,
+                            long T0, long T1, Stream<SummaryWindow> summaryWindows,
+                            Function<SummaryWindow, A> aggregateRetriever,
                             long t0, long t1, Object... params);
 
     /** Return the default answer to a query on an empty aggregate (containing zero elements) */
     ResultError<R, E> getEmptyQueryResult();
 
-    // AV: commenting out for now, will bring back if we find a need for dry-run error functions
-    //abstract public E getError(Stream<Bucket> buckets, long tStart, long tEnd, Object... params);
-
-    // NA: just provide methods to construct a proto builder and to deconstruct a builder
-    // these replace serialization and deserialization methods
-
     ProtoOperator.Builder protofy(A aggr);
 
     A deprotofy(ProtoOperator protoOperator);
-
 }

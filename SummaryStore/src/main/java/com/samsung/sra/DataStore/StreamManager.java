@@ -1,13 +1,12 @@
 package com.samsung.sra.DataStore;
 
 import com.google.protobuf.InvalidProtocolBufferException;
-import com.samsung.sra.protocol.Summarybucket.ProtoBucket;
+import com.samsung.sra.protocol.SummaryStore.ProtoSummaryWindow;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
-import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -17,10 +16,10 @@ import java.util.stream.Stream;
 
 
 /**
- * Handles all operations on a particular stream, both the southbound Bucket get, create
+ * Handles all operations on a particular stream, both the southbound SummaryWindow get, create
  * and merge operations initiated by WBMH as well as the northbound append() and query()
  * operations initiated by clients via SummaryStore. Stores aggregate per-stream information
- * as well as in-memory indexes. The buckets themselves are not stored directly here, they
+ * as well as in-memory indexes. The windows themselves are not stored directly here, they
  * go into the underlying backingStore.
  * <p>
  * StreamManagers do not handle synchronization, callers are expected to manage the lock
@@ -36,10 +35,10 @@ class StreamManager implements Serializable {
     final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     /**
-     * Read index, maps bucket.tStart -> bucketID. Used to answer queries
+     * Read index, maps summaryWindow.tStart -> summaryWindow.ID. Used to answer queries
      */
-    final TreeMap<Long, Long> temporalIndex = new TreeMap<>();
-    //transient BTreeMap<Long, Long> temporalIndex;
+    final TreeMap<Long, Long> summaryWindowIndex = new TreeMap<>();
+    //transient BTreeMap<Long, Long> summaryWindowIndex;
 
     /**
      * WindowingMechanism object. Maintains write indexes internally, which SummaryStore
@@ -88,26 +87,27 @@ class StreamManager implements Serializable {
         if (t1 > T1) {
             t1 = T1;
         }
-        //BTreeMap<Long, Long> index = streamManager.temporalIndex;
-        Long l = temporalIndex.floorKey(t0); // first bucket with tStart <= t0
-        Long r = temporalIndex.higherKey(t1); // first bucket with tStart > t1
-        if (r == null) {
-            r = temporalIndex.lastKey() + 1;
+        //BTreeMap<Long, Long> index = streamManager.summaryWindowIndex;
+        Long sL = summaryWindowIndex.floorKey(t0); // first window with tStart <= t0
+        Long sR = summaryWindowIndex.higherKey(t1); // first window with tStart > t1
+        if (sR == null) {
+            sR = summaryWindowIndex.lastKey() + 1;
         }
-        //logger.debug("Overapproximated time range = [{}, {})", l, r);
+        //logger.debug("Overapproximated time range = [{}, {})", sL, sR);
 
-        // Query on all buckets with l <= tStart < r
-        SortedMap<Long, Long> spanningBucketsIDs = temporalIndex.subMap(l, true, r, false);
-        Stream<Bucket> buckets = spanningBucketsIDs.values().stream().map(bucketID -> {
+        // Query on all windows with sL <= tStart < sR
+        Stream<SummaryWindow> summaryWindows = summaryWindowIndex
+                .subMap(sL, true, sR, false).values().stream()
+                .map(swid -> {
             try {
-                return backingStore.getBucket(this, bucketID);
+                return backingStore.getSummaryWindow(this, swid);
             } catch (RocksDBException e) {
                 throw new RuntimeException(e);
             }
         });
         try {
-            Function<Bucket, Object> retriever = b -> b.aggregates[operatorNum];
-            return operators[operatorNum].query(stats, l, r - 1, buckets, retriever, t0, t1, queryParams);
+            Function<SummaryWindow, Object> retriever = b -> b.aggregates[operatorNum];
+            return operators[operatorNum].query(stats, sL, sR - 1, summaryWindows, retriever, t0, t1, queryParams);
         } catch (RuntimeException e) {
             if (e.getCause() instanceof RocksDBException) {
                 throw (RocksDBException) e.getCause();
@@ -117,119 +117,103 @@ class StreamManager implements Serializable {
         }
     }
 
-    void insertValueIntoBucket(Bucket bucket, long ts, Object[] value) {
-        assert bucket.tStart <= ts && (bucket.tEnd == -1 || ts <= bucket.tEnd)
-                && operators.length == bucket.aggregates.length;
+    void insertIntoSummaryWindow(SummaryWindow window, long ts, Object[] value) {
+        assert window.tStart <= ts && (window.tEnd == -1 || ts <= window.tEnd)
+                && operators.length == window.aggregates.length;
         for (int i = 0; i < operators.length; ++i) {
-            bucket.aggregates[i] = operators[i].insert(bucket.aggregates[i], ts, value);
+            window.aggregates[i] = operators[i].insert(window.aggregates[i], ts, value);
         }
     }
 
     /**
-     * Replace buckets[0] with union(buckets)
+     * Replace windows[0] with union(windows)
      */
-    void mergeBuckets(Bucket... buckets) {
-        if (buckets.length == 0) return;
-        buckets[0].cEnd = buckets[buckets.length - 1].cEnd;
-        buckets[0].tEnd = buckets[buckets.length - 1].tEnd;
+    void mergeSummaryWindows(SummaryWindow... windows) {
+        if (windows.length == 0) return;
+        windows[0].cEnd = windows[windows.length - 1].cEnd;
+        windows[0].tEnd = windows[windows.length - 1].tEnd;
 
         for (int opNum = 0; opNum < operators.length; ++opNum) {
             final int i = opNum; // work around Java dumbness re stream.map arguments
-            buckets[0].aggregates[i] = operators[i].merge(Stream.of(buckets).map(b -> b.aggregates[i]));
+            windows[0].aggregates[i] = operators[i].merge(Stream.of(windows).map(b -> b.aggregates[i]));
         }
     }
 
-    Bucket createEmptyBucket(long prevBucketID, long thisBucketID, long nextBucketID,
-                             long tStart, long tEnd, long cStart, long cEnd) {
-        return new Bucket(operators, prevBucketID, thisBucketID, nextBucketID, tStart, tEnd, cStart, cEnd);
+    SummaryWindow createEmptySummaryWindow(
+            long prevSWID, long thisSWID, long nextSWID,
+            long tStart, long tEnd, long cStart, long cEnd) {
+        return new SummaryWindow(operators, prevSWID, thisSWID, nextSWID, tStart, tEnd, cStart, cEnd);
     }
 
-    Bucket getBucket(long bucketID) throws RocksDBException {
-        return backingStore.getBucket(this, bucketID);
+    SummaryWindow getSummaryWindow(long swid) throws RocksDBException {
+        return backingStore.getSummaryWindow(this, swid);
     }
 
-    Bucket deleteBucket(long bucketID) throws RocksDBException {
-        Bucket bucket = backingStore.deleteBucket(this, bucketID);
-        temporalIndex.remove(bucket.tStart);
-        return bucket;
+    SummaryWindow deleteSummaryWindow(long swid) throws RocksDBException {
+        SummaryWindow window = backingStore.deleteSummaryWindow(this, swid);
+        summaryWindowIndex.remove(window.tStart);
+        return window;
     }
 
-    void putBucket(long bucketID, Bucket bucket) throws RocksDBException {
-        temporalIndex.put(bucket.tStart, bucketID);
-        backingStore.putBucket(this, bucketID, bucket);
+    void putSummaryWindow(long swid, SummaryWindow window) throws RocksDBException {
+        summaryWindowIndex.put(window.tStart, swid);
+        backingStore.putSummaryWindow(this, swid, window);
     }
 
 
-    private byte[] serializeBucketProto(Bucket bucket) {
-        if (bucket == null) {
-            logger.error("NULL Bucket about to be serialized");
+    byte[] serializeSummaryWindow(SummaryWindow window) {
+        if (window == null) {
+            logger.error("NULL SummaryWindow about to be serialized");
         }
 
-        ProtoBucket.Builder protoBucket;
-
+        ProtoSummaryWindow.Builder protoWindow;
         try {
-            protoBucket = ProtoBucket.newBuilder().
-                    setThisBucketid(bucket.thisBucketID).
-                    setNextBucketID(bucket.nextBucketID).
-                    setPrevBucketID(bucket.prevBucketID).
-                    setTStart(bucket.tStart).setTEnd(bucket.tEnd).
-                    setCStart(bucket.cStart).setCEnd(bucket.cEnd);
+            protoWindow = ProtoSummaryWindow.newBuilder().
+                    setThisSWID(window.thisSWID).
+                    setNextSWID(window.nextSWID).
+                    setPrevSWID(window.prevSWID).
+                    setTStart(window.tStart).setTEnd(window.tEnd).
+                    setCStart(window.cStart).setCEnd(window.cEnd);
         } catch (Exception e) {
-            logger.error("Exception in serializing bucket", e);
+            logger.error("Exception in serializing window", e);
             throw new RuntimeException(e);
         }
 
         for (int op = 0; op < operators.length; ++op) {
-
-            //objectStringMap.get(bucket.aggregates[op].getClass().toString());
-
             try {
-                assert bucket.aggregates[op] != null;
-                protoBucket.addOperator(operators[op].protofy(bucket.aggregates[op]));
+                assert window.aggregates[op] != null;
+                protoWindow.addOperator(operators[op].protofy(window.aggregates[op]));
             } catch (Exception e) {
                 e.printStackTrace();
             }
 
         }
 
-        return protoBucket.build().toByteArray();
+        return protoWindow.build().toByteArray();
     }
 
-    private Bucket deserializeBucketProto(ProtoBucket protoBucket) {
-        Bucket bucket = new Bucket();
-        bucket.thisBucketID = protoBucket.getThisBucketid();
-        bucket.prevBucketID = protoBucket.getPrevBucketID();
-        bucket.nextBucketID = protoBucket.getNextBucketID();
-        bucket.tStart = protoBucket.getTStart();
-        bucket.tEnd = protoBucket.getTEnd();
-        bucket.cStart = protoBucket.getCStart();
-        bucket.cEnd = protoBucket.getCEnd();
-
-        /* find number of aggregates in protobucket or use operators.length
-         * eventually this assign and check should be dropped since the serialized object
-         * is self describing; just check until iterate over all "hasProto*"
-         */
-        bucket.aggregates = new Object[operators.length];
-
-        assert protoBucket.getOperatorCount() == operators.length;
-        for (int op = 0; op < operators.length; ++op) {
-            bucket.aggregates[op] = operators[op].deprotofy(protoBucket.getOperator(op));
-        }
-
-        return bucket;
-    }
-
-
-    // just wrappers for backward compatibility
-    byte[] serializeBucket(Bucket bucket) {
-        return serializeBucketProto(bucket);
-    }
-
-    Bucket deserializeBucket(byte[] bytes) {
+    SummaryWindow deserializeSummaryWindow(byte[] bytes) {
+        ProtoSummaryWindow protoSummaryWindow;
         try {
-            return deserializeBucketProto(ProtoBucket.parseFrom(bytes));
+            protoSummaryWindow = ProtoSummaryWindow.parseFrom(bytes);
         } catch (InvalidProtocolBufferException e) {
             throw new RuntimeException(e);
         }
+        SummaryWindow window = new SummaryWindow();
+        window.thisSWID = protoSummaryWindow.getThisSWID();
+        window.prevSWID = protoSummaryWindow.getPrevSWID();
+        window.nextSWID = protoSummaryWindow.getNextSWID();
+        window.tStart = protoSummaryWindow.getTStart();
+        window.tEnd = protoSummaryWindow.getTEnd();
+        window.cStart = protoSummaryWindow.getCStart();
+        window.cEnd = protoSummaryWindow.getCEnd();
+
+        assert protoSummaryWindow.getOperatorCount() == operators.length;
+        window.aggregates = new Object[operators.length];
+        for (int op = 0; op < operators.length; ++op) {
+            window.aggregates[op] = operators[op].deprotofy(protoSummaryWindow.getOperator(op));
+        }
+
+        return window;
     }
 }

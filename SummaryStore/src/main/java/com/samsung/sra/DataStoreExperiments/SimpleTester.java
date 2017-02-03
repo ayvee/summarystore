@@ -75,7 +75,7 @@ public class SimpleTester {
         long we = System.currentTimeMillis();
         //System.out.println("Write throughput = " + (T * 1000d / (we - w0)) + " appends/s" );
 
-        store.printBucketState(streamID, false);
+        store.printWindowState(streamID, false);
         //logger.debug("Size for store " + streamID + " : " + store.getStoreSizeInBytes());
 
         Object o[] = {new Long(50), new Long(0)};

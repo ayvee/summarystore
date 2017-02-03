@@ -25,11 +25,11 @@ message ProtoOperator {
     }
 }
 
-// the superset; this is the whole bucket
-message ProtoBucket {
-    required int64 thisBucketid = 1;
-    optional int64 prevBucketID = 2;
-    optional int64 nextBucketID = 3;
+message ProtoSummaryWindow {
+    // SWID = SummaryWindowID
+    required int64 thisSWID = 1;
+    optional int64 prevSWID = 2;
+    optional int64 nextSWID = 3;
     optional int64 tStart = 4;
     optional int64 tEnd = 5;
     optional int64 cStart = 6;

@@ -1,7 +1,7 @@
 package com.samsung.sra.DataStore.Aggregates;
 
 import com.samsung.sra.DataStore.*;
-import com.samsung.sra.protocol.Summarybucket.ProtoOperator;
+import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 import org.apache.commons.lang.mutable.MutableDouble;
 import org.apache.commons.lang.mutable.MutableLong;
 import org.apache.commons.math3.util.Pair;
@@ -58,7 +58,7 @@ public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Doub
         private long Cm = -1; // count of all middle buckets (if there are > 2 buckets)
         private long Cr = -1; // count of last bucket (if there is > 1 bucket)
 
-        QueryEstimator(long T0, long T1, Stream<Bucket> buckets, Function<Bucket, Long> countRetriever) {
+        QueryEstimator(long T0, long T1, Stream<SummaryWindow> buckets, Function<SummaryWindow, Long> countRetriever) {
             MutableLong numBuckets = new MutableLong(0L); // not a plain long because of Java Stream limitations
             buckets.forEach(b -> {
                 numBuckets.increment();
@@ -154,9 +154,9 @@ public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Doub
     @Override
     public ResultError<Double, Pair<Double, Double>> query(StreamStatistics streamStats,
                                                            long T0, long T1,
-                                                           Stream<Bucket> buckets, Function<Bucket, Long> countRetriever,
+                                                           Stream<SummaryWindow> summaryWindows, Function<SummaryWindow, Long> countRetriever,
                                                            long t0, long t1, Object... params) {
-        QueryEstimator estimator = new QueryEstimator(T0, T1, buckets, countRetriever);
+        QueryEstimator estimator = new QueryEstimator(T0, T1, summaryWindows, countRetriever);
         double confidenceLevel = 1;
         if (params != null && params.length > 0) {
             confidenceLevel = ((Number) params[0]).doubleValue();

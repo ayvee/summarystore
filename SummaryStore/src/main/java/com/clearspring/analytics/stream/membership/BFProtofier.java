@@ -1,7 +1,7 @@
 package com.clearspring.analytics.stream.membership;
 
 import com.google.protobuf.ByteString;
-import com.samsung.sra.protocol.Summarybucket.ProtoOperator;
+import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 
 import java.util.BitSet;
 

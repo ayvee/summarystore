@@ -32,7 +32,7 @@ public class SummaryStore implements AutoCloseable {
      */
     public SummaryStore(String filePrefix, long cacheSizePerStream) throws RocksDBException {
         this.backingStore = filePrefix != null ?
-                new RocksDBBackingStore(filePrefix + ".dataStore", cacheSizePerStream) :
+                new RocksDBBackingStore(filePrefix + ".backingStore", cacheSizePerStream) :
                 new MainMemoryBackingStore();
         executorService = Executors.newCachedThreadPool();
         Object uncast = backingStore.getMetadata();
@@ -100,19 +100,20 @@ public class SummaryStore implements AutoCloseable {
         }
     }
 
-    public void printBucketState(long streamID, boolean printPerBucketState) throws StreamException, RocksDBException {
+    public void printWindowState(long streamID, boolean printPerWindowState) throws StreamException, RocksDBException {
         StreamManager streamManager = getStreamManager(streamID);
         System.out.println("Stream " + streamID + " with " + streamManager.stats.getNumValues() + " elements in " +
-                streamManager.temporalIndex.size() + " windows");
-        if (printPerBucketState) {
-            for (Object bucketID : streamManager.temporalIndex.values()) {
-                System.out.println("\t" + backingStore.getBucket(streamManager, (long) bucketID));
+                streamManager.summaryWindowIndex.size() + " summary windows");
+        if (printPerWindowState) {
+            for (Object swid : streamManager.summaryWindowIndex.values()) {
+                System.out.println("\t" + backingStore.getSummaryWindow(streamManager, (long) swid));
             }
         }
+        //TODO: landmark windows
     }
 
-    public void printBucketState(long streamID) throws StreamException, RocksDBException {
-        printBucketState(streamID, false);
+    public void printWindowState(long streamID) throws StreamException, RocksDBException {
+        printWindowState(streamID, false);
     }
 
     public void warmupCache() throws RocksDBException {
@@ -149,7 +150,7 @@ public class SummaryStore implements AutoCloseable {
     }
 
     /**
-     * Get number of windows (buckets) in specified stream. Use a null streamID to get total count over all streams
+     * Get number of windows in specified stream. Use a null streamID to get total count over all streams
      */
     public long getNumWindows(Long streamID) {
         try {
@@ -160,11 +161,12 @@ public class SummaryStore implements AutoCloseable {
             for (StreamManager sm: managers) {
                 sm.lock.readLock().lock();
                 try {
-                    ret += (long) sm.temporalIndex.size();
+                    ret += (long) sm.summaryWindowIndex.size();
                 } finally {
                     sm.lock.readLock().unlock();
                 }
             }
+            //TODO: landmark windows
             return ret;
         } catch (StreamException e) {
             e.printStackTrace();
@@ -205,12 +207,12 @@ public class SummaryStore implements AutoCloseable {
                         new CMSOperator(5, 100, 0));
                 for (long i = 0; i < 1022; ++i) {
                     store.append(streamID, i, i % 10, 1000L);
-                    store.printBucketState(streamID);
+                    store.printWindowState(streamID);
                 }
                 store.flush(streamID);
-                store.printBucketState(streamID, true);
+                store.printWindowState(streamID, true);
             } else {
-                store.printBucketState(streamID);
+                store.printWindowState(streamID);
             }
             long t0 = 1, t1 = 511;
             System.out.println(

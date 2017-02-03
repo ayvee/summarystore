@@ -2,11 +2,11 @@ package com.samsung.sra.DataStore.Aggregates;
 
 import com.clearspring.analytics.stream.frequency.CMSProtofier;
 import com.clearspring.analytics.stream.frequency.CountMinSketch;
-import com.samsung.sra.DataStore.Bucket;
+import com.samsung.sra.DataStore.SummaryWindow;
 import com.samsung.sra.DataStore.ResultError;
 import com.samsung.sra.DataStore.StreamStatistics;
 import com.samsung.sra.DataStore.WindowOperator;
-import com.samsung.sra.protocol.Summarybucket.ProtoOperator;
+import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 import org.apache.commons.math3.util.Pair;
 
 import java.util.Arrays;
@@ -64,16 +64,16 @@ public class CMSOperator implements WindowOperator<CountMinSketch,Double,Pair<Do
 
     @Override
     public ResultError<Double, Pair<Double, Double>> query(StreamStatistics streamStats,
-                                                           long T0, long T1, Stream<Bucket> buckets,
-                                                           Function<Bucket, CountMinSketch> aggregateRetriever,
+                                                           long T0, long T1, Stream<SummaryWindow> summaryWindows,
+                                                           Function<SummaryWindow, CountMinSketch> aggregateRetriever,
                                                            long t0, long t1, Object... params) {
         assert params != null && params.length > 0;
-        Function<Bucket, Long> countRetriever = aggregateRetriever.andThen(
+        Function<SummaryWindow, Long> countRetriever = aggregateRetriever.andThen(
                 cms -> cms.estimateCount((long) params[0])
         );
         // FIXME! Returns correct base answer, but we have a better CI construction with a hypergeom distr
         //        (which accounts for, among other things, the fact that we know true count over all values)
-        SimpleCountOperator.QueryEstimator estimator = new SimpleCountOperator.QueryEstimator(T0, T1, buckets, countRetriever);
+        SimpleCountOperator.QueryEstimator estimator = new SimpleCountOperator.QueryEstimator(T0, T1, summaryWindows, countRetriever);
         double confidenceLevel = 1;
         if (params.length > 1) {
             confidenceLevel = ((Number) params[1]).doubleValue();

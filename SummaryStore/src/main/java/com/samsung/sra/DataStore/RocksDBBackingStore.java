@@ -15,7 +15,8 @@ public class RocksDBBackingStore implements BackingStore {
     private final Options rocksDBOptions;
     private final long cacheSizePerStream;
     // TODO: use a LinkedHashMap in LRU mode
-    private final ConcurrentHashMap<Long, ConcurrentHashMap<Long, Bucket>> cache; // map streamID -> bucketID -> bucket
+    // map streamID -> windowID -> window
+    private final ConcurrentHashMap<Long, ConcurrentHashMap<Long, SummaryWindow>> cache;
 
     /**
      * @param rocksPath  on-disk path
@@ -36,13 +37,13 @@ public class RocksDBBackingStore implements BackingStore {
     private static final int KEY_SIZE = 16;
 
     /**
-     * RocksDB key = <streamID, bucketID>. Since we ensure bucketIDs are assigned in increasing
+     * RocksDB key = <streamID, windowID>. Since we ensure windowIDs are assigned in increasing
      * order, this lays out data in temporal order within streams
      */
-    private byte[] getRocksDBKey(long streamID, long bucketID) {
+    private byte[] getRocksDBKey(long streamID, long windowID) {
         byte[] keyArray = new byte[KEY_SIZE];
         Utilities.longToByteArray(streamID, keyArray, 0);
-        Utilities.longToByteArray(bucketID, keyArray, 8);
+        Utilities.longToByteArray(windowID, keyArray, 8);
         return keyArray;
     }
 
@@ -50,26 +51,27 @@ public class RocksDBBackingStore implements BackingStore {
         return Utilities.byteArrayToLong(keyArray, 0);
     }
 
-    private long parseRocksDBKeyBucketID(byte[] keyArray) {
+    private long parseRocksDBKeyWindowID(byte[] keyArray) {
         return Utilities.byteArrayToLong(keyArray, 8);
     }
 
     /**
      * Insert value into cache, evicting another cached entry if necessary
      */
-    private void insertIntoCache(Map<Long, Bucket> streamCache, StreamManager streamManager, long bucketID, Bucket bucket) throws RocksDBException {
+    private void insertIntoCache(Map<Long, SummaryWindow> streamCache, StreamManager streamManager,
+                                 long swid, SummaryWindow window) throws RocksDBException {
         assert streamCache != null;
         if (streamCache.size() >= cacheSizePerStream) { // evict something
-            Map.Entry<Long, Bucket> evicted = streamCache.entrySet().iterator().next();
+            Map.Entry<Long, SummaryWindow> evicted = streamCache.entrySet().iterator().next();
             byte[] evictedKey = getRocksDBKey(streamManager.streamID, evicted.getKey());
-            byte[] evictedValue = streamManager.serializeBucket(evicted.getValue());
+            byte[] evictedValue = streamManager.serializeSummaryWindow(evicted.getValue());
             rocksDB.put(evictedKey, evictedValue);
         }
-        streamCache.put(bucketID, bucket);
+        streamCache.put(swid, window);
     }
 
-    private Bucket getAndOrDeleteBucket(StreamManager streamManager, long bucketID, boolean delete) throws RocksDBException {
-        ConcurrentHashMap<Long, Bucket> streamCache;
+    private SummaryWindow getAndOrDeleteSummaryWindow(StreamManager streamManager, long swid, boolean delete) throws RocksDBException {
+        ConcurrentHashMap<Long, SummaryWindow> streamCache;
         if (cache == null) {
             streamCache = null;
         } else {
@@ -77,44 +79,44 @@ public class RocksDBBackingStore implements BackingStore {
             if (streamCache == null) cache.put(streamManager.streamID, streamCache = new ConcurrentHashMap<>());
         }
 
-        Bucket bucket = streamCache != null ? streamCache.get(bucketID) : null;
-        if (bucket != null) { // cache hit
-            if (delete) streamCache.remove(bucketID);
-            return bucket;
+        SummaryWindow window = streamCache != null ? streamCache.get(swid) : null;
+        if (window != null) { // cache hit
+            if (delete) streamCache.remove(swid);
+            return window;
         } else { // either no cache or cache miss; read-through from RocksDB
-            byte[] rocksKey = getRocksDBKey(streamManager.streamID, bucketID);
+            byte[] rocksKey = getRocksDBKey(streamManager.streamID, swid);
             byte[] rocksValue = rocksDB.get(rocksKey);
-            bucket = streamManager.deserializeBucket(rocksValue);
+            window = streamManager.deserializeSummaryWindow(rocksValue);
             if (delete) {
                 rocksDB.remove(rocksKey);
             }
             if (streamCache != null) {
-                insertIntoCache(streamCache, streamManager, bucketID, bucket);
+                insertIntoCache(streamCache, streamManager, swid, window);
             }
-            return bucket;
+            return window;
         }
     }
 
     @Override
-    public Bucket getBucket(StreamManager streamManager, long bucketID) throws RocksDBException {
-        return getAndOrDeleteBucket(streamManager, bucketID, false);
+    public SummaryWindow getSummaryWindow(StreamManager streamManager, long swid) throws RocksDBException {
+        return getAndOrDeleteSummaryWindow(streamManager, swid, false);
     }
 
     @Override
-    public Bucket deleteBucket(StreamManager streamManager, long bucketID) throws RocksDBException {
-        return getAndOrDeleteBucket(streamManager, bucketID, true);
+    public SummaryWindow deleteSummaryWindow(StreamManager streamManager, long swid) throws RocksDBException {
+        return getAndOrDeleteSummaryWindow(streamManager, swid, true);
     }
 
     @Override
-    public void putBucket(StreamManager streamManager, long bucketID, Bucket bucket) throws RocksDBException {
+    public void putSummaryWindow(StreamManager streamManager, long swid, SummaryWindow window) throws RocksDBException {
         if (cache != null) {
-            ConcurrentHashMap<Long, Bucket> streamCache = cache.get(streamManager.streamID);
+            ConcurrentHashMap<Long, SummaryWindow> streamCache = cache.get(streamManager.streamID);
             if (streamCache == null) cache.put(streamManager.streamID, streamCache = new ConcurrentHashMap<>());
 
-            insertIntoCache(streamCache, streamManager, bucketID, bucket);
+            insertIntoCache(streamCache, streamManager, swid, window);
         } else {
-            byte[] key = getRocksDBKey(streamManager.streamID, bucketID);
-            byte[] value = streamManager.serializeBucket(bucket);
+            byte[] key = getRocksDBKey(streamManager.streamID, swid);
+            byte[] value = streamManager.serializeSummaryWindow(window);
             rocksDB.put(key, value);
         }
     }
@@ -132,15 +134,15 @@ public class RocksDBBackingStore implements BackingStore {
                 long streamID = parseRocksDBKeyStreamID(keyArray);
                 StreamManager streamManager = streamManagers.get(streamID);
                 assert streamManager != null;
-                ConcurrentHashMap<Long, Bucket> streamCache = cache.get(streamID);
+                ConcurrentHashMap<Long, SummaryWindow> streamCache = cache.get(streamID);
                 if (streamCache == null) {
                     cache.put(streamID, streamCache = new ConcurrentHashMap<>());
                 } else if (streamCache.size() >= cacheSizePerStream) {
                     continue;
                 }
-                long bucketID = parseRocksDBKeyBucketID(keyArray);
-                Bucket bucket = streamManager.deserializeBucket(iter.value());
-                streamCache.put(bucketID, bucket);
+                long swid = parseRocksDBKeyWindowID(keyArray);
+                SummaryWindow window = streamManager.deserializeSummaryWindow(iter.value());
+                streamCache.put(swid, window);
             }
         } finally {
             if (iter != null) iter.dispose();
@@ -150,20 +152,20 @@ public class RocksDBBackingStore implements BackingStore {
     @Override
     public void flushCache(StreamManager streamManager) throws RocksDBException {
         if (cache == null) return;
-        Map<Long, Bucket> streamCache = cache.get(streamManager.streamID);
+        Map<Long, SummaryWindow> streamCache = cache.get(streamManager.streamID);
         if (streamCache != null) {
-            for (Map.Entry<Long, Bucket> bucketEntry : streamCache.entrySet()) {
-                long bucketID = bucketEntry.getKey();
-                Bucket bucket = bucketEntry.getValue();
-                byte[] rocksKey = getRocksDBKey(streamManager.streamID, bucketID);
-                byte[] rocksValue = streamManager.serializeBucket(bucket);
+            for (Map.Entry<Long, SummaryWindow> entry: streamCache.entrySet()) {
+                long swid = entry.getKey();
+                SummaryWindow window = entry.getValue();
+                byte[] rocksKey = getRocksDBKey(streamManager.streamID, swid);
+                byte[] rocksValue = streamManager.serializeSummaryWindow(window);
                 rocksDB.put(rocksKey, rocksValue);
             }
         }
     }
 
     /** We will persist metadata in RocksDB under this special (empty) key, which will
-     * never collide with any of the (non-empty) keys we use for bucket storage
+     * never collide with any of the (non-empty) keys we use for window storage
      */
     private final static byte[] metadataSpecialKey = {};
 

@@ -1,6 +1,6 @@
 data-dir = "/mnt/sdc/summarystore"
 results-dir = "/home/sstore/summarystore/code/SummaryStore/output"
-bucket-cache-size = 1_000
+window-cache-size = 1_000
 ingest-buffer-size = 2_000_000
 
 decay-functions = [

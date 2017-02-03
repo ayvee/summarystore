@@ -24,9 +24,9 @@ public class PrintErrorTrend {
         String decay = args[1];
         Query.Type queryType = Query.Type.valueOf(args[2].toUpperCase());
         if (args.length <= 3) {
-            try (SummaryStore store = new SummaryStore(conf.getStorePrefix(decay), conf.getBucketCacheSize())) {
-                System.out.println("no time range specified, printing bucket state");
-                store.printBucketState(streamID, true);
+            try (SummaryStore store = new SummaryStore(conf.getStorePrefix(decay), conf.getWindowCacheSize())) {
+                System.out.println("no time range specified, printing window state");
+                store.printWindowState(streamID, true);
             }
             return;
         }
@@ -52,7 +52,7 @@ public class PrintErrorTrend {
         Workload workload = new Workload();
         workload.put("all", queries);
         PopulateWorkload.computeTrueAnswers(conf, workload);
-        try (SummaryStore store = new SummaryStore(conf.getStorePrefix(decay), conf.getBucketCacheSize())) {
+        try (SummaryStore store = new SummaryStore(conf.getStorePrefix(decay), conf.getWindowCacheSize())) {
             if (queryType == Query.Type.COUNT) {
                 System.out.println("#length\ttrue answer\testimate\tCI left\tCI right");
             } else if (queryType == Query.Type.BF) {

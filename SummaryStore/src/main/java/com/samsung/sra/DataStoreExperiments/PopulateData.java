@@ -23,11 +23,11 @@ public class PopulateData {
         // uncomment the parallelStream to parallelize
         config.getDecayFunctions()./*parallelStream().*/forEach(decay -> {
             String outprefix = config.getStorePrefix(decay);
-            if ((new File(outprefix + ".bucketStore").exists())) {
-                logger.warn("Decay function {} already populated at {}.bucketStore, skipping", decay, outprefix);
+            if ((new File(outprefix + ".backingStore").exists())) {
+                logger.warn("Decay function {} already populated at {}.backingStore, skipping", decay, outprefix);
                 return;
             }
-            try (SummaryStore store = new SummaryStore(outprefix, config.getBucketCacheSize());
+            try (SummaryStore store = new SummaryStore(outprefix, config.getWindowCacheSize());
                  StreamGenerator streamgen = config.getStreamGenerator()) {
                 store.registerStream(streamID,
                         new CountBasedWBMH(config.parseDecayFunction(decay), config.getIngestBufferSize()),

@@ -6,16 +6,16 @@ import java.io.Serializable;
 import java.util.Map;
 
 /**
- * Underlying key-value store holding all the buckets. Two implementations:
+ * Underlying key-value store holding all the windows. Two implementations:
  *      RocksDBBackingStore
  *      MainMemoryBackingStore
  */
 interface BackingStore extends AutoCloseable {
-    Bucket getBucket(StreamManager streamManager, long bucketID) throws RocksDBException;
+    SummaryWindow getSummaryWindow(StreamManager streamManager, long swid) throws RocksDBException;
 
-    Bucket deleteBucket(StreamManager streamManager, long bucketID) throws RocksDBException;
+    SummaryWindow deleteSummaryWindow(StreamManager streamManager, long swid) throws RocksDBException;
 
-    void putBucket(StreamManager streamManager, long bucketID, Bucket bucket) throws RocksDBException;
+    void putSummaryWindow(StreamManager streamManager, long swid, SummaryWindow window) throws RocksDBException;
 
     Serializable getMetadata() throws RocksDBException;
 

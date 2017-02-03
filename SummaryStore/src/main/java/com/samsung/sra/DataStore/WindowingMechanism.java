@@ -9,8 +9,8 @@ import java.io.Serializable;
  */
 public interface WindowingMechanism extends Serializable {
     /**
-     * Process the append: update the set of buckets in the store (merge existing buckets and/or
-     * create new buckets), and insert the provided value into the appropriate bucket.
+     * Process the append: update the set of decayed summary windows in the store (merge existing windows and/or
+     * create new windows), and insert the provided value into the appropriate window.
      *
      * We will maintain a separate WindowingMechanism object per stream (streamID will be provided
      * to the constructor), so implementors can store stream-specific state. Also, implementors do

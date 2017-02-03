@@ -7,25 +7,25 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class MainMemoryBackingStore implements BackingStore {
-    private Map<Long, Map<Long, Bucket>> buckets = new HashMap<>();
+    private Map<Long, Map<Long, SummaryWindow>> summaryWindows = new HashMap<>();
 
     @Override
-    public Bucket getBucket(StreamManager streamManager, long bucketID) throws RocksDBException {
-        return buckets.get(streamManager.streamID).get(bucketID);
+    public SummaryWindow getSummaryWindow(StreamManager streamManager, long swid) throws RocksDBException {
+        return summaryWindows.get(streamManager.streamID).get(swid);
     }
 
     @Override
-    public Bucket deleteBucket(StreamManager streamManager, long bucketID) throws RocksDBException {
-        return buckets.get(streamManager.streamID).remove(bucketID);
+    public SummaryWindow deleteSummaryWindow(StreamManager streamManager, long swid) throws RocksDBException {
+        return summaryWindows.get(streamManager.streamID).remove(swid);
     }
 
     @Override
-    public void putBucket(StreamManager streamManager, long bucketID, Bucket bucket) throws RocksDBException {
-        Map<Long, Bucket> stream = buckets.get(streamManager.streamID);
+    public void putSummaryWindow(StreamManager streamManager, long swid, SummaryWindow window) throws RocksDBException {
+        Map<Long, SummaryWindow> stream = summaryWindows.get(streamManager.streamID);
         if (stream == null) {
-            buckets.put(streamManager.streamID, (stream = new HashMap<>()));
+            summaryWindows.put(streamManager.streamID, (stream = new HashMap<>()));
         }
-        stream.put(bucketID, bucket);
+        stream.put(swid, window);
     }
 
     private Serializable indexes = null;
@@ -42,7 +42,7 @@ public class MainMemoryBackingStore implements BackingStore {
 
     @Override
     public void close() throws RocksDBException {
-        buckets.clear();
+        summaryWindows.clear();
         indexes = null;
     }
 }
