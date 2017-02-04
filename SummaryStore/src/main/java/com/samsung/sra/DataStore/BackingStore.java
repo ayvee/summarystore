@@ -13,6 +13,26 @@ import java.util.Map;
 interface BackingStore extends AutoCloseable {
     SummaryWindow getSummaryWindow(StreamManager streamManager, long swid) throws RocksDBException;
 
+    /* *** BEGIN COLUMN STORE OPTIMIZATIONS *** */
+    /* Columnar backing stores should override the following two functions*/
+
+    default boolean isColumnar() {
+        return false;
+    }
+
+    /**
+     * Instead of returning the whole window with id swid, return just the window header + the aggregate with
+     * specified index. returnValue.aggregates.length will be 1 instead of number of operators
+     *
+     * Will only be called if isColumnar() returns true
+     */
+    default SummaryWindow getSummaryWindow(StreamManager streamManager, long swid, int aggregateIdx)
+            throws RocksDBException {
+        throw new IllegalStateException("placeholder code, should not be called");
+    }
+
+    /* *** END COLUMN STORE OPTIMIZATIONS *** */
+
     SummaryWindow deleteSummaryWindow(StreamManager streamManager, long swid) throws RocksDBException;
 
     void putSummaryWindow(StreamManager streamManager, long swid, SummaryWindow window) throws RocksDBException;

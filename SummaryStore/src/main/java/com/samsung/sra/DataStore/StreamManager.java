@@ -100,13 +100,17 @@ class StreamManager implements Serializable {
                 .subMap(sL, true, sR, false).values().stream()
                 .map(swid -> {
             try {
-                return backingStore.getSummaryWindow(this, swid);
+                return backingStore.isColumnar()
+                        ? backingStore.getSummaryWindow(this, swid, operatorNum)
+                        : backingStore.getSummaryWindow(this, swid);
             } catch (RocksDBException e) {
                 throw new RuntimeException(e);
             }
         });
         try {
-            Function<SummaryWindow, Object> retriever = b -> b.aggregates[operatorNum];
+            Function<SummaryWindow, Object> retriever = backingStore.isColumnar()
+                    ? b -> b.aggregates[operatorNum]
+                    : b -> b.aggregates[0];
             return operators[operatorNum].query(stats, sL, sR - 1, summaryWindows, retriever, t0, t1, queryParams);
         } catch (RuntimeException e) {
             if (e.getCause() instanceof RocksDBException) {
