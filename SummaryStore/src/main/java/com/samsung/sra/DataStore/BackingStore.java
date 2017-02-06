@@ -17,6 +17,10 @@ interface BackingStore extends AutoCloseable {
 
     void putSummaryWindow(StreamManager streamManager, long swid, SummaryWindow window) throws RocksDBException;
 
+    LandmarkWindow getLandmarkWindow(StreamManager streamManager, long lwid) throws RocksDBException;
+
+    void putLandmarkWindow(StreamManager streamManager, long lwid, LandmarkWindow window) throws RocksDBException;
+
     Serializable getMetadata() throws RocksDBException;
 
     void putMetadata(Serializable indexes) throws RocksDBException;

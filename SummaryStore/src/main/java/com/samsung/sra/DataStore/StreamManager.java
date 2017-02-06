@@ -7,8 +7,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -56,8 +54,6 @@ class StreamManager implements Serializable {
     final WindowingMechanism windowingMechanism;
 
     private transient BackingStore backingStore;
-    // FIXME! Should go into backingStore
-    final List<LandmarkWindow> landmarks = new ArrayList<>();
 
     private transient ExecutorService executorService;
 
@@ -96,11 +92,13 @@ class StreamManager implements Serializable {
             // update decayed windowing, aging it by one position, but don't actually insert value into decayed window;
             // see how LANDMARK_VALUE is handled in insertIntoSummaryWindow below
             windowingMechanism.append(this, ts, LANDMARK_VALUE);
-            landmarks.get((int) activeLWID).append(ts, value);
+            LandmarkWindow window = backingStore.getLandmarkWindow(this, activeLWID);
+            window.append(ts, value);
+            backingStore.putLandmarkWindow(this, activeLWID, window);
         }
     }
 
-    void startLandmark(long ts) throws LandmarkException {
+    void startLandmark(long ts) throws LandmarkException, RocksDBException {
         if (ts <= tLastAppend || ts < tLastLandmarkStart || ts <= tLastLandmarkEnd) {
             throw new LandmarkException("attempting to retroactively start landmark");
         }
@@ -109,16 +107,18 @@ class StreamManager implements Serializable {
         }
         tLastLandmarkStart = ts;
         activeLWID = nextLWID++;
-        landmarks.add(new LandmarkWindow(activeLWID, ts));
+        backingStore.putLandmarkWindow(this, activeLWID, new LandmarkWindow(activeLWID, ts));
         landmarkWindowIndex.put(ts, activeLWID);
     }
 
-    void endLandmark(long ts) throws LandmarkException {
+    void endLandmark(long ts) throws LandmarkException, RocksDBException {
         if (ts < tLastAppend || ts < tLastLandmarkStart || ts <= tLastLandmarkEnd) {
             throw new LandmarkException("attempting to retroactively end landmark");
         }
         tLastLandmarkEnd = ts;
-        landmarks.get((int) activeLWID).close(ts);
+        LandmarkWindow window = backingStore.getLandmarkWindow(this, activeLWID);
+        window.close(ts);
+        backingStore.putLandmarkWindow(this, activeLWID, window);
         activeLWID = -1;
     }
 
@@ -170,7 +170,13 @@ class StreamManager implements Serializable {
             long _t0 = t0; // hack, needed because of a limitation in Java 8's lambda function handling
             landmarkWindows = landmarkWindowIndex
                     .subMap(l, true, r, false).values().stream()
-                    .map(lwid -> landmarks.get(lwid.intValue()))
+                    .map(lwid -> {
+                        try {
+                            return backingStore.getLandmarkWindow(this, lwid);
+                        } catch (RocksDBException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
                     .filter(w -> w.tEnd >= _t0); // filter needed because very first window may not overlap [t0, t1]
         }
 

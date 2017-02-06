@@ -106,7 +106,7 @@ public class SummaryStore implements AutoCloseable {
      *
      * Has no effect is there already is an active landmark window.
      */
-    public void startLandmark(long streamID, long timestamp) throws StreamException, LandmarkException {
+    public void startLandmark(long streamID, long timestamp) throws StreamException, LandmarkException, RocksDBException {
         StreamManager streamManager = getStreamManager(streamID);
         streamManager.lock.writeLock().lock();
         try {
@@ -120,7 +120,7 @@ public class SummaryStore implements AutoCloseable {
      * Seal the active landmark window, throwing an exception if there isn't one. timestamp must not precede last
      * appended value.
      */
-    public void endLandmark(long streamID, long timestamp) throws StreamException, LandmarkException {
+    public void endLandmark(long streamID, long timestamp) throws StreamException, LandmarkException, RocksDBException {
         StreamManager streamManager = getStreamManager(streamID);
         streamManager.lock.writeLock().lock();
         try {
@@ -135,11 +135,11 @@ public class SummaryStore implements AutoCloseable {
         System.out.println("Stream " + streamID + " with " + streamManager.stats.getNumValues() + " elements in " +
                 streamManager.summaryWindowIndex.size() + " summary windows");
         if (printPerWindowState) {
-            for (Object swid : streamManager.summaryWindowIndex.values()) {
-                System.out.println("\t" + backingStore.getSummaryWindow(streamManager, (long) swid));
+            for (long swid : streamManager.summaryWindowIndex.values()) {
+                System.out.println("\t" + backingStore.getSummaryWindow(streamManager, swid));
             }
-            for (LandmarkWindow landmark : streamManager.landmarks) {
-                System.out.println("\t" + landmark);
+            for (long lwid : streamManager.landmarkWindowIndex.values()) {
+                System.out.println("\t" + backingStore.getLandmarkWindow(streamManager, lwid));
             }
         }
     }
