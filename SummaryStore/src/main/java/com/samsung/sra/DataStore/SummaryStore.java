@@ -138,7 +138,7 @@ public class SummaryStore implements AutoCloseable {
             for (Object swid : streamManager.summaryWindowIndex.values()) {
                 System.out.println("\t" + backingStore.getSummaryWindow(streamManager, (long) swid));
             }
-            for (LandmarkWindow landmark : streamManager.landmarkWindows) {
+            for (LandmarkWindow landmark : streamManager.landmarks) {
                 System.out.println("\t" + landmark);
             }
         }
