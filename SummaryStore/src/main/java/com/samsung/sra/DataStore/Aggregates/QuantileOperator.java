@@ -1,12 +1,8 @@
 package com.samsung.sra.DataStore.Aggregates;
 
-import com.samsung.sra.DataStore.SummaryWindow;
-import com.samsung.sra.DataStore.ResultError;
-import com.samsung.sra.DataStore.StreamStatistics;
-import com.samsung.sra.DataStore.WindowOperator;
-import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
-
 import com.clearspring.analytics.stream.quantile.QDigest;
+import com.samsung.sra.DataStore.*;
+import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 
 import java.util.Collections;
 import java.util.List;
@@ -54,12 +50,14 @@ public class QuantileOperator implements WindowOperator<QDigest, Long, Long> {
 
     @Override
     public ResultError<Long, Long> query(StreamStatistics streamStats,
-                                         long T0, long T1, Stream<SummaryWindow> summaryWindows, Function<SummaryWindow, QDigest> quantileRetriever,
+                                         Stream<SummaryWindow> summaryWindows,
+                                         Function<SummaryWindow, QDigest> qdRetriever,
+                                         Stream<LandmarkWindow> landmarkWindows,
                                          long t0, long t1, Object... params) {
         QDigest newQDigest = new QDigest(64);
         int i = 0; 
         for(SummaryWindow summaryWindow: (Iterable<SummaryWindow>) summaryWindows::iterator) {
-            newQDigest = QDigest.unionOf(newQDigest, quantileRetriever.apply(summaryWindow));
+            newQDigest = QDigest.unionOf(newQDigest, qdRetriever.apply(summaryWindow));
             i++;
         }
         //System.out.println("query para: " + (double)params[0]);

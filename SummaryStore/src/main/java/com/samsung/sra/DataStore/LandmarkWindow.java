@@ -4,10 +4,10 @@ import java.io.Serializable;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-class LandmarkWindow implements Serializable {
-    final long lwid;
-    long tStart, tEnd;
-    final SortedMap<Long, Object[]> values = new TreeMap<>();
+public class LandmarkWindow implements Serializable {
+    public final long lwid;
+    public long tStart, tEnd;
+    public final SortedMap<Long, Object[]> values = new TreeMap<>();
 
     LandmarkWindow(long lwid, long tStart) {
         this.lwid = lwid;

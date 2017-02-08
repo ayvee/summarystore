@@ -134,14 +134,12 @@ class StreamManager implements Serializable {
         }
 
         Stream<SummaryWindow> summaryWindows;
-        Long sT0, sT1;
         {
             Long l = summaryWindowIndex.floorKey(t0); // first window with tStart <= t0
             Long r = summaryWindowIndex.higherKey(t1); // first window with tStart > t1
             if (r == null) {
                 r = summaryWindowIndex.lastKey() + 1;
             }
-            sT0 = l; sT1 = r;
             //logger.debug("Overapproximated time range = [{}, {})", l, r);
             // Query on all windows with l <= tStart < r
             summaryWindows = summaryWindowIndex
@@ -182,7 +180,7 @@ class StreamManager implements Serializable {
 
         try {
             Function<SummaryWindow, Object> retriever = b -> b.aggregates[operatorNum];
-            return operators[operatorNum].query(stats, sT0, sT1, summaryWindows, retriever, t0, t1, queryParams);
+            return operators[operatorNum].query(stats, summaryWindows, retriever, landmarkWindows, t0, t1, queryParams);
         } catch (RuntimeException e) {
             if (e.getCause() instanceof RocksDBException) {
                 throw (RocksDBException) e.getCause();

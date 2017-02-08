@@ -34,8 +34,8 @@ public interface WindowOperator<A, R, E> extends Serializable {
      *       instead of letting query() manhandle SummaryWindow objects
      */
     ResultError<R, E> query(StreamStatistics streamStats,
-                            long T0, long T1, Stream<SummaryWindow> summaryWindows,
-                            Function<SummaryWindow, A> aggregateRetriever,
+                            Stream<SummaryWindow> summaryWindows, Function<SummaryWindow, A> summaryRetriever,
+                            Stream<LandmarkWindow> landmarkWindows,
                             long t0, long t1, Object... params);
 
     /** Return the default answer to a query on an empty aggregate (containing zero elements) */
