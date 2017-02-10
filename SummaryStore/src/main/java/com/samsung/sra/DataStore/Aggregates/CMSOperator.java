@@ -2,10 +2,7 @@ package com.samsung.sra.DataStore.Aggregates;
 
 import com.clearspring.analytics.stream.frequency.CMSProtofier;
 import com.clearspring.analytics.stream.frequency.CountMinSketch;
-import com.samsung.sra.DataStore.SummaryWindow;
-import com.samsung.sra.DataStore.ResultError;
-import com.samsung.sra.DataStore.StreamStatistics;
-import com.samsung.sra.DataStore.WindowOperator;
+import com.samsung.sra.DataStore.*;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 import org.apache.commons.math3.util.Pair;
 
@@ -64,21 +61,25 @@ public class CMSOperator implements WindowOperator<CountMinSketch,Double,Pair<Do
 
     @Override
     public ResultError<Double, Pair<Double, Double>> query(StreamStatistics streamStats,
-                                                           long T0, long T1, Stream<SummaryWindow> summaryWindows,
-                                                           Function<SummaryWindow, CountMinSketch> aggregateRetriever,
+                                                           Stream<SummaryWindow> summaryWindows,
+                                                           Function<SummaryWindow, CountMinSketch> cmsRetriever,
+                                                           Stream<LandmarkWindow> landmarkWindows,
                                                            long t0, long t1, Object... params) {
         assert params != null && params.length > 0;
-        Function<SummaryWindow, Long> countRetriever = aggregateRetriever.andThen(
-                cms -> cms.estimateCount((long) params[0])
+        long targetVal = (long) params[0];
+        Function<SummaryWindow, Long> countRetriever = cmsRetriever.andThen(
+                cms -> cms.estimateCount(targetVal)
         );
         // FIXME! Returns correct base answer, but we have a better CI construction with a hypergeom distr
         //        (which accounts for, among other things, the fact that we know true count over all values)
-        SimpleCountOperator.QueryEstimator estimator = new SimpleCountOperator.QueryEstimator(T0, T1, summaryWindows, countRetriever);
         double confidenceLevel = 1;
         if (params.length > 1) {
             confidenceLevel = ((Number) params[1]).doubleValue();
         }
-        return estimator.estimate(streamStats, t0, t1, confidenceLevel);
+        double sdMultiplier = streamStats.getCVInterarrival();
+        return new SumEstimator(t0, t1, summaryWindows, countRetriever, landmarkWindows,
+                o -> ((Number) o[0]).longValue() == targetVal ? 1L : 0L)
+                .estimate(sdMultiplier, confidenceLevel);
     }
 
     @Override

@@ -4,6 +4,8 @@ import com.clearspring.analytics.stream.membership.BFProtofier;
 import com.clearspring.analytics.stream.membership.BloomFilter;
 import com.samsung.sra.DataStore.*;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
+import org.apache.commons.lang.mutable.MutableBoolean;
+import org.apache.commons.lang.mutable.MutableLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,17 +90,38 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
     }
 
     @Override
-    public ResultError<Boolean, Double> query(StreamStatistics streamStatistics, long T0, long T1,
-                                              Stream<SummaryWindow> summaryWindows, Function<SummaryWindow, BloomFilter> bloomRetriever, long t0, long t1, Object... params) {
-        byte[] value = new byte[Long.SIZE];
-        Utilities.longToByteArray((long) params[0],value,0);
-        boolean answer = summaryWindows.map(bloomRetriever).map(bf -> bf.isPresent(value)).anyMatch(e -> e);
-        if (!answer) { // true negative
-            return new ResultError<>(false, 0d);
+    public ResultError<Boolean, Double> query(StreamStatistics streamStatistics,
+                                              Stream<SummaryWindow> summaryWindows,
+                                              Function<SummaryWindow, BloomFilter> bloomRetriever,
+                                              Stream<LandmarkWindow> landmarkWindows,
+                                              long t0, long t1, Object... params) {
+        long val = (long) params[0];
+        boolean inLandmark = landmarkWindows
+                .anyMatch(w -> w.values.values().stream()
+                        .anyMatch(v -> ((Number) v[0]).longValue() == val));
+        if (inLandmark) { // found an explicit match in a landmark
+            return new ResultError<>(true, 0d);
         } else {
-            // FIXME!! Assuming BF is configured with FP rate 0.01
-            double pTruePositive = 0.99 * (t1 - t0 + 1d) / (T1 - T0 + 1d);
-            return new ResultError<>(true, 1 - pTruePositive);
+            byte[] bytes = new byte[Long.SIZE];
+            Utilities.longToByteArray((long) params[0], bytes, 0);
+            MutableLong T0 = new MutableLong(-1L), T1 = new MutableLong(-1L);
+            MutableBoolean answer = new MutableBoolean(false);
+            summaryWindows.forEach(window -> {
+                if (T0.longValue() != -1L) {
+                    T0.setValue(window.tStart);
+                }
+                T1.setValue(window.tEnd);
+                if (answer.isFalse()) {
+                    answer.setValue(bloomRetriever.apply(window).isPresent(bytes));
+                }
+            });
+            if (answer.isFalse()) { // true negative
+                return new ResultError<>(false, 0d);
+            } else {
+                // FIXME!! Assuming BF is configured with FP rate 0.01
+                double pTruePositive = 0.99 * (t1 - t0 + 1d) / (T1.doubleValue() - T0.doubleValue());
+                return new ResultError<>(true, 1 - pTruePositive);
+            }
         }
     }
 

@@ -164,11 +164,30 @@ public class RocksDBBackingStore implements BackingStore {
         }
     }
 
+    /* **** <FIXME> Holding all landmarks in main memory now, need to push them into RocksDB eventually  **** */
+
+    private Map<Long, Map<Long, LandmarkWindow>> landmarkWindows = new ConcurrentHashMap<>();
+
+    @Override
+    public LandmarkWindow getLandmarkWindow(StreamManager streamManager, long lwid) throws RocksDBException {
+        return landmarkWindows.get(streamManager.streamID).get(lwid);
+    }
+
+    @Override
+    public void putLandmarkWindow(StreamManager streamManager, long lwid, LandmarkWindow window) throws RocksDBException {
+        Map<Long, LandmarkWindow> stream = landmarkWindows.get(streamManager.streamID);
+        if (stream == null) {
+            landmarkWindows.put(streamManager.streamID, (stream = new ConcurrentHashMap<>()));
+        }
+        stream.put(lwid, window);
+    }
+
+    /* **** </FIXME>  **** */
+
     /** We will persist metadata in RocksDB under this special (empty) key, which will
      * never collide with any of the (non-empty) keys we use for window storage
      */
     private final static byte[] metadataSpecialKey = {};
-
 
     // FIXME: NA; also use proto here
     @Override

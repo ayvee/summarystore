@@ -32,12 +32,19 @@ class StreamManager implements Serializable {
     final StreamStatistics stats;
     private final WindowOperator[] operators;
 
+    private long tLastAppend = -1, tLastLandmarkStart = -1, tLastLandmarkEnd = -1;
+    private long activeLWID = -1; // id of active landmark window
+    private long nextLWID = 0; // id of next landmark window to be created
+
+    private final Object[] LANDMARK_VALUE = {}; // sentinel used when handling append
+
     final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     /**
-     * Read index, maps summaryWindow.tStart -> summaryWindow.ID. Used to answer queries
+     * Read indexes, map window.tStart -> window.ID. Used to answer queries
      */
     final TreeMap<Long, Long> summaryWindowIndex = new TreeMap<>();
+    final TreeMap<Long, Long> landmarkWindowIndex = new TreeMap<>();
     //transient BTreeMap<Long, Long> summaryWindowIndex;
 
     /**
@@ -47,6 +54,7 @@ class StreamManager implements Serializable {
     final WindowingMechanism windowingMechanism;
 
     private transient BackingStore backingStore;
+
     private transient ExecutorService executorService;
 
     void populateTransientFields(BackingStore backingStore, ExecutorService executorService) {
@@ -71,10 +79,47 @@ class StreamManager implements Serializable {
     }
 
     void append(long ts, Object[] value) throws RocksDBException, StreamException {
-        if (ts <= stats.getTimeRangeEnd()) throw new StreamException("out-of-order insert in stream " + streamID +
-                ": <ts, val> = <" + ts + ", " + value + ">, last arrival = " + stats.getTimeRangeEnd());
+        if (ts <= tLastAppend || ts < tLastLandmarkStart || ts <= tLastLandmarkEnd) {
+            throw new StreamException("out-of-order insert in stream " + streamID +
+                    ": <ts, val> = <" + ts + ", " + value + ">, last arrival = " + stats.getTimeRangeEnd());
+        }
+        tLastAppend = ts;
         stats.append(ts, value);
-        windowingMechanism.append(this, ts, value);
+        if (activeLWID == -1) {
+            // insert into decayed window sequence
+            windowingMechanism.append(this, ts, value);
+        } else {
+            // update decayed windowing, aging it by one position, but don't actually insert value into decayed window;
+            // see how LANDMARK_VALUE is handled in insertIntoSummaryWindow below
+            windowingMechanism.append(this, ts, LANDMARK_VALUE);
+            LandmarkWindow window = backingStore.getLandmarkWindow(this, activeLWID);
+            window.append(ts, value);
+            backingStore.putLandmarkWindow(this, activeLWID, window);
+        }
+    }
+
+    void startLandmark(long ts) throws LandmarkException, RocksDBException {
+        if (ts <= tLastAppend || ts < tLastLandmarkStart || ts <= tLastLandmarkEnd) {
+            throw new LandmarkException("attempting to retroactively start landmark");
+        }
+        if (activeLWID != -1) {
+            return;
+        }
+        tLastLandmarkStart = ts;
+        activeLWID = nextLWID++;
+        backingStore.putLandmarkWindow(this, activeLWID, new LandmarkWindow(activeLWID, ts));
+        landmarkWindowIndex.put(ts, activeLWID);
+    }
+
+    void endLandmark(long ts) throws LandmarkException, RocksDBException {
+        if (ts < tLastAppend || ts < tLastLandmarkStart || ts <= tLastLandmarkEnd) {
+            throw new LandmarkException("attempting to retroactively end landmark");
+        }
+        tLastLandmarkEnd = ts;
+        LandmarkWindow window = backingStore.getLandmarkWindow(this, activeLWID);
+        window.close(ts);
+        backingStore.putLandmarkWindow(this, activeLWID, window);
+        activeLWID = -1;
     }
 
     Object query(int operatorNum, long t0, long t1, Object[] queryParams) throws RocksDBException {
@@ -87,31 +132,59 @@ class StreamManager implements Serializable {
         if (t1 > T1) {
             t1 = T1;
         }
-        //BTreeMap<Long, Long> index = streamManager.summaryWindowIndex;
-        Long sL = summaryWindowIndex.floorKey(t0); // first window with tStart <= t0
-        Long sR = summaryWindowIndex.higherKey(t1); // first window with tStart > t1
-        if (sR == null) {
-            sR = summaryWindowIndex.lastKey() + 1;
-        }
-        //logger.debug("Overapproximated time range = [{}, {})", sL, sR);
 
-        // Query on all windows with sL <= tStart < sR
-        Stream<SummaryWindow> summaryWindows = summaryWindowIndex
-                .subMap(sL, true, sR, false).values().stream()
-                .map(swid -> {
-            try {
-                return backingStore.isColumnar()
-                        ? backingStore.getSummaryWindow(this, swid, operatorNum)
-                        : backingStore.getSummaryWindow(this, swid);
-            } catch (RocksDBException e) {
-                throw new RuntimeException(e);
+        Stream<SummaryWindow> summaryWindows;
+        {
+            Long l = summaryWindowIndex.floorKey(t0); // first window with tStart <= t0
+            Long r = summaryWindowIndex.higherKey(t1); // first window with tStart > t1
+            if (r == null) {
+                r = summaryWindowIndex.lastKey() + 1;
             }
-        });
+            //logger.debug("Overapproximated time range = [{}, {})", l, r);
+            // Query on all windows with l <= tStart < r
+            summaryWindows = summaryWindowIndex
+                    .subMap(l, true, r, false).values().stream()
+                    .map(swid -> {
+                        try {
+                            return backingStore.isColumnar()
+                                    ? backingStore.getSummaryWindow(this, swid, operatorNum)
+                                    : backingStore.getSummaryWindow(this, swid);
+                        } catch (RocksDBException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+        }
+
+        Stream<LandmarkWindow> landmarkWindows;
+        {
+            Long l = landmarkWindowIndex.floorKey(t0); // first window with tStart <= t0
+            Long r = landmarkWindowIndex.higherKey(t1); // first window with tStart > t1
+            if (l == null) {
+                l = landmarkWindowIndex.firstKey();
+            }
+            if (r == null) {
+                r = landmarkWindowIndex.lastKey() + 1;
+            }
+            //logger.debug("Overapproximated time range = [{}, {})", l, r);
+            // Query on all windows with l <= tStart < r
+            long _t0 = t0; // hack, needed because of a limitation in Java 8's lambda function handling
+            landmarkWindows = landmarkWindowIndex
+                    .subMap(l, true, r, false).values().stream()
+                    .map(lwid -> {
+                        try {
+                            return backingStore.getLandmarkWindow(this, lwid);
+                        } catch (RocksDBException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .filter(w -> w.tEnd >= _t0); // filter needed because very first window may not overlap [t0, t1]
+        }
+
         try {
-            Function<SummaryWindow, Object> retriever = backingStore.isColumnar()
+            Function<SummaryWindow, Object> retriever = !backingStore.isColumnar()
                     ? b -> b.aggregates[operatorNum]
                     : b -> b.aggregates[0];
-            return operators[operatorNum].query(stats, sL, sR - 1, summaryWindows, retriever, t0, t1, queryParams);
+            return operators[operatorNum].query(stats, summaryWindows, retriever, landmarkWindows, t0, t1, queryParams);
         } catch (RuntimeException e) {
             if (e.getCause() instanceof RocksDBException) {
                 throw (RocksDBException) e.getCause();
@@ -124,6 +197,11 @@ class StreamManager implements Serializable {
     void insertIntoSummaryWindow(SummaryWindow window, long ts, Object[] value) {
         assert window.tStart <= ts && (window.tEnd == -1 || ts <= window.tEnd)
                 && operators.length == window.aggregates.length;
+        if (value == LANDMARK_VALUE) {
+            // value is actually going into landmark bucket, do nothing here. We only processed it this far so that the
+            // decayed windowing would be updated by one position
+            return;
+        }
         for (int i = 0; i < operators.length; ++i) {
             window.aggregates[i] = operators[i].insert(window.aggregates[i], ts, value);
         }

@@ -100,16 +100,48 @@ public class SummaryStore implements AutoCloseable {
         }
     }
 
+    /**
+     * Initiate a landmark window with specified start timestamp. timestamp must be strictly larger than last appended
+     * value.
+     *
+     * Has no effect is there already is an active landmark window.
+     */
+    public void startLandmark(long streamID, long timestamp) throws StreamException, LandmarkException, RocksDBException {
+        StreamManager streamManager = getStreamManager(streamID);
+        streamManager.lock.writeLock().lock();
+        try {
+            streamManager.startLandmark(timestamp);
+        } finally {
+            streamManager.lock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Seal the active landmark window, throwing an exception if there isn't one. timestamp must not precede last
+     * appended value.
+     */
+    public void endLandmark(long streamID, long timestamp) throws StreamException, LandmarkException, RocksDBException {
+        StreamManager streamManager = getStreamManager(streamID);
+        streamManager.lock.writeLock().lock();
+        try {
+            streamManager.endLandmark(timestamp);
+        } finally {
+            streamManager.lock.writeLock().unlock();
+        }
+    }
+
     public void printWindowState(long streamID, boolean printPerWindowState) throws StreamException, RocksDBException {
         StreamManager streamManager = getStreamManager(streamID);
         System.out.println("Stream " + streamID + " with " + streamManager.stats.getNumValues() + " elements in " +
                 streamManager.summaryWindowIndex.size() + " summary windows");
         if (printPerWindowState) {
-            for (Object swid : streamManager.summaryWindowIndex.values()) {
-                System.out.println("\t" + backingStore.getSummaryWindow(streamManager, (long) swid));
+            for (long swid : streamManager.summaryWindowIndex.values()) {
+                System.out.println("\t" + backingStore.getSummaryWindow(streamManager, swid));
+            }
+            for (long lwid : streamManager.landmarkWindowIndex.values()) {
+                System.out.println("\t" + backingStore.getLandmarkWindow(streamManager, lwid));
             }
         }
-        //TODO: landmark windows
     }
 
     public void printWindowState(long streamID) throws StreamException, RocksDBException {
@@ -206,7 +238,13 @@ public class SummaryStore implements AutoCloseable {
                         new SimpleCountOperator(),
                         new CMSOperator(5, 100, 0));
                 for (long i = 0; i < 1022; ++i) {
+                    if (i == 491) {
+                        store.startLandmark(streamID, i);
+                    }
                     store.append(streamID, i, i % 10, 1000L);
+                    if (i == 500) {
+                        store.endLandmark(streamID, i);
+                    }
                     store.printWindowState(streamID);
                 }
                 store.flush(streamID);

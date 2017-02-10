@@ -43,11 +43,17 @@ public class SummaryWindow implements Serializable {
         ret += ", time range [" + tStart + ":" + tEnd + "]";
         ret += ", count range [" + cStart + ":" + cEnd + "]";
         ret += ", prev, next ID [" + prevSWID + ":" + nextSWID +"]";
-        ret += ", aggrs [ Count = " + aggregates.length + " : ";
-        /*for (Object aggregate : aggregates) {
+        ret += ", aggrs [";
+        boolean first = true;
+        for (Object aggregate : aggregates) {
+            if (first) {
+                first = false;
+            } else {
+                ret += ", ";
+            }
             ret += aggregate.getClass().toString() + " : ";
-            ret += aggregate.toString() + " : ";
-        }*/
+            ret += aggregate + " : ";
+        }
         ret += "]";
         //ret += ", count = " + (cEnd - cStart + 1);
         ret += ">";
