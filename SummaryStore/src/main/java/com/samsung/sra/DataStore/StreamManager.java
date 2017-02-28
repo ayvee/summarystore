@@ -156,7 +156,9 @@ class StreamManager implements Serializable {
         }
 
         Stream<LandmarkWindow> landmarkWindows;
-        {
+        if (landmarkWindowIndex.isEmpty()) { // no landmarks
+            landmarkWindows = Stream.empty();
+        } else {
             Long l = landmarkWindowIndex.floorKey(t0); // first window with tStart <= t0
             Long r = landmarkWindowIndex.higherKey(t1); // first window with tStart > t1
             if (l == null) {
