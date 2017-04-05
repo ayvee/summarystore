@@ -61,11 +61,12 @@ public class SimpleTester {
         //BiConsumer<Long, Long> printer = (ts, v) -> System.out.println(ts + "\t" + v);
         //BiConsumer<Long, Long> myvals = (ts, v) -> store.append(streamID, ts, v);
 
-        generator.generate(0, T, (t, v) -> {
+        generator.generate(0, T, op -> {
+            assert op.type == StreamGenerator.Operation.Type.APPEND;
             try {
                 //logger.debug("Inserting " + v + " at Time " + t);
                 for (SummaryStore astore: stores.values()) {
-                    astore.append(streamID, t, v);
+                    astore.append(streamID, op.timestamp, op.value);
                 }
             } catch (Exception e) {
                 throw new RuntimeException(e);

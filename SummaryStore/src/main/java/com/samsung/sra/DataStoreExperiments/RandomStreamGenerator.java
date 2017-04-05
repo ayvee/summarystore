@@ -3,7 +3,7 @@ package com.samsung.sra.DataStoreExperiments;
 import com.moandjiezana.toml.Toml;
 
 import java.util.Random;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class RandomStreamGenerator implements StreamGenerator {
     private final Distribution<Long> interarrivals, values;
@@ -18,10 +18,10 @@ public class RandomStreamGenerator implements StreamGenerator {
     }
 
     @Override
-    public void generate(long T0, long T1, BiConsumer<Long, Object[]> consumer) {
+    public void generate(long T0, long T1, Consumer<Operation> consumer) {
         for (long t = T0; t <= T1; t += interarrivals.next(random)) {
             Object[] v = {values.next(random)};
-            consumer.accept(t, v);
+            consumer.accept(new Operation(Operation.Type.APPEND, t, v));
         }
     }
 

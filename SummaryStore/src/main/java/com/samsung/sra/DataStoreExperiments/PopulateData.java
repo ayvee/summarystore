@@ -34,12 +34,22 @@ public class PopulateData {
                         config.getOperators());
                 streamgen.reset();
                 long[] N = {0};
-                streamgen.generate(config.getTstart(), config.getTend(), (t, v) -> {
+                streamgen.generate(config.getTstart(), config.getTend(), op -> {
                     try {
-                        if (++N[0] % 10_000_000 == 0) {
-                            logger.info("Inserted {} elements", N[0]);
+                        switch (op.type) {
+                            case APPEND:
+                                if (++N[0] % 10_000_000 == 0) {
+                                    logger.info("Inserted {} elements", N[0]);
+                                }
+                                store.append(streamID, op.timestamp, op.value);
+                                break;
+                            case LANDMARK_START:
+                                store.startLandmark(streamID, op.timestamp);
+                                break;
+                            case LANDMARK_END:
+                                store.endLandmark(streamID, op.timestamp);
+                                break;
                         }
-                        store.append(streamID, t, v);
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }

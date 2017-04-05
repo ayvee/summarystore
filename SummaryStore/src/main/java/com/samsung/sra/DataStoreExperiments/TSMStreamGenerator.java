@@ -9,7 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * If cmsMode: generate stream of (timestamp, (nodeID, bytes))
@@ -50,7 +50,7 @@ public class TSMStreamGenerator implements StreamGenerator {
     }
 
     @Override
-    public void generate(long T0, long T1, BiConsumer<Long, Object[]> consumer) throws IOException {
+    public void generate(long T0, long T1, Consumer<Operation> consumer) throws IOException {
         while (true) {
             String line = reader.readLine();
             if (line == null) {
@@ -63,11 +63,8 @@ public class TSMStreamGenerator implements StreamGenerator {
                     break;
                 } else if (timestamp >= T0) {
                     long nodeID = Long.parseLong(vals[1]), bytes = Long.parseLong(vals[2]);
-                    if (cmsMode) {
-                        consumer.accept(timestamp, new Object[]{nodeID, bytes});
-                    } else {
-                        consumer.accept(timestamp, new Object[]{bytes});
-                    }
+                    Object[] value = cmsMode ? new Object[]{nodeID, bytes} : new Object[]{bytes};
+                    consumer.accept(new Operation(Operation.Type.APPEND, timestamp, value));
                 } // else if (timestamp < T0) continue
             }
         }

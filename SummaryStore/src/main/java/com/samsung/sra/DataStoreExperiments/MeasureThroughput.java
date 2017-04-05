@@ -26,9 +26,10 @@ public class MeasureThroughput {
 
             StreamGenerator generator = new RandomStreamGenerator(new Toml().read(streamConf));
             long w0 = System.currentTimeMillis();
-            generator.generate(0, T, (t, v) -> {
+            generator.generate(0, T, op -> {
+                assert op.type == StreamGenerator.Operation.Type.APPEND;
                 try {
-                    store.append(streamID, t, v);
+                    store.append(streamID, op.timestamp, op.value);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

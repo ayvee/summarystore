@@ -40,9 +40,13 @@ public class PopulateWorkload {
         if (!conf.isWorkloadParallelismEnabled()) {
             int[] matchedIndexes = new int[Q];
             long[] N = {0};
-            conf.getStreamGenerator().generate(T0, T1, (t, v) -> {
-                if (++N[0] % 1_000_000 == 0) logger.info("t = {}", t);
-                processDataPoint(queries, lrms, matchedIndexes, t, v);
+            conf.getStreamGenerator().generate(T0, T1, op -> {
+                if (op.type != StreamGenerator.Operation.Type.APPEND) {
+                    return;
+                }
+                if (++N[0] % 1_000_000 == 0) logger.info("t = {}", op.timestamp);
+                processDataPoint(queries, lrms, matchedIndexes, op.timestamp, op.value);
+
             });
         } else {
             // Divide [0, N) into equal-size bins and process one bin per thread (where N = # of data points in stream)
@@ -53,7 +57,11 @@ public class PopulateWorkload {
             {
                 MutableLong nvals = new MutableLong(0L);
                 try (StreamGenerator streamGenerator = conf.getStreamGenerator()) {
-                    streamGenerator.generate(T0, T1, (t, v) -> nvals.increment());
+                    streamGenerator.generate(T0, T1, op -> {
+                        if (op.type == StreamGenerator.Operation.Type.APPEND) {
+                            nvals.increment();
+                        }
+                    });
                 }
                 N = nvals.toLong();
             }
@@ -65,10 +73,13 @@ public class PopulateWorkload {
                 try (StreamGenerator streamGenerator = conf.getStreamGenerator()) {
                     MutableLong Ncurr = new MutableLong(0L);
                     int[] matchedIndexes = new int[Q];
-                    streamGenerator.generate(T0, T1, (t, v) -> {
+                    streamGenerator.generate(T0, T1, op -> {
+                        if (op.type != StreamGenerator.Operation.Type.APPEND) {
+                            return;
+                        }
                         if (Nleft <= Ncurr.toLong() && Ncurr.toLong() < Nright) {
-                            if (Ncurr.toLong() % 1_000_000 == 0) logger.info("t = {}", t);
-                            processDataPoint(queries, lrms, matchedIndexes, t, v);
+                            if (Ncurr.toLong() % 1_000_000 == 0) logger.info("t = {}", op.timestamp);
+                            processDataPoint(queries, lrms, matchedIndexes, op.timestamp, op.value);
                         } else if (Ncurr.toLong() >= Nright) {
                             return;
                         }

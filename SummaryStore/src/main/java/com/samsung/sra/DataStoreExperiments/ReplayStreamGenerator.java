@@ -12,7 +12,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /** Replay a trace file to generate a stream */
 public class ReplayStreamGenerator implements StreamGenerator {
@@ -64,9 +64,9 @@ public class ReplayStreamGenerator implements StreamGenerator {
     }
 
     @Override
-    public void generate(long T0, long T1, BiConsumer<Long, Object[]> consumer) throws IOException {
+    public void generate(long T0, long T1, Consumer<Operation> consumer) throws IOException {
         while (currTimestamp != null && currTimestamp >= T0 && currTimestamp <= T1) {
-            consumer.accept(currTimestamp, currValue);
+            consumer.accept(new Operation(Operation.Type.APPEND, currTimestamp, currValue));
             readNextLine();
         }
     }
@@ -96,9 +96,10 @@ public class ReplayStreamGenerator implements StreamGenerator {
         long ts = System.currentTimeMillis();
         for (int i = 0; i < 1; ++i) {
             long baseT = i * 2506199602822L;
-            generator.generate(0, Long.MAX_VALUE, (t, v) -> {
+            generator.generate(0, Long.MAX_VALUE, op -> {
+                assert op.type == Operation.Type.APPEND;
                 try {
-                    store.append(streamID, baseT + t, v);
+                    store.append(streamID, baseT + op.timestamp, op.value);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
