@@ -15,5 +15,5 @@ cp="$cp:$root/scripts" # put all scripts on classpath, so they can be found with
 
 className=$1
 shift
-java -ea -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.$className $*
+java -Dorg.slf4j.simpleLogger.showDateTime=true -ea -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.$className $*
 #java -cp $cp com.samsung.sra.WindowingOptimizer.UpperBoundOptimizer 2> opt.log | tee opt.tsv
