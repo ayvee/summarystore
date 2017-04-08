@@ -39,7 +39,7 @@ public class PopulateData {
                         switch (op.type) {
                             case APPEND:
                                 if (++N[0] % 10_000_000 == 0) {
-                                    logger.info("Inserted {} elements", N[0]);
+                                    logger.info("Inserted {} elements", String.format("%,d", N[0]));
                                 }
                                 store.append(streamID, op.timestamp, op.value);
                                 break;

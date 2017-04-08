@@ -5,7 +5,9 @@ import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
 import org.rocksdb.RocksDBException;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -19,8 +21,7 @@ public class SummaryStore implements AutoCloseable {
 
     private final ExecutorService executorService;
 
-    // TODO: make a ConcurrentHashMap?
-    private final HashMap<Long, StreamManager> streamManagers;
+    private final ConcurrentHashMap<Long, StreamManager> streamManagers;
 
     private void persistStreamsInfo() throws RocksDBException {
         backingStore.putMetadata(streamManagers);
@@ -37,12 +38,12 @@ public class SummaryStore implements AutoCloseable {
         executorService = Executors.newCachedThreadPool();
         Object uncast = backingStore.getMetadata();
         if (uncast != null) {
-            streamManagers = (HashMap<Long, StreamManager>) uncast;
+            streamManagers = (ConcurrentHashMap<Long, StreamManager>) uncast;
             for (StreamManager si: streamManagers.values()) {
                 si.populateTransientFields(backingStore, executorService);
             }
         } else {
-            streamManagers = new HashMap<>();
+            streamManagers = new ConcurrentHashMap<>();
         }
     }
 
@@ -65,13 +66,9 @@ public class SummaryStore implements AutoCloseable {
     }
 
     private StreamManager getStreamManager(long streamID) throws StreamException {
-        final StreamManager streamManager;
-        synchronized (streamManagers) {
-            if (!streamManagers.containsKey(streamID)) {
-                throw new StreamException("invalid streamID " + streamID);
-            } else {
-                streamManager = streamManagers.get(streamID);
-            }
+        StreamManager streamManager = streamManagers.get(streamID);
+        if (streamManager == null) {
+            throw new StreamException("invalid streamID " + streamID);
         }
         return streamManager;
     }
