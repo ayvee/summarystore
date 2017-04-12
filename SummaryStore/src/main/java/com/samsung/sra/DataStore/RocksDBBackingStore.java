@@ -5,12 +5,16 @@ import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class RocksDBBackingStore implements BackingStore {
+    private static final Logger logger = LoggerFactory.getLogger(RocksDBBackingStore.class);
+
     private final RocksDB rocksDB;
     private final Options rocksDBOptions;
     private final long cacheSizePerStream;
@@ -209,5 +213,6 @@ public class RocksDBBackingStore implements BackingStore {
             rocksDB.close();
         }
         rocksDBOptions.dispose();
+        logger.info("rocksDB closed; should be safe to terminate this process now");
     }
 }
