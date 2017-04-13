@@ -19,7 +19,8 @@ public class Workload extends LinkedHashMap<String, List<Workload.Query>> {
             SUM,
             BF,
             CMS,
-            QDIGEST
+            QDIGEST,
+            MAX_THRESH // check if max is greater than threshold
         }
         Type queryType;
         long l, r;

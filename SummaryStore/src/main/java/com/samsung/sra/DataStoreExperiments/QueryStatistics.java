@@ -59,7 +59,12 @@ public class QueryStatistics implements Serializable {
         boolean estimate = (boolean) re.result;
         errorStats.addObservation(estimate ==  trueAnswer ? 0 : 1);
         latencyStats.addObservation(latencyMS / 1000);
-        ciWidthStats.addObservation((double) re.error);
+        if (re.error instanceof Double) {
+            ciWidthStats.addObservation((double) re.error);
+        } else { // MAX_THRESH
+            assert re.error instanceof Boolean;
+            ciWidthStats.addObservation((boolean) re.error ? 0 : 1);
+        }
     }
 
     public synchronized Statistics getErrorStats() {

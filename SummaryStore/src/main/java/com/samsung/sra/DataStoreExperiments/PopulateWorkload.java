@@ -123,6 +123,11 @@ public class PopulateWorkload {
                         }
                     }
                     break;
+                case MAX_THRESH:
+                    if ((long) v[0] > (long) q.params[0]) {
+                        q.trueAnswer.set(1);
+                    }
+                    break;
             }
         }
     }

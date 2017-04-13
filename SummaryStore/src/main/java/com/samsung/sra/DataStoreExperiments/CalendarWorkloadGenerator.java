@@ -19,17 +19,23 @@ public class CalendarWorkloadGenerator implements WorkloadGenerator {
         OperatorInfo(Toml conf) {
             index = conf.getLong("index").intValue();
             type = Query.Type.valueOf(conf.getString("type").toUpperCase());
-            if (type == Query.Type.BF || type == Query.Type.CMS) {
-                Toml cmsParamSpec = conf.getTable("param");
-                assert cmsParamSpec != null;
-                valueParamDistr = Configuration.parseDistribution(cmsParamSpec);
-            } else {
-                valueParamDistr = null;
+            Toml paramSpec = conf.getTable("param");
+            switch (type) {
+                case BF:
+                case CMS:
+                    valueParamDistr = Configuration.parseDistribution(paramSpec);
+                    break;
+                case MAX_THRESH:
+                    valueParamDistr = new FixedDistribution(paramSpec.getLong("threshold"));
+                    break;
+                default:
+                    valueParamDistr = null;
+                    break;
             }
         }
 
         Query getQuery(long l, long r, Random rand) {
-            Object[] params = (type == Query.Type.BF || type == Query.Type.CMS)
+            Object[] params = valueParamDistr != null
                     ? new Object[]{valueParamDistr.next(rand)}
                     : null;
             return new Query(type, l, r, index, params);

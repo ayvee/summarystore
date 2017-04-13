@@ -7,6 +7,7 @@ import com.samsung.sra.DataStore.Aggregates.CMSOperator;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -79,11 +80,26 @@ public class Configuration {
         return toml.getLong("data.tend");
     }
 
-    public StreamGenerator getStreamGenerator() {
+    public StreamGenerator getBaseStreamGenerator() {
         Toml conf = toml.getTable("data");
         return constructObjectViaReflection(
                 "com.samsung.sra.DataStoreExperiments." + conf.getString("stream-generator"),
                 conf);
+    }
+
+    public StreamGenerator getStreamGenerator() {
+        Toml conf = toml.getTable("data");
+        StreamGenerator baseStream = getBaseStreamGenerator();
+        Toml taggerConf = conf.getTable("tag-landmarks");
+        if (taggerConf != null) {
+            try {
+                return new LandmarkTagger(baseStream, taggerConf);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            return baseStream;
+        }
     }
 
     /**

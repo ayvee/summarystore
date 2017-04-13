@@ -2,6 +2,7 @@ package com.samsung.sra.DataStoreExperiments;
 
 import com.samsung.sra.DataStore.ResultError;
 import com.samsung.sra.DataStore.SummaryStore;
+import com.samsung.sra.DataStoreExperiments.Workload.Query;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.impl.Arguments;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
@@ -55,7 +56,7 @@ class RunComparison {
         try (InputStream is = Files.newInputStream(Paths.get(workloadFile))) {
             workload = (Workload) SerializationUtils.deserialize(is);
         }
-        for (Map.Entry<String, List<Workload.Query>> entry : workload.entrySet()) {
+        for (Map.Entry<String, List<Query>> entry : workload.entrySet()) {
             logger.debug("{}, {}", entry.getKey(), entry.getValue().size());
         }
 
@@ -109,16 +110,24 @@ class RunComparison {
                             long te = System.currentTimeMillis();
                             logger.trace("Running query [{}, {}] {}, true answer = {}, estimate = {}",
                                     q.l, q.r, q.queryType, q.trueAnswer, re);
-                            if (q.queryType != Workload.Query.Type.BF) {
+                            if (q.queryType != Query.Type.BF && q.queryType != Query.Type.MAX_THRESH) {
                                 long trueAnswer = q.trueAnswer.get();
                                 stats.addNumericResult(trueAnswer, re, te - ts);
-                            } else {
+                            } else if (q.queryType == Query.Type.BF) {
                                 long longAns = q.trueAnswer.get();
                                 assert longAns == 0 || longAns == 1;
                                 boolean trueAnswer = (longAns == 1);
                                 stats.addBooleanResult(trueAnswer, re, te - ts);
+                            } else { // q.queryType == Query.Type.MAX_THRESH
+                                long longAns = q.trueAnswer.get();
+                                assert longAns == 0 || longAns == 1;
+                                boolean trueAnswer = (longAns == 1);
+                                ResultError<Boolean, Boolean> reBool = new ResultError<>(
+                                        (long) re.result > (long) q.params[0], (Boolean) re.error);
+                                stats.addBooleanResult(trueAnswer, reBool, te - ts);
                             }
                         } catch (Exception e) {
+                            e.printStackTrace();
                             throw new RuntimeException(e);
                         }
                     });

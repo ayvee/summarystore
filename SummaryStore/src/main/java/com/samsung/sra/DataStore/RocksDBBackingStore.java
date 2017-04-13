@@ -32,6 +32,7 @@ public class RocksDBBackingStore implements BackingStore {
         cache = cacheSizePerStream > 0 ? new ConcurrentHashMap<>() : null;
         rocksDBOptions = new Options().setCreateIfMissing(true);
         rocksDB = RocksDB.open(rocksDBOptions, rocksPath);
+        deserializeLandmarks();
     }
 
     static {
@@ -62,7 +63,7 @@ public class RocksDBBackingStore implements BackingStore {
     /**
      * Insert value into cache, evicting another cached entry if necessary
      */
-    private void insertIntoCache(Map<Long, SummaryWindow> streamCache, StreamManager streamManager,
+    private void insertIntoCache(ConcurrentHashMap<Long, SummaryWindow> streamCache, StreamManager streamManager,
                                  long swid, SummaryWindow window) throws RocksDBException {
         assert streamCache != null;
         if (streamCache.size() >= cacheSizePerStream) { // evict something
@@ -168,9 +169,22 @@ public class RocksDBBackingStore implements BackingStore {
         }
     }
 
-    /* **** <FIXME> Holding all landmarks in main memory now, need to push them into RocksDB eventually  **** */
+    /* **** <FIXME> Holding all landmarks in main memory for now (only persisting to RocksDB on close)  **** */
 
-    private Map<Long, Map<Long, LandmarkWindow>> landmarkWindows = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<Long, ConcurrentHashMap<Long, LandmarkWindow>> landmarkWindows;
+    private static final byte[] landmarksSpecialKey = {'l'}; // 1-byte special key, does not collide with any of the 16-byte summary windows
+
+    private void deserializeLandmarks() throws RocksDBException {
+        byte[] landmarksSer = rocksDB.get(landmarksSpecialKey);
+        landmarkWindows = landmarksSer != null
+                ? (ConcurrentHashMap<Long, ConcurrentHashMap<Long, LandmarkWindow>>) SerializationUtils.deserialize(landmarksSer)
+                : new ConcurrentHashMap<>();
+    }
+
+    private void serializeLandmarks() throws RocksDBException {
+        byte[] landmarksSer = SerializationUtils.serialize(landmarkWindows);
+        rocksDB.put(landmarksSpecialKey, landmarksSer);
+    }
 
     @Override
     public LandmarkWindow getLandmarkWindow(StreamManager streamManager, long lwid) throws RocksDBException {
@@ -179,7 +193,7 @@ public class RocksDBBackingStore implements BackingStore {
 
     @Override
     public void putLandmarkWindow(StreamManager streamManager, long lwid, LandmarkWindow window) throws RocksDBException {
-        Map<Long, LandmarkWindow> stream = landmarkWindows.get(streamManager.streamID);
+        ConcurrentHashMap<Long, LandmarkWindow> stream = landmarkWindows.get(streamManager.streamID);
         if (stream == null) {
             landmarkWindows.put(streamManager.streamID, (stream = new ConcurrentHashMap<>()));
         }
@@ -209,6 +223,7 @@ public class RocksDBBackingStore implements BackingStore {
 
     @Override
     public void close() throws RocksDBException {
+        serializeLandmarks();
         if (rocksDB != null) {
             rocksDB.close();
         }

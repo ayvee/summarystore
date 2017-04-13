@@ -7,8 +7,12 @@ import java.util.Random;
 public class FixedDistribution implements Distribution<Long> {
     private final long value;
 
+    public FixedDistribution(long value) {
+        this.value = value;
+    }
+
     public FixedDistribution(Toml conf) {
-        this.value = conf.getLong("value");
+        this(conf.getLong("value"));
     }
 
     @Override
