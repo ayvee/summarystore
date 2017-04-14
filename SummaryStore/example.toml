@@ -27,7 +27,7 @@ interarrivals = {distribution = "ExponentialDistribution", lambda = 1.0}
 values = {distribution = "UniformDistribution", min = 1, max = 100}
 random-seed = 0                              # RandomStreamGenerator seed. Optional, defaults to 0
 
-## Use com.samsung.sra.DataStoreExperiments.ReplayStreamGenerator instead
+## Use com.samsung.sra.DataStoreExperiments.CSVStreamGenerator instead
 #stream-generator = "ReplayStreamGenerator"
 #file = "/Users/a.vulimiri/samsung/summarystore/code/workloads/google-cluster-data/task_event_count"
 #tstart = 600026913

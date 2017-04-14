@@ -15,6 +15,14 @@ public interface StreamGenerator extends AutoCloseable {
 
     default void close() throws Exception {}
 
+    default boolean isCopyable() {
+        return false;
+    }
+
+    default StreamGenerator copy() {
+        return null;
+    }
+
     class Operation {
         public enum Type {
             APPEND,

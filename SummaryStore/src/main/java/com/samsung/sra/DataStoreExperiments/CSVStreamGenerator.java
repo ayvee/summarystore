@@ -14,8 +14,8 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.function.Consumer;
 
-/** Replay a trace file to generate a stream */
-public class ReplayStreamGenerator implements StreamGenerator {
+/** Replay a CSV/TSV file to generate a stream. Does not load into memory, leaves it on disk */
+public class CSVStreamGenerator implements StreamGenerator {
     private static Logger logger = LoggerFactory.getLogger(StreamGenerator.class);
     private final String traceFile;
     private final String separator;
@@ -23,11 +23,11 @@ public class ReplayStreamGenerator implements StreamGenerator {
 
     private BufferedReader traceReader;
 
-    public ReplayStreamGenerator(Toml params) throws IOException {
+    public CSVStreamGenerator(Toml params) throws IOException {
         this(params.getString("file"));
     }
 
-    public ReplayStreamGenerator(String traceFile, String separator, int tsIndex, int valIndex) throws IOException {
+    public CSVStreamGenerator(String traceFile, String separator, int tsIndex, int valIndex) throws IOException {
         this.traceFile = traceFile;
         this.separator = separator;
         this.tsIndex = tsIndex;
@@ -35,7 +35,7 @@ public class ReplayStreamGenerator implements StreamGenerator {
         reset();
     }
 
-    public ReplayStreamGenerator(String traceFile) throws IOException {
+    public CSVStreamGenerator(String traceFile) throws IOException {
         this(traceFile, ",", 0, 1);
     }
 
@@ -91,7 +91,7 @@ public class ReplayStreamGenerator implements StreamGenerator {
         store.registerStream(streamID,
                 new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1), 2_000_000),
                 new SimpleCountOperator());
-        StreamGenerator generator = new ReplayStreamGenerator(
+        StreamGenerator generator = new CSVStreamGenerator(
                 "/Users/a.vulimiri/samsung/summarystore/code/workloads/google-cluster-data/task_event_count");
         long ts = System.currentTimeMillis();
         for (int i = 0; i < 1; ++i) {

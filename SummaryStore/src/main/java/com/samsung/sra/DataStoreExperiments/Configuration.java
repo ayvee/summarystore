@@ -80,11 +80,22 @@ public class Configuration {
         return toml.getLong("data.tend");
     }
 
+    private StreamGenerator cachedBaseStreamGenerator = null;
+
+    // TODO: add synchronized. Not needed for all our uses as of 04/13/2017
     public StreamGenerator getBaseStreamGenerator() {
         Toml conf = toml.getTable("data");
-        return constructObjectViaReflection(
-                "com.samsung.sra.DataStoreExperiments." + conf.getString("stream-generator"),
-                conf);
+        if (cachedBaseStreamGenerator != null) {
+            return cachedBaseStreamGenerator.copy();
+        } else {
+            StreamGenerator gen = constructObjectViaReflection(
+                    "com.samsung.sra.DataStoreExperiments." + conf.getString("stream-generator"),
+                    conf);
+            if (gen.isCopyable()) {
+                cachedBaseStreamGenerator = gen;
+            }
+            return gen;
+        }
     }
 
     public StreamGenerator getStreamGenerator() {
