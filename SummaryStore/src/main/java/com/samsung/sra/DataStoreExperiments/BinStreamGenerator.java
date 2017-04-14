@@ -1,46 +1,45 @@
 package com.samsung.sra.DataStoreExperiments;
 
 import com.moandjiezana.toml.Toml;
-import com.samsung.sra.protocol.TimeSeriesOuterClass.TimeSeries;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.List;
+import java.io.ObjectInputStream;
 import java.util.function.Consumer;
 
-/** Replay stream from a protobuf binar file. Loads entire file into memory, supports creating shallow copy objects */
-public class ProtoStreamGenerator implements StreamGenerator {
-    private static final Logger logger = LoggerFactory.getLogger(ProtoStreamGenerator.class);
-    private List<Long> ts, vs;
-    private int N = 0;
+/**
+ * Replay stream from a binary file. Loads entire file into memory, supports creating shallow copy objects.
+ * Binary format = long arrays serialized to disk. Can only hold 2 billion eles */
+public class BinStreamGenerator implements StreamGenerator {
+    private static final Logger logger = LoggerFactory.getLogger(BinStreamGenerator.class);
+    private long[] ts, vs;
+    private int N;
 
-    public ProtoStreamGenerator(Toml params) throws IOException {
+    public BinStreamGenerator(Toml params) throws IOException, ClassNotFoundException {
         this(params.getString("file"));
     }
 
-    private ProtoStreamGenerator(List<Long> ts, List<Long> vs, int N) {
+    private BinStreamGenerator(long[] ts, long[] vs, int N) {
         this.ts = ts;
         this.vs = vs;
         this.N = N;
     }
 
-    public ProtoStreamGenerator(String filename) throws IOException {
-        TimeSeries series;
-        try (FileInputStream is = new FileInputStream(filename)) {
-            series = TimeSeries.parseFrom(is);
+    public BinStreamGenerator(String filename) throws IOException, ClassNotFoundException {
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(filename))) {
+            ts = (long[]) ois.readObject();
+            vs = (long[]) ois.readObject();
+            assert ts.length == vs.length;
+            N = ts.length;
         }
-        ts = series.getTimestampList();
-        vs = series.getValueList();
-        N = ts.size();
-        assert N == vs.size();
     }
 
     @Override
     public void generate(long T0, long T1, Consumer<Operation> consumer) throws IOException {
         for (int i = 0; i < N; ++i) {
-            long t = ts.get(i), v = vs.get(i);
+            long t = ts[i], v = vs[i];
             if (t >= T0) {
                 if (t <= T1) {
                     consumer.accept(new Operation(Operation.Type.APPEND, t, new Object[]{v}));
@@ -62,15 +61,15 @@ public class ProtoStreamGenerator implements StreamGenerator {
 
     @Override
     public StreamGenerator copy() {
-        return new ProtoStreamGenerator(ts, vs, N);
+        return new BinStreamGenerator(ts, vs, N);
     }
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
-            System.err.println("SYNTAX: ProtoStreamGenerator <file_to_print.pbin>");
+            System.err.println("SYNTAX: BinStreamGenerator <file_to_print.pbin>");
             System.exit(2);
         }
-        try (ProtoStreamGenerator psg = new ProtoStreamGenerator(args[0])) {
+        try (BinStreamGenerator psg = new BinStreamGenerator(args[0])) {
             for (int i = 0; i < 2; ++i) {
                 System.out.printf("Run %d\n", i);
                 psg.generate(0, Long.MAX_VALUE, op -> {

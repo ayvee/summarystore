@@ -1,8 +1,0 @@
-syntax = "proto2";
-package com.samsung.sra.protocol;
-option java_package = "com.samsung.sra.protocol";
-
-message TimeSeries {
-    repeated int64 timestamp = 1;
-    repeated int64 value = 2;
-}
