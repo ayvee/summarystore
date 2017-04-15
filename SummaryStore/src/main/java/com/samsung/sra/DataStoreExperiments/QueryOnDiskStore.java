@@ -36,7 +36,7 @@ public class QueryOnDiskStore {
         }
         store.printWindowState(streamID);
         System.out.println(
-                "Store size = " + store.getNumWindows(streamID) + " windows; " +
+                "Store size = " + store.getNumSummaryWindows(streamID) + " windows; " +
                 "COUNT[" + l + ":" + r + "] = " + store.query(streamID, l, r, 0));
     }
 }

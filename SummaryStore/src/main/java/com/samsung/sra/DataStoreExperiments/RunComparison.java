@@ -88,7 +88,7 @@ class RunComparison {
 
                 List<String> queryClasses = new ArrayList<>(workload.keySet());
                 storeStats = new StoreStats(
-                        store.getStreamStatistics(streamID).getNumValues(), store.getNumWindows(streamID), queryClasses);
+                        store.getStreamStatistics(streamID).getNumValues(), store.getNumSummaryWindows(streamID), queryClasses);
                 final Set<String> pending = Collections.synchronizedSet(new HashSet<>(queryClasses));
                 queryClasses.parallelStream().forEach(queryClass -> {
                     QueryStatistics stats = storeStats.queryStats.get(queryClass);

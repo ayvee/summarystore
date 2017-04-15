@@ -56,7 +56,7 @@ public class PopulateData {
                 });
                 store.flush(streamID);
                 logger.info("Inserted {} elements", N[0]);
-                logger.info("{} = {} windows", outprefix, store.getNumWindows(streamID));
+                logger.info("{} = {} windows", outprefix, store.getNumSummaryWindows(streamID));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

@@ -12,6 +12,8 @@ import java.util.Map;
  * for that use PopulateWorkload + RunComparison instead
  */
 public class RunWorkload {
+    private static final long streamID = 0;
+
     public static void main(String[] args) throws Exception {
         File configFile;
         if (args.length != 1 || !(configFile = new File(args[0])).isFile()) {
@@ -22,14 +24,20 @@ public class RunWorkload {
         Configuration conf = new Configuration(configFile);
 
         Workload workload = conf.getWorkloadGenerator().generate(conf.getTstart(), conf.getTend());
-        System.out.println("#decay\tgroup\tt0\tt1\tresult\terror");
+        System.out.println("#decay\t# summary windows\t# elements in stream\tgroup\tt0\tt1\tresult\terror");
         for (String decay: conf.getDecayFunctions()) {
             try (SummaryStore store = new SummaryStore(conf.getStorePrefix(decay), conf.getWindowCacheSize())) {
+                long nSumWindows = store.getNumSummaryWindows(streamID);
+                long nElements = store.getStreamStatistics(streamID).getNumValues();
                 for (Map.Entry<String, List<Workload.Query>> entry: workload.entrySet()) {
                     String group = entry.getKey();
                     for (Workload.Query q: entry.getValue()) {
-                        ResultError re = (ResultError) store.query(0L, q.l, q.r, q.operatorNum, q.params);
-                        System.out.printf("%s\t%s\t%d\t%d\t%s\t%s\n", decay, group, q.l, q.r, re.result, re.error);
+                        ResultError re = (ResultError) store.query(streamID, q.l, q.r, q.operatorNum, q.params);
+                        if (q.queryType == Workload.Query.Type.MAX_THRESH) {
+                            re = new ResultError((long) re.result > (long) q.params[0], re.error);
+                        }
+                        System.out.printf("%s\t%d\t%d\t%s\t%d\t%d\t%s\t%s\n", decay, nSumWindows, nElements, group,
+                                q.l, q.r, re.result, re.error);
                     }
                 }
             }

@@ -180,9 +180,9 @@ public class SummaryStore implements AutoCloseable {
     }
 
     /**
-     * Get number of windows in specified stream. Use a null streamID to get total count over all streams
+     * Get number of summary windows in specified stream. Use a null streamID to get total count over all streams
      */
-    public long getNumWindows(Long streamID) {
+    public long getNumSummaryWindows(Long streamID) {
         try {
             Collection<StreamManager> managers = streamID != null
                     ? Collections.singletonList(getStreamManager(streamID))
