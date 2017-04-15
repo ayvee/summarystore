@@ -11,7 +11,8 @@ import java.util.function.Consumer;
 
 /**
  * Replay stream from a binary file. Loads entire file into memory, supports creating shallow copy objects.
- * Binary format = long arrays serialized to disk. Can only hold 2 billion eles */
+ * Binary format = long arrays serialized to disk. Can only hold 2 billion eles.
+ * TODO: eventually take a standard scientific binary format instead, like HDF. */
 public class BinStreamGenerator implements StreamGenerator {
     private static final Logger logger = LoggerFactory.getLogger(BinStreamGenerator.class);
     private long[] ts, vs;
