@@ -4,7 +4,6 @@ import com.moandjiezana.toml.Toml;
 import com.samsung.sra.DataStore.Aggregates.BloomFilterOperator;
 import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
 import com.samsung.sra.DataStore.*;
-import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -108,7 +107,7 @@ public class SimpleTester {
         store.close();
     }
 
-    private static void registerStore(Map<String, SummaryStore> stores, String storeName, WindowingMechanism windowingMechanism) throws RocksDBException, StreamException {
+    private static void registerStore(Map<String, SummaryStore> stores, String storeName, WindowingMechanism windowingMechanism) throws Exception {
         SummaryStore store = new SummaryStore(loc_prefix + storeName);
         //SummaryStore store = new SummaryStore(new MainMemoryBackingStore());
         store.registerStream(streamID, windowingMechanism);
