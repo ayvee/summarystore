@@ -6,7 +6,6 @@ import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
 import org.rocksdb.RocksDBException;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,34 +18,26 @@ import java.util.concurrent.Executors;
 public class SummaryStore implements AutoCloseable {
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(SummaryStore.class);
 
-    private final String indexesFile;
-
     private final BackingStore backingStore;
 
     private final ExecutorService executorService;
 
-    private ConcurrentHashMap<Long, StreamManager> streamManagers;
+    private final ConcurrentHashMap<Long, StreamManager> streamManagers;
 
-    private void serializeIndexes() throws IOException {
-        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(indexesFile))) {
-            oos.writeObject(streamManagers);
-        }
-        //backingStore.putMetadata(streamManagers);
+    private void persistStreamsInfo() throws RocksDBException {
+        backingStore.putMetadata(streamManagers);
     }
 
-    private void deserializeIndexes() throws IOException, ClassNotFoundException {
-        File file;
-        if (indexesFile == null || !(file = new File(indexesFile)).exists()) {
-            streamManagers = new ConcurrentHashMap<>();
-        } else {
-            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
-                streamManagers = (ConcurrentHashMap<Long, StreamManager>) ois.readObject();
-                for (StreamManager si: streamManagers.values()) {
-                    si.populateTransientFields(backingStore, executorService);
-                }
-            }
-        }
-        /*Object uncast = backingStore.getMetadata();
+    /**
+     * Create a SummaryStore that stores data and indexes in files/directories that
+     * start with filePrefix. To store everything in-memory use a null filePrefix
+     */
+    public SummaryStore(String filePrefix, long cacheSizePerStream) throws RocksDBException {
+        this.backingStore = filePrefix != null ?
+                new RocksDBBackingStore(filePrefix + ".backingStore", cacheSizePerStream) :
+                new MainMemoryBackingStore();
+        executorService = Executors.newCachedThreadPool();
+        Object uncast = backingStore.getMetadata();
         if (uncast != null) {
             streamManagers = (ConcurrentHashMap<Long, StreamManager>) uncast;
             for (StreamManager si: streamManagers.values()) {
@@ -54,30 +45,14 @@ public class SummaryStore implements AutoCloseable {
             }
         } else {
             streamManagers = new ConcurrentHashMap<>();
-        }*/
-    }
-
-    /**
-     * Create a SummaryStore that stores data and indexes in files/directories that
-     * start with filePrefix. To store everything in-memory use a null filePrefix
-     */
-    public SummaryStore(String filePrefix, long cacheSizePerStream) throws RocksDBException, IOException, ClassNotFoundException {
-        if (filePrefix != null) {
-            this.backingStore = new RocksDBBackingStore(filePrefix + ".backingStore", cacheSizePerStream);
-            this.indexesFile = filePrefix + ".indexes";
-        } else {
-            this.backingStore = new MainMemoryBackingStore();
-            this.indexesFile = null;
         }
-        executorService = Executors.newCachedThreadPool();
-        deserializeIndexes();
     }
 
-    public SummaryStore(String filePrefix) throws RocksDBException, IOException, ClassNotFoundException {
+    public SummaryStore(String filePrefix) throws RocksDBException {
         this(filePrefix, 0);
     }
 
-    public SummaryStore() throws RocksDBException, IOException, ClassNotFoundException {
+    public SummaryStore() throws RocksDBException {
         this(null);
     }
 
@@ -187,7 +162,7 @@ public class SummaryStore implements AutoCloseable {
     }
 
     @Override
-    public void close() throws RocksDBException, IOException {
+    public void close() throws RocksDBException {
         synchronized (streamManagers) {
             // wait for all in-process writes and reads to finish, and seal read index
             for (StreamManager streamManager: streamManagers.values()) {
@@ -199,7 +174,7 @@ public class SummaryStore implements AutoCloseable {
                 streamManager.windowingMechanism.close(streamManager);
                 backingStore.flushCache(streamManager);
             }
-            serializeIndexes();
+            persistStreamsInfo();
             backingStore.close();
         }
     }
@@ -274,7 +249,7 @@ public class SummaryStore implements AutoCloseable {
                 store.flush(streamID);
                 store.printWindowState(streamID, true);
             } else {
-                store.printWindowState(streamID, true);
+                store.printWindowState(streamID);
             }
             long t0 = 1, t1 = 511;
             System.out.println("[" + t0 + ", " + t1 + "] count = " + store.query(streamID, t0, t1, 0, 0.95));
