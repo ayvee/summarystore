@@ -63,7 +63,8 @@ public class SummaryStore implements AutoCloseable {
      */
     public SummaryStore(String filePrefix, long cacheSizePerStream) throws RocksDBException, IOException, ClassNotFoundException {
         if (filePrefix != null) {
-            this.backingStore = new RocksDBBackingStore(filePrefix + ".backingStore", cacheSizePerStream);
+            this.backingStore = new RocksDBBackingStore(filePrefix + ".backingStore", cacheSizePerStream,
+                    filePrefix + ".landmarks"); // FIXME
             this.indexesFile = filePrefix + ".indexes";
         } else {
             this.backingStore = new MainMemoryBackingStore();

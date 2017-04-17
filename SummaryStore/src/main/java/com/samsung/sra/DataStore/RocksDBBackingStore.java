@@ -8,7 +8,7 @@ import org.rocksdb.RocksIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Serializable;
+import java.io.*;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -18,6 +18,7 @@ public class RocksDBBackingStore implements BackingStore {
     private final RocksDB rocksDB;
     private final Options rocksDBOptions;
     private final long cacheSizePerStream;
+    private final String landmarksFile;
     // TODO: use a LinkedHashMap in LRU mode
     // map streamID -> windowID -> window
     private final ConcurrentHashMap<Long, ConcurrentHashMap<Long, SummaryWindow>> cache;
@@ -27,11 +28,12 @@ public class RocksDBBackingStore implements BackingStore {
      * @param cacheSizePerStream  number of elements per stream to cache in main memory. Set to 0 to disable caching
      * @throws RocksDBException
      */
-    public RocksDBBackingStore(String rocksPath, long cacheSizePerStream) throws RocksDBException {
+    public RocksDBBackingStore(String rocksPath, long cacheSizePerStream, String landmarksFile) throws RocksDBException {
         this.cacheSizePerStream = cacheSizePerStream;
         cache = cacheSizePerStream > 0 ? new ConcurrentHashMap<>() : null;
         rocksDBOptions = new Options().setCreateIfMissing(true);
         rocksDB = RocksDB.open(rocksDBOptions, rocksPath);
+        this.landmarksFile = landmarksFile;
         deserializeLandmarks();
     }
 
@@ -169,21 +171,38 @@ public class RocksDBBackingStore implements BackingStore {
         }
     }
 
-    /* **** <FIXME> Holding all landmarks in main memory for now (only persisting to RocksDB on close)  **** */
+    /* **** <FIXME> Holding all landmarks in main memory for now (only persisting to disk on close)  **** */
 
     private ConcurrentHashMap<Long, ConcurrentHashMap<Long, LandmarkWindow>> landmarkWindows;
-    private static final byte[] landmarksSpecialKey = {'l'}; // 1-byte special key, does not collide with any of the 16-byte summary windows
+    //private static final byte[] landmarksSpecialKey = {'l'}; // 1-byte special key, does not collide with any of the 16-byte summary windows
 
     private void deserializeLandmarks() throws RocksDBException {
-        byte[] landmarksSer = rocksDB.get(landmarksSpecialKey);
+        File file;
+        if (landmarksFile == null || !(file = new File(landmarksFile)).exists()) {
+            landmarkWindows = new ConcurrentHashMap<>();
+        } else {
+            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
+                landmarkWindows = (ConcurrentHashMap) ois.readObject();
+            } catch (IOException | ClassNotFoundException e) {
+                e.printStackTrace();
+                throw new RuntimeException(e);
+            }
+        }
+        /*byte[] landmarksSer = rocksDB.get(landmarksSpecialKey);
         landmarkWindows = landmarksSer != null
                 ? (ConcurrentHashMap<Long, ConcurrentHashMap<Long, LandmarkWindow>>) SerializationUtils.deserialize(landmarksSer)
-                : new ConcurrentHashMap<>();
+                : new ConcurrentHashMap<>();*/
     }
 
     private void serializeLandmarks() throws RocksDBException {
-        byte[] landmarksSer = SerializationUtils.serialize(landmarkWindows);
-        rocksDB.put(landmarksSpecialKey, landmarksSer);
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(landmarksFile))) {
+            oos.writeObject(landmarkWindows);
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+        /*byte[] landmarksSer = SerializationUtils.serialize(landmarkWindows);
+        rocksDB.put(landmarksSpecialKey, landmarksSer);*/
     }
 
     @Override
