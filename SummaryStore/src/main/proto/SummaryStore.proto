@@ -36,3 +36,12 @@ message ProtoSummaryWindow {
     optional int64 cEnd = 7;
     repeated ProtoOperator operator = 8;
 }
+
+message ProtoLandmarkWindow {
+    // LWID = LandmarkWindowID
+    required int64 lwid = 1;
+    optional int64 tStart = 2;
+    optional int64 tEnd = 3;
+    repeated int64 timestamp = 4;
+    repeated int64 value = 5; // TODO: arbitrary value types
+}

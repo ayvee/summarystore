@@ -19,6 +19,8 @@ import java.util.concurrent.Executors;
 public class SummaryStore implements AutoCloseable {
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(SummaryStore.class);
 
+    private final boolean readonly;
+
     private final String indexesFile;
 
     private final BackingStore backingStore;
@@ -61,7 +63,7 @@ public class SummaryStore implements AutoCloseable {
      * Create a SummaryStore that stores data and indexes in files/directories that
      * start with filePrefix. To store everything in-memory use a null filePrefix
      */
-    public SummaryStore(String filePrefix, long cacheSizePerStream) throws RocksDBException, IOException, ClassNotFoundException {
+    public SummaryStore(String filePrefix, long cacheSizePerStream, boolean readonly) throws RocksDBException, IOException, ClassNotFoundException {
         if (filePrefix != null) {
             this.backingStore = new RocksDBBackingStore(filePrefix + ".backingStore", cacheSizePerStream,
                     filePrefix + ".landmarks"); // FIXME
@@ -70,8 +72,13 @@ public class SummaryStore implements AutoCloseable {
             this.backingStore = new MainMemoryBackingStore();
             this.indexesFile = null;
         }
+        this.readonly = readonly;
         executorService = Executors.newCachedThreadPool();
         deserializeIndexes();
+    }
+
+    public SummaryStore(String filePrefix, long cacheSizePerStream) throws RocksDBException, IOException, ClassNotFoundException {
+        this(filePrefix, cacheSizePerStream, false);
     }
 
     public SummaryStore(String filePrefix) throws RocksDBException, IOException, ClassNotFoundException {
@@ -190,17 +197,19 @@ public class SummaryStore implements AutoCloseable {
     @Override
     public void close() throws RocksDBException, IOException {
         synchronized (streamManagers) {
-            // wait for all in-process writes and reads to finish, and seal read index
-            for (StreamManager streamManager: streamManagers.values()) {
-                streamManager.lock.writeLock().lock();
+            if (!readonly) {
+                // wait for all in-process writes and reads to finish, and seal read index
+                for (StreamManager streamManager : streamManagers.values()) {
+                    streamManager.lock.writeLock().lock();
+                }
+                // At this point all operations on existing streams will be blocked. New stream
+                // creates are already blocked because we're synchronizing on streamManagers
+                for (StreamManager streamManager : streamManagers.values()) {
+                    streamManager.windowingMechanism.close(streamManager);
+                    backingStore.flushCache(streamManager);
+                }
+                serializeIndexes();
             }
-            // At this point all operations on existing streams will be blocked. New stream
-            // creates are already blocked because we're synchronizing on streamManagers
-            for (StreamManager streamManager: streamManagers.values()) {
-                streamManager.windowingMechanism.close(streamManager);
-                backingStore.flushCache(streamManager);
-            }
-            serializeIndexes();
             backingStore.close();
         }
     }
