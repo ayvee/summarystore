@@ -32,12 +32,23 @@ public class RunWorkload {
                 for (Map.Entry<String, List<Workload.Query>> entry: workload.entrySet()) {
                     String group = entry.getKey();
                     for (Workload.Query q: entry.getValue()) {
-                        ResultError re = (ResultError) store.query(streamID, q.l, q.r, q.operatorNum, q.params);
+                        Object result, error;
                         if (q.queryType == Workload.Query.Type.MAX_THRESH) {
-                            re = new ResultError((long) re.result > (long) q.params[0], re.error);
+                            ResultError re = (ResultError) store.query(streamID, q.l, q.r, q.operatorNum, q.params);
+                            result = (long) re.result > (long) q.params[0];
+                            error = re.error;
+                        } else if (q.queryType == Workload.Query.Type.MEAN) {
+                            double sum = (double) ((ResultError) store.query(streamID, q.l, q.r, (int) q.params[0], q.params)).result;
+                            double count = (double) ((ResultError) store.query(streamID, q.l, q.r, (int) q.params[1], q.params)).result;
+                            result = sum / count;
+                            error = -1;
+                        } else {
+                            ResultError re = (ResultError) store.query(streamID, q.l, q.r, q.operatorNum, q.params);
+                            result = re.result;
+                            error = re.error;
                         }
                         System.out.printf("%s\t%d\t%d\t%s\t%d\t%d\t%s\t%s\n", decay, nSumWindows, nElements, group,
-                                q.l, q.r, re.result, re.error);
+                                q.l, q.r, result, error);
                     }
                 }
             }

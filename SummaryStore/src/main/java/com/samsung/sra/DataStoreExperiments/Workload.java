@@ -20,7 +20,8 @@ public class Workload extends LinkedHashMap<String, List<Workload.Query>> {
             BF,
             CMS,
             QDIGEST,
-            MAX_THRESH // check if max is greater than threshold
+            MAX_THRESH, // check if max is greater than threshold
+            MEAN
         }
         Type queryType;
         long l, r;
