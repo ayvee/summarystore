@@ -16,38 +16,45 @@ import java.util.function.Consumer;
 public class BinStreamGenerator implements StreamGenerator {
     private static final Logger logger = LoggerFactory.getLogger(BinStreamGenerator.class);
     private long[] ts, vs;
+    private int repeat;
     private int N;
 
     public BinStreamGenerator(Toml params) throws IOException, ClassNotFoundException {
-        this(params.getString("file"));
+        this(params.getString("file"), params.getLong("repeat", 1L).intValue());
     }
 
-    private BinStreamGenerator(long[] ts, long[] vs, int N) {
+    private BinStreamGenerator(long[] ts, long[] vs, int N, int repeat) {
         this.ts = ts;
         this.vs = vs;
         this.N = N;
+        this.repeat = repeat;
     }
 
-    public BinStreamGenerator(String filename) throws IOException, ClassNotFoundException {
+    public BinStreamGenerator(String filename, int repeat) throws IOException, ClassNotFoundException {
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(filename))) {
             ts = (long[]) ois.readObject();
             vs = (long[]) ois.readObject();
             assert ts.length == vs.length;
             N = ts.length;
+            this.repeat = repeat;
         }
     }
 
     @Override
     public void generate(long T0, long T1, Consumer<Operation> consumer) throws IOException {
-        for (int i = 0; i < N; ++i) {
-            long t = ts[i], v = vs[i];
-            if (t >= T0) {
-                if (t <= T1) {
-                    consumer.accept(new Operation(Operation.Type.APPEND, t, new Object[]{v}));
-                } else {
-                    break;
+        long base = 0;
+        for (int r = 0 ; r < repeat; ++r) {
+            for (int i = 0; i < N; ++i) {
+                long t = base + ts[i], v = vs[i];
+                if (t >= T0) {
+                    if (t <= T1) {
+                        consumer.accept(new Operation(Operation.Type.APPEND, t, new Object[]{v}));
+                    } else {
+                        break;
+                    }
                 }
             }
+            base += ts[N-1] + 1_000_000; // TODO: replace 1M with ticks-per-second
         }
     }
 
@@ -62,7 +69,7 @@ public class BinStreamGenerator implements StreamGenerator {
 
     @Override
     public StreamGenerator copy() {
-        return new BinStreamGenerator(ts, vs, N);
+        return new BinStreamGenerator(ts, vs, N, repeat);
     }
 
     public static void main(String[] args) throws Exception {
@@ -70,7 +77,7 @@ public class BinStreamGenerator implements StreamGenerator {
             System.err.println("SYNTAX: BinStreamGenerator <file_to_print.pbin>");
             System.exit(2);
         }
-        try (BinStreamGenerator psg = new BinStreamGenerator(args[0])) {
+        try (BinStreamGenerator psg = new BinStreamGenerator(args[0], 1)) {
             for (int i = 0; i < 2; ++i) {
                 System.out.printf("Run %d\n", i);
                 psg.generate(0, Long.MAX_VALUE, op -> {
