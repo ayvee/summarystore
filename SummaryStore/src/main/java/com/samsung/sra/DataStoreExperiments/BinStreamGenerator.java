@@ -11,32 +11,35 @@ import java.util.function.Consumer;
 
 /**
  * Replay stream from a binary file. Loads entire file into memory, supports creating shallow copy objects.
- * Binary format = long arrays serialized to disk. Can only hold 2 billion eles.
+ * Binary format = long arrays serialized to disk. Can only hold ~2 billion (INT32_MAX) eles.
  * TODO: eventually take a standard scientific binary format instead, like HDF. */
 public class BinStreamGenerator implements StreamGenerator {
     private static final Logger logger = LoggerFactory.getLogger(BinStreamGenerator.class);
     private long[] ts, vs;
-    private int repeat;
     private int N;
+    private int repeat;
+    private long ticksPerS;
 
     public BinStreamGenerator(Toml params) throws IOException, ClassNotFoundException {
-        this(params.getString("file"), params.getLong("repeat", 1L).intValue());
+        this(params.getString("file"), params.getLong("repeat", 1L).intValue(), params.getLong("ticks-per-second", 1L));
     }
 
-    private BinStreamGenerator(long[] ts, long[] vs, int N, int repeat) {
+    private BinStreamGenerator(long[] ts, long[] vs, int N, int repeat, long ticksPerS) {
         this.ts = ts;
         this.vs = vs;
         this.N = N;
         this.repeat = repeat;
+        this.ticksPerS = ticksPerS;
     }
 
-    public BinStreamGenerator(String filename, int repeat) throws IOException, ClassNotFoundException {
+    public BinStreamGenerator(String filename, int repeat, long ticksPerS) throws IOException, ClassNotFoundException {
+        this.repeat = repeat;
+        this.ticksPerS = ticksPerS;
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(filename))) {
             ts = (long[]) ois.readObject();
             vs = (long[]) ois.readObject();
             assert ts.length == vs.length;
             N = ts.length;
-            this.repeat = repeat;
         }
     }
 
@@ -54,7 +57,7 @@ public class BinStreamGenerator implements StreamGenerator {
                     }
                 }
             }
-            base += ts[N-1] + 1_000_000; // TODO: replace 1M with ticks-per-second
+            base += ts[N-1] + ticksPerS;
         }
     }
 
@@ -69,7 +72,7 @@ public class BinStreamGenerator implements StreamGenerator {
 
     @Override
     public StreamGenerator copy() {
-        return new BinStreamGenerator(ts, vs, N, repeat);
+        return new BinStreamGenerator(ts, vs, N, repeat, ticksPerS);
     }
 
     public static void main(String[] args) throws Exception {
@@ -77,7 +80,7 @@ public class BinStreamGenerator implements StreamGenerator {
             System.err.println("SYNTAX: BinStreamGenerator <file_to_print.pbin>");
             System.exit(2);
         }
-        try (BinStreamGenerator psg = new BinStreamGenerator(args[0], 1)) {
+        try (BinStreamGenerator psg = new BinStreamGenerator(args[0], 1, 1)) {
             for (int i = 0; i < 2; ++i) {
                 System.out.printf("Run %d\n", i);
                 psg.generate(0, Long.MAX_VALUE, op -> {
