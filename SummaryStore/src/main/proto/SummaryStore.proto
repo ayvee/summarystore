@@ -9,7 +9,7 @@ option java_package = "com.samsung.sra.protocol";
 
 message ProtoCMS {
     required int64 size = 1;
-    repeated int64 hashA = 2;  // long[depth]
+    //repeated int64 hashA = 2;  // long[depth]
     message Row {
         repeated int64 cell = 1; // long[width]
     }

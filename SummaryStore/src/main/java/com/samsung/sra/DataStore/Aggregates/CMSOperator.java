@@ -8,8 +8,8 @@ import org.apache.commons.math3.util.Pair;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -29,31 +29,43 @@ public class CMSOperator implements WindowOperator<CountMinSketch,Double,Pair<Do
 
     private int depth, width, seed;
 
+    private long[] hashA;
+
     public CMSOperator(int depth, int width, int seed) {
         this.depth = depth;
         this.width = width;
         this.seed = seed;
+        initializeHashes();
     }
 
-    @Override
-    public CountMinSketch createEmpty() {
-        return new CountMinSketch(depth, width, seed);
-    }
-
-    @Override
-    public CountMinSketch merge(Stream<CountMinSketch> aggrs) {
-        // TODO: modify CMS code to directly take a stream/iterator w/o buffering into an array first
-        CountMinSketch[] all = aggrs.collect(Collectors.toList()).toArray(new CountMinSketch[0]);
-        try {
-            return CountMinSketch.merge(all);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+    /** Copied verbatim from CountMinSketch.java */
+    private void initializeHashes() {
+        this.hashA = new long[depth];
+        Random r = new Random(seed);
+        // We're using a linear hash functions
+        // of the form (a*x+b) mod p.
+        // a,b are chosen independently for each hash function.
+        // However we can set b = 0 as all it does is shift the results
+        // without compromising their uniformity or independence with
+        // the other hashes.
+        for (int i = 0; i < depth; ++i) {
+            hashA[i] = r.nextInt(Integer.MAX_VALUE);
         }
     }
 
     @Override
+    public CountMinSketch createEmpty() {
+        return CMSProtofier.createEmpty(depth, width, hashA);
+    }
+
+    @Override
+    public CountMinSketch merge(Stream<CountMinSketch> aggrs) {
+        return CMSProtofier.merge(aggrs);
+    }
+
+    @Override
     public CountMinSketch insert(CountMinSketch aggr, long timestamp, Object[] val) {
-        long entry = (long)val[0];
+        long entry = (long) val[0];
         long count = val.length > 1 ? (long) val[1] : 1;
         aggr.add(entry, count);
         return aggr;
@@ -97,6 +109,6 @@ public class CMSOperator implements WindowOperator<CountMinSketch,Double,Pair<Do
 
     @Override
     public CountMinSketch deprotofy(ProtoOperator protoOperator) {
-        return CMSProtofier.deprotofy(protoOperator.getCms(), depth, width);
+        return CMSProtofier.deprotofy(protoOperator.getCms(), depth, width, hashA);
     }
 }

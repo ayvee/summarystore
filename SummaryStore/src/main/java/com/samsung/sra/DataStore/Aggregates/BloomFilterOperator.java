@@ -9,6 +9,7 @@ import org.apache.commons.lang.mutable.MutableLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
@@ -31,8 +32,9 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
     private int nrHashes; // = 7
     private static Logger logger = LoggerFactory.getLogger(BloomFilterOperator.class);
 
-    public BloomFilterOperator(int nrHashes, int filterSize) {
-        this.filterSize = filterSize;
+    public BloomFilterOperator(int nrHashes, int minimumFilterSize) {
+        // can be larger than specified minimum, Java seems to round BitSet sizes up to pow(2) multiples
+        this.filterSize = new BitSet(minimumFilterSize).size();
         this.nrHashes = nrHashes;
     }
 
@@ -49,8 +51,7 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
      */
     @Override
     public BloomFilter createEmpty() {
-        //logger.debug("Creating new Empty BF: "+filterSize +":" + nrHashes);
-        return new BloomFilter(filterSize, nrHashes);
+        return BFProtofier.createEmpty(nrHashes, filterSize);
     }
 
     /**
@@ -60,18 +61,15 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
      */
     @Override
     public BloomFilter merge(Stream<BloomFilter> aggrs) {
-        BloomFilter newBloomFilter = createEmpty();
-        //logger.debug(newBloomFilter.toString());
-
-        for (BloomFilter bfItem : (Iterable<BloomFilter>) aggrs::iterator) {
-            //logger.debug("Item: " + bfItem.toString());
-
-            newBloomFilter.addAll(bfItem);
-        }
-
-        //logger.debug(newBloomFilter.toString());
-
-        return newBloomFilter;
+        BloomFilter[] baseA = {null};
+        aggrs.forEach(bf -> {
+            if (baseA[0] == null) {
+                baseA[0] = bf;
+            } else {
+                baseA[0].addAll(bf);
+            }
+        });
+        return baseA[0];
     }
 
     /**
@@ -83,8 +81,8 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
      */
     @Override
     public BloomFilter insert(BloomFilter aggr, long timestamp, Object[] val) {
-        byte[] bytes = new byte[Long.SIZE];
-        Utilities.longToByteArray((long)val[0],bytes,0);
+        byte[] bytes = new byte[8];
+        Utilities.longToByteArray((long) val[0], bytes, 0);
         aggr.add(bytes);
         return aggr;
     }
@@ -102,7 +100,7 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
         if (inLandmark) { // found an explicit match in a landmark
             return new ResultError<>(true, 0d);
         } else {
-            byte[] bytes = new byte[Long.SIZE];
+            byte[] bytes = new byte[8];
             Utilities.longToByteArray((long) params[0], bytes, 0);
             MutableLong T0 = new MutableLong(-1L), T1 = new MutableLong(-1L);
             MutableBoolean answer = new MutableBoolean(false);
