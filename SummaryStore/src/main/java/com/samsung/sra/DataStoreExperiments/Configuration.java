@@ -5,9 +5,14 @@ import com.samsung.sra.DataStore.*;
 import com.samsung.sra.DataStore.Aggregates.BloomFilterOperator;
 import com.samsung.sra.DataStore.Aggregates.CMSOperator;
 import org.apache.commons.lang.builder.HashCodeBuilder;
+import org.apache.commons.math3.util.Pair;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -240,6 +245,40 @@ public class Configuration {
         return constructObjectViaReflection(
                 "com.samsung.sra.DataStoreExperiments." + conf.getString("distribution"),
                 conf);
+    }
+
+    public int getNumNodes() {
+        Toml conf = toml.getTable("nodes");
+        if (conf!=null) {
+            System.out.println("Number of nodes: " + conf.getLong("num-nodes", 0L).intValue());
+            return conf.getLong("num-nodes", 0L).intValue();
+        }
+        else {
+            return -1;
+        }
+    }
+
+    public String getHostIP() {
+        return toml.getString("host-ip");
+    }
+
+    public int getHostPort() {
+        return toml.getLong("host-port", 0L).intValue();
+    }
+
+    // build a hashmap for nodeID -> (IP, port); only valid for gateway nodes
+    public List<HashMap<String, String>> buildNodeIP() {
+        Toml conf = toml.getTable("nodes");
+        List<HashMap<String, String>> listIPs;
+
+        if (conf!=null) {
+            listIPs = conf.getList("nodeips");
+            assert(listIPs.size() == getNumNodes());
+            return listIPs;
+        } else {
+            throw new RuntimeException("node configuration absent from config file");
+        }
+
     }
 
     public static void main(String[] args) throws Exception {

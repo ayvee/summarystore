@@ -2,6 +2,8 @@ data-dir = "workdir"                # where we store SummaryStore (RocksDB) data
 results-dir = "workdir"             # where we store experiment output
 window-cache-size = 1_000_000       # number of windows to cache in memory
 ingest-buffer-size = 2_000_000      # number of values to buffer before triggering merge
+host-ip = "127.0.0.1"
+host-port = 8080
 
 # List of decay functions. Allowed vals: exponentialBASE, rationalPowerP,Q,R,S
 # TODO: consider specifying each decay as a map, instead of encoding into string
@@ -49,3 +51,10 @@ ticks-per-second = 1   # optional, default 1. E.g. set to 1000 if data timestamp
 parallel-workload-gen = true   # optional, default false
 # TODO: drop kernel page/inode/dentries caches before starting RunComparison
 drop-caches = false            # optional, default false
+
+# static config for summary nodes
+[nodes]
+num-nodes = 3
+nodeips = [{index = 0, ip = "127.0.0.1", port = "8080"}, {index = 1, ip = "127.0.0.2", port = "8080"}, {index = 2, ip = "127.0.0.3", port = "8080"},]
+
+
