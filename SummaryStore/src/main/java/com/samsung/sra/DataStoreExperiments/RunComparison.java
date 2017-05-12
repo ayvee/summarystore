@@ -84,7 +84,7 @@ class RunComparison {
                 }
             }
             try (SummaryStore store = new SummaryStore(config.getStorePrefix(decay), cacheSize)) {
-                store.warmupCache();
+                //store.warmupCache();
 
                 List<String> queryClasses = new ArrayList<>(workload.keySet());
                 storeStats = new StoreStats(

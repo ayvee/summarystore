@@ -65,8 +65,7 @@ public class SummaryStore implements AutoCloseable {
      */
     public SummaryStore(String filePrefix, long cacheSizePerStream, boolean readonly) throws RocksDBException, IOException, ClassNotFoundException {
         if (filePrefix != null) {
-            this.backingStore = new RocksDBBackingStore(filePrefix + ".backingStore", cacheSizePerStream,
-                    filePrefix + ".landmarks"); // FIXME
+            this.backingStore = new RocksDBBackingStore(filePrefix + ".backingStore", cacheSizePerStream);
             this.indexesFile = filePrefix + ".indexes";
         } else {
             this.backingStore = new MainMemoryBackingStore();
@@ -177,10 +176,6 @@ public class SummaryStore implements AutoCloseable {
 
     public void printWindowState(long streamID) throws StreamException, RocksDBException {
         printWindowState(streamID, false);
-    }
-
-    public void warmupCache() throws RocksDBException {
-        backingStore.warmupCache(streamManagers);
     }
 
     public void flush(long streamID) throws RocksDBException, StreamException {

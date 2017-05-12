@@ -2,7 +2,6 @@ package com.samsung.sra.DataStore;
 
 import org.rocksdb.RocksDBException;
 
-import java.io.Serializable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -43,21 +42,8 @@ class MainMemoryBackingStore implements BackingStore {
         stream.put(lwid, window);
     }
 
-    private Serializable indexes = null;
-
-    @Override
-    public Serializable getMetadata() throws RocksDBException {
-        return indexes;
-    }
-
-    @Override
-    public void putMetadata(Serializable indexes) throws RocksDBException {
-        this.indexes = indexes;
-    }
-
     @Override
     public void close() throws RocksDBException {
         summaryWindows.clear();
-        indexes = null;
     }
 }

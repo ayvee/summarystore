@@ -1,14 +1,11 @@
 package com.samsung.sra.DataStore;
 
-import org.apache.commons.lang.SerializationUtils;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
-import org.rocksdb.RocksIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -18,7 +15,6 @@ public class RocksDBBackingStore implements BackingStore {
     private final RocksDB rocksDB;
     private final Options rocksDBOptions;
     private final long cacheSizePerStream;
-    private final String landmarksFile;
     // TODO: use a LinkedHashMap in LRU mode
     // map streamID -> windowID -> window
     private final ConcurrentHashMap<Long, ConcurrentHashMap<Long, SummaryWindow>> cache;
@@ -28,12 +24,11 @@ public class RocksDBBackingStore implements BackingStore {
      * @param cacheSizePerStream  number of elements per stream to cache in main memory. Set to 0 to disable caching
      * @throws RocksDBException
      */
-    public RocksDBBackingStore(String rocksPath, long cacheSizePerStream, String landmarksFile) throws RocksDBException {
+    public RocksDBBackingStore(String rocksPath, long cacheSizePerStream) throws RocksDBException {
         this.cacheSizePerStream = cacheSizePerStream;
         cache = cacheSizePerStream > 0 ? new ConcurrentHashMap<>() : null;
         rocksDBOptions = new Options().setCreateIfMissing(true);
         rocksDB = RocksDB.open(rocksDBOptions, rocksPath);
-        this.landmarksFile = landmarksFile;
     }
 
     static {
@@ -127,7 +122,7 @@ public class RocksDBBackingStore implements BackingStore {
         }
     }
 
-    @Override
+    /*@Override
     public void warmupCache(Map<Long, StreamManager> streamManagers) throws RocksDBException {
         if (cache == null) return;
 
@@ -153,7 +148,7 @@ public class RocksDBBackingStore implements BackingStore {
         } finally {
             if (iter != null) iter.dispose();
         }
-    }
+    }*/
 
     @Override
     public void flushCache(StreamManager streamManager) throws RocksDBException {
@@ -216,25 +211,6 @@ public class RocksDBBackingStore implements BackingStore {
     }
 
     /* **** </FIXME>  **** */
-
-    /** We will persist metadata in RocksDB under this special (empty) key, which will
-     * never collide with any of the (non-empty) keys we use for window storage
-     */
-    private final static byte[] metadataSpecialKey = {};
-
-    // FIXME: NA; also use proto here
-    @Override
-    public Serializable getMetadata() throws RocksDBException {
-        byte[] indexesBytes = rocksDB.get(metadataSpecialKey);
-        return indexesBytes != null ?
-                (Serializable)SerializationUtils.deserialize(indexesBytes) :
-                null;
-    }
-
-    @Override
-    public void putMetadata(Serializable indexes) throws RocksDBException {
-        rocksDB.put(metadataSpecialKey, SerializationUtils.serialize(indexes));
-    }
 
     @Override
     public void close() throws RocksDBException {

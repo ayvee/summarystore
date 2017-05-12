@@ -28,15 +28,14 @@ import java.util.stream.Stream;
 class StreamManager implements Serializable {
     private static Logger logger = LoggerFactory.getLogger(StreamManager.class);
 
+    private static final Object[] LANDMARK_SENTINEL = {}; // sentinel used when handling append
     final long streamID;
-    final StreamStatistics stats;
     private final WindowOperator[] operators;
 
+    final StreamStatistics stats;
     private long tLastAppend = -1, tLastLandmarkStart = -1, tLastLandmarkEnd = -1;
     private long activeLWID = -1; // id of active landmark window
     private long nextLWID = 0; // id of next landmark window to be created
-
-    private final Object[] LANDMARK_VALUE = {}; // sentinel used when handling append
 
     final ReadWriteLock lock = new ReentrantReadWriteLock();
 
@@ -90,8 +89,8 @@ class StreamManager implements Serializable {
             windowingMechanism.append(this, ts, value);
         } else {
             // update decayed windowing, aging it by one position, but don't actually insert value into decayed window;
-            // see how LANDMARK_VALUE is handled in insertIntoSummaryWindow below
-            windowingMechanism.append(this, ts, LANDMARK_VALUE);
+            // see how LANDMARK_SENTINEL is handled in insertIntoSummaryWindow below
+            windowingMechanism.append(this, ts, LANDMARK_SENTINEL);
             LandmarkWindow window = backingStore.getLandmarkWindow(this, activeLWID);
             window.append(ts, value);
             backingStore.putLandmarkWindow(this, activeLWID, window);
@@ -146,9 +145,7 @@ class StreamManager implements Serializable {
                     .subMap(l, true, r, false).values().stream()
                     .map(swid -> {
                         try {
-                            return backingStore.isColumnar()
-                                    ? backingStore.getSummaryWindow(this, swid, operatorNum)
-                                    : backingStore.getSummaryWindow(this, swid);
+                            return backingStore.getSummaryWindow(this, swid);
                         } catch (RocksDBException e) {
                             throw new RuntimeException(e);
                         }
@@ -183,9 +180,7 @@ class StreamManager implements Serializable {
         }
 
         try {
-            Function<SummaryWindow, Object> retriever = !backingStore.isColumnar()
-                    ? b -> b.aggregates[operatorNum]
-                    : b -> b.aggregates[0];
+            Function<SummaryWindow, Object> retriever = b -> b.aggregates[operatorNum];
             return operators[operatorNum].query(stats, summaryWindows, retriever, landmarkWindows, t0, t1, queryParams);
         } catch (RuntimeException e) {
             if (e.getCause() instanceof RocksDBException) {
@@ -196,10 +191,16 @@ class StreamManager implements Serializable {
         }
     }
 
+    SummaryWindow createEmptySummaryWindow(
+            long prevSWID, long thisSWID, long nextSWID,
+            long tStart, long tEnd, long cStart, long cEnd) {
+        return new SummaryWindow(operators, prevSWID, thisSWID, nextSWID, tStart, tEnd, cStart, cEnd);
+    }
+
     void insertIntoSummaryWindow(SummaryWindow window, long ts, Object[] value) {
         assert window.tStart <= ts && (window.tEnd == -1 || ts <= window.tEnd)
                 && operators.length == window.aggregates.length;
-        if (value == LANDMARK_VALUE) {
+        if (value == LANDMARK_SENTINEL) {
             // value is actually going into landmark bucket, do nothing here. We only processed it this far so that the
             // decayed windowing would be updated by one position
             return;
@@ -221,12 +222,6 @@ class StreamManager implements Serializable {
             final int i = opNum; // work around Java dumbness re stream.map arguments
             windows[0].aggregates[i] = operators[i].merge(Stream.of(windows).map(b -> b.aggregates[i]));
         }
-    }
-
-    SummaryWindow createEmptySummaryWindow(
-            long prevSWID, long thisSWID, long nextSWID,
-            long tStart, long tEnd, long cStart, long cEnd) {
-        return new SummaryWindow(operators, prevSWID, thisSWID, nextSWID, tStart, tEnd, cStart, cEnd);
     }
 
     SummaryWindow getSummaryWindow(long swid) throws RocksDBException {

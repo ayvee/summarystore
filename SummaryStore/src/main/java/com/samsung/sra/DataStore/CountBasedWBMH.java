@@ -84,7 +84,7 @@ public class CountBasedWBMH implements WindowingMechanism {
          the other thread appending to the other buffer (until it becomes full)
      */
     private final BlockingQueue<IngestBuffer> emptyBuffers;
-    private IngestBuffer activeBuffer = null;
+    private IngestBuffer activeBuffer = null; // FIXME: volatile?
     private Lock flushLock = new ReentrantLock();
 
 
