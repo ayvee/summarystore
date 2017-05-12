@@ -54,7 +54,9 @@ drop-caches = false            # optional, default false
 
 # static config for summary nodes
 [nodes]
-num-nodes = 3
-nodeips = [{index = 0, ip = "127.0.0.1", port = "8080"}, {index = 1, ip = "127.0.0.2", port = "8080"}, {index = 2, ip = "127.0.0.3", port = "8080"},]
+num-nodes = 1
+nodeips = [{index = 0, ip = "127.0.0.2", port = "8080"}]
+
+#, {index = 1, ip = "127.0.0.2", port = "8080"}, {index = 2, ip = "127.0.0.3", port = "8080"},]
 
 
