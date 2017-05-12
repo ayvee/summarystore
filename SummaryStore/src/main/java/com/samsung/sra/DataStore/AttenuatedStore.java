@@ -132,7 +132,8 @@ public class AttenuatedStore implements AutoCloseable {
     /**
      * FIXME! Ignores arguments and assumes a SUM query, doesn't do CIs
      */
-    public Object query(long streamID, long t0, long t1, int operatorNumber, Object... queryParams) throws StreamException, QueryException, RocksDBException {
+    public Object query(long streamID, long t0, long t1, int operatorNumber, Object... queryParams)
+            throws StreamException, RocksDBException {
         StreamInfo streamInfo = streamsInfo.get(streamID);
         if (streamInfo == null) {
             throw new StreamException("attempting to query unregistered stream " + streamID);

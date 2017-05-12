@@ -1,6 +1,7 @@
 package com.samsung.sra.DataStore;
 
-import org.rocksdb.RocksDBException;
+import com.samsung.sra.DataStore.Storage.BackingStoreException;
+import com.samsung.sra.DataStore.Storage.StreamWindowManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.teneighty.heap.FibonacciHeap;
@@ -11,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -28,7 +30,9 @@ public class CountBasedWBMH implements WindowingMechanism {
      * https://gabormakrai.wordpress.com/2015/02/11/experimenting-with-dijkstras-algorithm/
      */
     private final FibonacciHeap<Long, Long> mergeCounts = new FibonacciHeap<>();
-    transient private HashMap<Long, Heap.Entry<Long, Long>> heapEntries = new HashMap<>();
+    private transient HashMap<Long, Heap.Entry<Long, Long>> heapEntries = new HashMap<>();
+
+    private transient ExecutorService executorService;
 
     private static class IngestBuffer implements Serializable {
         private long[] timestamps;
@@ -112,7 +116,8 @@ public class CountBasedWBMH implements WindowingMechanism {
     }
 
     @Override
-    public void populateTransientFields() {
+    public void populateTransientFields(ExecutorService executorService) {
+        this.executorService = executorService;
         heapEntries = new HashMap<>();
         for (Heap.Entry<Long, Long> entry: mergeCounts) {
             heapEntries.put(entry.getValue(), entry);
@@ -120,43 +125,43 @@ public class CountBasedWBMH implements WindowingMechanism {
     }
 
     @Override
-    public void append(StreamManager streamManager, long ts, Object[] value) throws RocksDBException {
+    public void append(StreamWindowManager windows, long ts, Object[] value) throws BackingStoreException {
         //logger.debug("Appending in " + (numWindowsInBuffer==0? "Unbuffered":"buffered"));
         //if (numWindowsInBuffer == 0) {
         if (bufferSize == 0) {
-            appendUnbuffered(streamManager, ts, value);
+            appendUnbuffered(windows, ts, value);
         } else {
-            appendBuffered(streamManager, ts, value);
+            appendBuffered(windows, ts, value);
         }
     }
 
     @Override
-    public void close(StreamManager manager) throws RocksDBException {
+    public void close(StreamWindowManager manager) throws BackingStoreException {
         if (bufferSize > 0) flush(manager);
     }
 
-    private void appendUnbuffered(StreamManager streamManager, long ts, Object[] value) throws RocksDBException {
+    private void appendUnbuffered(StreamWindowManager windows, long ts, Object[] value) throws BackingStoreException {
         // merge existing windows
-        processMergesUntil(streamManager, N + 1);
+        processMergesUntil(windows, N + 1);
 
         // insert newest element, creating a new window for it if necessary
-        SummaryWindow lastWindow = lastSWID == -1 ? null : streamManager.getSummaryWindow(lastSWID);
+        SummaryWindow lastWindow = lastSWID == -1 ? null : windows.getSummaryWindow(lastSWID);
         if (lastWindow != null && lastWindow.cEnd - lastWindow.cStart + 1 < windowing.getSizeOfFirstWindow()) {
             // last window isn't yet full; insert new value into it
             lastWindow.cEnd = N;
             lastWindow.tEnd = ts;
-            streamManager.insertIntoSummaryWindow(lastWindow, ts, value);
-            streamManager.putSummaryWindow(lastSWID, lastWindow);
+            windows.insertIntoSummaryWindow(lastWindow, ts, value);
+            windows.putSummaryWindow(lastSWID, lastWindow);
         } else {
             // create new window holding the latest element
             long newSWID = lastSWID + 1;
-            SummaryWindow newWindow = streamManager.createEmptySummaryWindow(lastSWID, newSWID, -1, ts, ts, N, N);
-            streamManager.insertIntoSummaryWindow(newWindow, ts, value);
-            streamManager.putSummaryWindow(newSWID, newWindow);
+            SummaryWindow newWindow = windows.createEmptySummaryWindow(lastSWID, newSWID, -1, ts, ts, N, N);
+            windows.insertIntoSummaryWindow(newWindow, ts, value);
+            windows.putSummaryWindow(newSWID, newWindow);
             if (lastWindow != null) {
                 lastWindow.nextSWID = newSWID;
                 updateMergeCountFor(lastWindow, newWindow, N + 1);
-                streamManager.putSummaryWindow(lastSWID, lastWindow);
+                windows.putSummaryWindow(lastSWID, lastWindow);
             }
             lastSWID = newSWID;
         }
@@ -164,9 +169,9 @@ public class CountBasedWBMH implements WindowingMechanism {
         ++N;
     }
 
-    /*NOTE: code here depends on the fact that append()/flush()/close() calls are serialized (by StreamManager).
+    /*NOTE: code here depends on the fact that append()/flush()/close() calls are serialized (by SStream).
             Else we would need more careful synchronization */
-    private void appendBuffered(StreamManager streamManager, long ts, Object[] value) throws RocksDBException{
+    private void appendBuffered(StreamWindowManager windows, long ts, Object[] value) throws BackingStoreException {
         while (activeBuffer == null) {
             try {
                 activeBuffer = emptyBuffers.take();
@@ -178,14 +183,14 @@ public class CountBasedWBMH implements WindowingMechanism {
         if (activeBuffer.isFull()) { // buffer is full, flush
             // 1. Start flushing current active buffer in a different thread
             IngestBuffer flushingBuffer = activeBuffer;
-            streamManager.getExecutorService().submit(() -> {
+            executorService.submit(() -> {
                 flushLock.lock();
                 try {
-                    flushFullBuffer(streamManager, flushingBuffer);
+                    flushFullBuffer(windows, flushingBuffer);
                     flushingBuffer.clear();
                     boolean offered = emptyBuffers.offer(flushingBuffer);
                     assert offered;
-                } catch (RocksDBException e) {
+                } catch (BackingStoreException e) {
                     throw new RuntimeException(e);
                 } finally {
                     flushLock.unlock();
@@ -197,15 +202,15 @@ public class CountBasedWBMH implements WindowingMechanism {
     }
 
     @Override
-    public void flush(StreamManager manager) throws RocksDBException {
+    public void flush(StreamWindowManager windows) throws BackingStoreException {
         if (bufferSize == 0 || activeBuffer == null) return;
         flushLock.lock();
         try {
             if (activeBuffer.isFull()) {
-                flushFullBuffer(manager, activeBuffer);
+                flushFullBuffer(windows, activeBuffer);
             } else { // append elements one by one
                 for (int i = 0; i < activeBuffer.size(); ++i) {
-                    appendUnbuffered(manager, activeBuffer.getTimestamp(i), activeBuffer.getValue(i));
+                    appendUnbuffered(windows, activeBuffer.getTimestamp(i), activeBuffer.getValue(i));
                 }
             }
             activeBuffer.clear();
@@ -235,22 +240,22 @@ public class CountBasedWBMH implements WindowingMechanism {
 
 
     /** Advance count marker to N, apply the WBMH test, process any merges that result */
-    private void processMergesUntil(StreamManager streamManager, long N) throws RocksDBException {
+    private void processMergesUntil(StreamWindowManager windows, long N) throws BackingStoreException {
         while (!mergeCounts.isEmpty() && mergeCounts.getMinimum().getKey() <= N) {
             //logger.debug(" ======= In WBMH before merge ========= ");
 
             Heap.Entry<Long, Long> entry = mergeCounts.extractMinimum();
             Heap.Entry<Long, Long> removed = heapEntries.remove(entry.getValue());
             assert removed == entry;
-            SummaryWindow b0 = streamManager.getSummaryWindow(entry.getValue());
+            SummaryWindow b0 = windows.getSummaryWindow(entry.getValue());
             // We will now merge b0's successor b1 into b0. We also need to update b{-1}'s and
             // b2's prev and next pointers and b{-1} and b0's heap entries
             assert b0.nextSWID != -1;
-            SummaryWindow b1 = streamManager.deleteSummaryWindow(b0.nextSWID);
-            SummaryWindow b2 = b1.nextSWID == -1 ? null : streamManager.getSummaryWindow(b1.nextSWID);
-            SummaryWindow bm1 = b0.prevSWID == -1 ? null : streamManager.getSummaryWindow(b0.prevSWID); // b{-1}
+            SummaryWindow b1 = windows.deleteSummaryWindow(b0.nextSWID);
+            SummaryWindow b2 = b1.nextSWID == -1 ? null : windows.getSummaryWindow(b1.nextSWID);
+            SummaryWindow bm1 = b0.prevSWID == -1 ? null : windows.getSummaryWindow(b0.prevSWID); // b{-1}
 
-            streamManager.mergeSummaryWindows(b0, b1);
+            windows.mergeSummaryWindows(b0, b1);
 
             if (bm1 != null) bm1.nextSWID = b0.thisSWID;
             b0.nextSWID = b1.nextSWID;
@@ -262,19 +267,19 @@ public class CountBasedWBMH implements WindowingMechanism {
             updateMergeCountFor(bm1, b0, N);
             updateMergeCountFor(b0, b2, N);
 
-            if (bm1 != null) streamManager.putSummaryWindow(bm1.thisSWID, bm1);
-            streamManager.putSummaryWindow(b0.thisSWID, b0);
-            if (b2 != null) streamManager.putSummaryWindow(b2.thisSWID, b2);
+            if (bm1 != null) windows.putSummaryWindow(bm1.thisSWID, bm1);
+            windows.putSummaryWindow(b0.thisSWID, b0);
+            if (b2 != null) windows.putSummaryWindow(b2.thisSWID, b2);
         }
     }
 
-    private void flushFullBuffer(StreamManager streamManager, IngestBuffer buffer) throws RocksDBException {
+    private void flushFullBuffer(StreamWindowManager windows, IngestBuffer buffer) throws BackingStoreException {
         assert bufferSize > 0 && buffer.isFull();
 
         long lastExtantWindowID = lastSWID;
         SummaryWindow lastExtantWindow;
         if (lastExtantWindowID != -1) {
-            lastExtantWindow = streamManager.getSummaryWindow(lastExtantWindowID);
+            lastExtantWindow = windows.getSummaryWindow(lastExtantWindowID);
             lastExtantWindow.nextSWID = lastExtantWindowID + 1;
         } else {
             lastExtantWindow = null;
@@ -288,14 +293,14 @@ public class CountBasedWBMH implements WindowingMechanism {
             for (int wNum = 0; wNum < newWindows.length; ++wNum) {
                 int wSize = bufferWindowLengths.get(newWindows.length - 1 - wNum).intValue();
                 cEndOffset = cStartOffset + wSize - 1;
-                SummaryWindow window = streamManager.createEmptySummaryWindow(
+                SummaryWindow window = windows.createEmptySummaryWindow(
                         lastExtantWindowID + wNum,
                         lastExtantWindowID + wNum + 1,
                         ((wNum == newWindows.length - 1) ? -1 : lastExtantWindowID + wNum + 2),
                         buffer.getTimestamp(cStartOffset), buffer.getTimestamp(cEndOffset),
                         cBase + cStartOffset, cBase + cEndOffset);
                 for (int c = cStartOffset; c <= cEndOffset; ++c) {
-                    streamManager.insertIntoSummaryWindow(window, buffer.getTimestamp(c), buffer.getValue(c));
+                    windows.insertIntoSummaryWindow(window, buffer.getTimestamp(c), buffer.getValue(c));
                 }
                 newWindows[wNum] = window;
 
@@ -310,14 +315,14 @@ public class CountBasedWBMH implements WindowingMechanism {
         }
 
         // insert all modified windows into backing store
-        if (lastExtantWindow != null) streamManager.putSummaryWindow(lastExtantWindowID, lastExtantWindow);
-        for (SummaryWindow window: newWindows) streamManager.putSummaryWindow(window.thisSWID, window);
+        if (lastExtantWindow != null) windows.putSummaryWindow(lastExtantWindowID, lastExtantWindow);
+        for (SummaryWindow window: newWindows) windows.putSummaryWindow(window.thisSWID, window);
 
         // insert complete, advance counter
         N += bufferSize;
         lastSWID = lastExtantWindowID + newWindows.length;
 
         // process any pending merges (should all be in the older windows)
-        processMergesUntil(streamManager, N);
+        processMergesUntil(windows, N);
     }
 }

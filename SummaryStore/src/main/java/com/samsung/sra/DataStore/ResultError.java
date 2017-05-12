@@ -1,6 +1,5 @@
 package com.samsung.sra.DataStore;
 
-/** TODO?: return confidence level along with error? */
 public class ResultError<R, E> {
     public final R result;
     public final E error;

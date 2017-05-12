@@ -1,8 +1,10 @@
 package com.samsung.sra.DataStore;
 
-import org.rocksdb.RocksDBException;
+import com.samsung.sra.DataStore.Storage.BackingStoreException;
+import com.samsung.sra.DataStore.Storage.StreamWindowManager;
 
 import java.io.Serializable;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Encapsulates code for EH/WBMH/similar mechanisms
@@ -17,12 +19,12 @@ public interface WindowingMechanism extends Serializable {
      * not need to worry about concurrency, all writes will be serialized before this function is
      * invoked.
      */
-    void append(StreamManager streamManager, long ts, Object[] value) throws RocksDBException;
+    void append(StreamWindowManager windows, long ts, Object[] value) throws BackingStoreException;
 
     // deserialization hook
-    default void populateTransientFields() {}
+    default void populateTransientFields(ExecutorService executorService) {}
 
-    void flush(StreamManager manager) throws RocksDBException;
+    void flush(StreamWindowManager windows) throws BackingStoreException;
 
-    void close(StreamManager streamManager) throws RocksDBException;
+    void close(StreamWindowManager windowManager) throws BackingStoreException;
 }

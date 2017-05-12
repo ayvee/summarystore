@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-/** TODO?: return confidence level along with each CI? */
 public class SumOperator implements WindowOperator<Long,Double,Pair<Double,Double>> {
     private static Logger logger = LoggerFactory.getLogger(SumOperator.class);
 

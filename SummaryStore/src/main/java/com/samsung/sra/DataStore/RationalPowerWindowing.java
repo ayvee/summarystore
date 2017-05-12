@@ -9,10 +9,6 @@ import java.util.*;
 public class RationalPowerWindowing implements Windowing {
     private final long p, q, R, S;
 
-    public RationalPowerWindowing(long p, long q) {
-        this(p, q, 1, 1);
-    }
-
     public RationalPowerWindowing(long p, long q, long R, long S) {
         if (p < 1 || q < 0 || R < 1 || S < 1) throw new IllegalArgumentException("invalid p, q, R or S");
         this.p = p;

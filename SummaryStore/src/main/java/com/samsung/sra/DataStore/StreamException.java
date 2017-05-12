@@ -5,6 +5,10 @@ public class StreamException extends Exception {
         super(msg);
     }
 
+    public StreamException(String msg, Throwable t) {
+        super(msg, t);
+    }
+
     public StreamException(Throwable t) {
         super(t);
     }
