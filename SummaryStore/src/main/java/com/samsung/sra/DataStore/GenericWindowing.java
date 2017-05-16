@@ -104,15 +104,16 @@ public class GenericWindowing implements Windowing {
         if (N <= 0) return Collections.emptyList();
         addWindowsPastMarker(N);
         List<Long> ret = new ArrayList<>();
-        Long prevMarker = null;
+        long prevMarker = 0;
         for (long currMarker: windowStartMarkers) {
-            if (currMarker >= N) {
-                break;
-            } else {
-                if (prevMarker != null) {
-                    ret.add(currMarker - prevMarker);
-                }
+            if (currMarker == 0) continue; // first marker
+            if (currMarker <= N) {
+                ret.add(currMarker - prevMarker);
+                // ret now covers the range [0, currMarker-1], of length currMarker <= N
                 prevMarker = currMarker;
+            } else {
+                // adding another window would make ret cover the range [0, currMarker-1], of length currMarker > N
+                break;
             }
         }
         return ret;
