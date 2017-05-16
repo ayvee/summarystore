@@ -1,0 +1,42 @@
+data-dir = "/mnt/md0/sstore"                # where we store SummaryStore (RocksDB) data
+results-dir = "results"             # where we store experiment output
+window-cache-size = 1_000_000_000       # number of windows to cache in memory
+ingest-buffer-size = 2_000_000      # number of values to buffer before triggering merge
+
+# List of decay functions. Allowed vals: exponentialBASE, rationalPowerP,Q,R,S
+# TODO: consider specifying each decay as a map, instead of encoding into string
+decay-functions = [
+    "rationalPower1,1,8,2", # 10% all-ops
+    #"rationalPower1,1,18,2", # 15% all-ops
+    "rationalPower1,1,24,2", # 18% all-ops
+]
+
+# List of operators to maintain in each SummaryStore
+# (names of classes in the com.samsung.sra.DataStore.Aggregates package)
+operators = ["SimpleCountOperator", "SumOperator"]
+
+
+# Dataset (stream generator) specification
+[data]
+stream-generator = "BinStreamGenerator"
+file = "/mnt/md0/task_usage.bin"
+tstart = 0
+tend = 2505598000035 # 29 days, values in us
+#tag-landmarks = {threshold = 64328900}
+
+
+# Workload specification
+[workload]
+workload-generator = "GoogleSummaryWorkloadGenerator"
+count-operator-index = 0
+sum-operator-index = 1
+seconds-per-query = 60
+ticks-per-second = 1_000_000
+
+
+[performance]
+# Process queries in parallel when generating workload. Adds a couple of
+# minutes of stream management overhead, only recommended in large streams
+parallel-workload-gen = false   # optional, default false
+# TODO: drop kernel page/inode/dentries caches before starting RunComparison
+drop-caches = false            # optional, default false
