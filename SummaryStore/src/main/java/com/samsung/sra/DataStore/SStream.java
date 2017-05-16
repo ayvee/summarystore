@@ -8,8 +8,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -30,7 +30,11 @@ class SStream implements Serializable {
     private long activeLWID = -1; // id of active landmark window
     private long nextLWID = 0; // id of next landmark window to be created
 
-    final ReadWriteLock lock = new ReentrantReadWriteLock();
+    /**
+     * Lock used to serialize external write actions (append, start/end landmark, flush, close).
+     * FIXME: also need an additional internal read/write lock. Likely goes inside StreamWindowManager
+     */
+    final Lock extLock = new ReentrantLock();
 
     /**
      * WindowingMechanism object. Maintains write indexes internally, which SummaryStore

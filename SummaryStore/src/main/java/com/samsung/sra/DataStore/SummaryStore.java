@@ -116,23 +116,17 @@ public class SummaryStore implements AutoCloseable {
         if (t0 < 0 || t0 > t1) {
             throw new StreamException("[" + t0 + ", " + t1 + "] is not a valid time interval");
         }
-        SStream stream = getStream(streamID);
-        stream.lock.readLock().lock();
-        try {
-            return stream.query(aggregateNum, t0, t1, queryParams);
-        } finally {
-            stream.lock.readLock().unlock();
-        }
+        return getStream(streamID).query(aggregateNum, t0, t1, queryParams);
     }
 
     public void append(long streamID, long ts, Object... value) throws StreamException, BackingStoreException {
         SStream stream = getStream(streamID);
-        stream.lock.writeLock().lock();
+        stream.extLock.lock();
         try {
             //logger.trace("Appending new value: <ts: " + ts + ", val: " + value + ">");
             stream.append(ts, value);
         } finally {
-            stream.lock.writeLock().unlock();
+            stream.extLock.unlock();
         }
     }
 
@@ -144,11 +138,11 @@ public class SummaryStore implements AutoCloseable {
      */
     public void startLandmark(long streamID, long timestamp) throws StreamException, BackingStoreException {
         SStream stream = getStream(streamID);
-        stream.lock.writeLock().lock();
+        stream.extLock.lock();
         try {
             stream.startLandmark(timestamp);
         } finally {
-            stream.lock.writeLock().unlock();
+            stream.extLock.unlock();
         }
     }
 
@@ -158,11 +152,11 @@ public class SummaryStore implements AutoCloseable {
      */
     public void endLandmark(long streamID, long timestamp) throws StreamException, BackingStoreException {
         SStream stream = getStream(streamID);
-        stream.lock.writeLock().lock();
+        stream.extLock.lock();
         try {
             stream.endLandmark(timestamp);
         } finally {
-            stream.lock.writeLock().unlock();
+            stream.extLock.unlock();
         }
     }
 
@@ -177,11 +171,11 @@ public class SummaryStore implements AutoCloseable {
     public void flush(long streamID) throws BackingStoreException, StreamException {
         // FIXME: clean up flush logic
         SStream stream = getStream(streamID);
-        stream.lock.writeLock().lock();
+        stream.extLock.lock();
         try {
             stream.windowingMechanism.flush(stream.windowManager);
         } finally {
-            stream.lock.writeLock().unlock();
+            stream.extLock.unlock();
         }
     }
 
@@ -190,9 +184,9 @@ public class SummaryStore implements AutoCloseable {
         // FIXME: clean up flush logic
         synchronized (streams) {
             if (!readonly) {
-                // wait for all in-process writes and reads to finish, and seal read index
+                // wait for all in-process writes and reads to finish
                 for (SStream stream : streams.values()) {
-                    stream.lock.writeLock().lock();
+                    stream.extLock.lock();
                 }
                 // At this point all operations on existing streams will be blocked. New stream
                 // creates are already blocked because we're synchronizing on streams
@@ -215,24 +209,13 @@ public class SummaryStore implements AutoCloseable {
                 : this.streams.values();
         long ret = 0;
         for (SStream sm : streams) {
-            sm.lock.readLock().lock();
-            try {
-                ret += sm.getNumSummaryWindows();
-            } finally {
-                sm.lock.readLock().unlock();
-            }
+            ret += sm.getNumSummaryWindows();
         }
         return ret;
     }
 
     public StreamStatistics getStreamStatistics(long streamID) throws StreamException {
-        SStream stream = getStream(streamID);
-        stream.lock.readLock().lock();
-        try {
-            return new StreamStatistics(stream.stats);
-        } finally {
-            stream.lock.readLock().unlock();
-        }
+        return new StreamStatistics(getStream(streamID).stats);
     }
 
     public static void main(String[] args) {
