@@ -11,14 +11,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 
 /**
- * One Summary Store stream. Called SStream instead of Stream to differentiate from java.util.Stream
+ * One Summary Store stream. This class has the outermost level of the logic for all major API calls. SummaryStore
+ * serializes all modifying calls (append, start/end landmark, flush, close) before passing them on to us.
  */
-class SStream implements Serializable {
-    private static Logger logger = LoggerFactory.getLogger(SStream.class);
+class Stream implements Serializable {
+    private static Logger logger = LoggerFactory.getLogger(Stream.class);
 
     private final long streamID;
     private final WindowOperator[] operators;
@@ -38,7 +38,7 @@ class SStream implements Serializable {
 
     /**
      * WindowingMechanism object. Maintains write indexes internally, which SummaryStore
-     * will persist to disk along with the rest of SStream
+     * will persist to disk along with the rest of Stream
      */
     final WindowingMechanism windowingMechanism;
 
@@ -47,7 +47,7 @@ class SStream implements Serializable {
         windowingMechanism.populateTransientFields(executorService);
     }
 
-    SStream(long streamID, WindowingMechanism windowingMechanism, WindowOperator... operators) {
+    Stream(long streamID, WindowingMechanism windowingMechanism, WindowOperator... operators) {
         this.streamID = streamID;
         this.operators = operators;
         this.windowingMechanism = windowingMechanism;
@@ -108,8 +108,8 @@ class SStream implements Serializable {
             t1 = T1;
         }
 
-        Stream<SummaryWindow> summaryWindows = windowManager.getSummaryWindowsOverlapping(t0, t1);
-        Stream<LandmarkWindow> landmarkWindows = windowManager.getLandmarkWindowsOverlapping(t0, t1);
+        java.util.stream.Stream summaryWindows = windowManager.getSummaryWindowsOverlapping(t0, t1);
+        java.util.stream.Stream landmarkWindows = windowManager.getLandmarkWindowsOverlapping(t0, t1);
         Function<SummaryWindow, Object> summaryRetriever = b -> b.aggregates[operatorNum];
         try {
             return operators[operatorNum].query(

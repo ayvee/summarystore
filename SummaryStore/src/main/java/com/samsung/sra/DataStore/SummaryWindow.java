@@ -5,7 +5,7 @@ import java.io.Serializable;
 /**
  * Window holding a set of summary data structures. SummaryStore stream = list of contiguous SummaryWindows
  *
- * Dumb structs. All the code creating, manipulating, and querying windows is in SStream */
+ * Dumb structs. All the code creating, manipulating, and querying windows is in Stream */
 public class SummaryWindow implements Serializable {
     // metadata
     /* We use longs for window IDs, timestamps, and count markers. Valid values should be

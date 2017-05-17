@@ -12,9 +12,10 @@ public class GenericWindowingTest {
     @Test
     public void getFirstContainingTime() throws Exception {
         GenericWindowing exp = new GenericWindowing(new ExponentialWindowLengths(2));
-        assertEquals(2 + 1, exp.getFirstContainingTime(0, 1, 2));
-        assertEquals(4 + 3, exp.getFirstContainingTime(0, 3, 4));
-        assertEquals(8 + 7, exp.getFirstContainingTime(0, 7, 8));
+        assertEquals(101, exp.getFirstContainingTime(98, 99, 100));
+        assertEquals(103, exp.getFirstContainingTime(96, 99, 100));
+        assertEquals(107, exp.getFirstContainingTime(92, 99, 100));
+        assertEquals(115, exp.getFirstContainingTime(84, 99, 100));
     }
 
     @Test

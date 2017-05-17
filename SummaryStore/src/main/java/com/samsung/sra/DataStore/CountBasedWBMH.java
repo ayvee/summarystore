@@ -169,7 +169,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         ++N;
     }
 
-    /*NOTE: code here depends on the fact that append()/flush()/close() calls are serialized (by SStream).
+    /*NOTE: code here depends on the fact that append()/flush()/close() calls are serialized (by Stream).
             Else we would need more careful synchronization */
     private void appendBuffered(StreamWindowManager windows, long ts, Object[] value) throws BackingStoreException {
         while (activeBuffer == null) {
