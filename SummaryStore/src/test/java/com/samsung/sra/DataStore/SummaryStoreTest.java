@@ -87,8 +87,8 @@ public class SummaryStoreTest {
         Integer[]
                 tss = {0, 496, 744, 868, 930, 961, 977, 993, 1001, 1009, 1013, 1017, 1019, 1021},
                 tes = {495, 743, 867, 929, 960, 976, 992, 1000, 1008, 1012, 1016, 1018, 1020, 1021},
-                css = tss,
-                ces = tes,
+                css = {0, 496, 744, 868, 930, 961, 977, 993, 1001, 1009, 1013, 1017, 1019, 1021},
+                ces = {495, 743, 867, 929, 960, 976, 992, 1000, 1008, 1012, 1016, 1018, 1020, 1021},
                 prevTSs = {-1, 0, 496, 744, 868, 930, 961, 977, 993, 1001, 1009, 1013, 1017, 1019},
                 nextTSs = {496, 744, 868, 930, 961, 977, 993, 1001, 1009, 1013, 1017, 1019, 1021, -1},
                 op0 = {491, 243, 124, 62, 31, 16, 16, 8, 8, 4, 4, 2, 2, 1}, // count
@@ -116,6 +116,7 @@ public class SummaryStoreTest {
         assertEquals(10, landmarkWindow.values.size());
         // maybe also check the actual values?
 
+        // queries
         long t0 = 1, t1 = 511;
         double delta = 1e-6;
         ResultError<Double, Pair<Double, Double>> countRE = (ResultError) store.query(streamID, t0, t1, 0, 0.95);
