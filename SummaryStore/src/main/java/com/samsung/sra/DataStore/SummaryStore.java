@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Start here. All external code will construct and interact with an instance of this class.
@@ -200,6 +201,11 @@ public class SummaryStore implements AutoCloseable {
                 serializeIndexes();
             }
             backingStore.close();
+            executorService.shutdown();
+            try {
+                executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+            } catch (InterruptedException ignored) {
+            }
         }
     }
 

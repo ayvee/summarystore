@@ -24,6 +24,7 @@ public interface WindowingMechanism extends Serializable {
     // deserialization hook
     default void populateTransientFields(ExecutorService executorService) {}
 
+    /** Block until all values appended so far have been flushed to the BackingStore */
     void flush(StreamWindowManager windows) throws BackingStoreException;
 
     void close(StreamWindowManager windowManager) throws BackingStoreException;

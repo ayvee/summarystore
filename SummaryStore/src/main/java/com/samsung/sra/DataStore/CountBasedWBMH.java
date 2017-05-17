@@ -13,14 +13,13 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.Semaphore;
 
 public class CountBasedWBMH implements WindowingMechanism {
     private static Logger logger = LoggerFactory.getLogger(CountBasedWBMH.class);
     private final Windowing windowing;
 
-    private long lastSWID = -1;
+    private long lastSWID = -1; // id of the last (newest) window in the stream
     private long N = 0;
 
     /* Priority queue, mapping each summary window w_i to the time at which w_{i+1} will be merged into it. Using a
@@ -85,11 +84,13 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     /* We keep two ingest buffers, and at most two active threads at any given point:
          one thread flushing a full buffer,
-         the other thread appending to the other buffer (until it becomes full)
-     */
+         the other thread appending to the other buffer (until it becomes full) */
+
     private final BlockingQueue<IngestBuffer> emptyBuffers;
-    private IngestBuffer activeBuffer = null; // FIXME: volatile?
-    private Lock flushLock = new ReentrantLock();
+    // FIXME: make ingestBuffer volatile? Not an issue if user issues all writes from same thread
+    private IngestBuffer activeBuffer = null;
+    // flushSemaphore is basically a lock with one added feature: can "lock" in one thread and "unlock" in another
+    private Semaphore flushSemaphore = new Semaphore(1);
 
 
     /**
@@ -108,7 +109,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         } else {
             emptyBuffers = null;
         }
-        logger.info("Buffer covers {} windows and {} values", bufferWindowLengths.size(), bufferSize);
+        logger.debug("Buffer covers {} windows and {} values", bufferWindowLengths.size(), bufferSize);
     }
 
     public CountBasedWBMH(Windowing windowing) {
@@ -126,18 +127,11 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     @Override
     public void append(StreamWindowManager windows, long ts, Object[] value) throws BackingStoreException {
-        //logger.debug("Appending in " + (numWindowsInBuffer==0? "Unbuffered":"buffered"));
-        //if (numWindowsInBuffer == 0) {
         if (bufferSize == 0) {
             appendUnbuffered(windows, ts, value);
         } else {
             appendBuffered(windows, ts, value);
         }
-    }
-
-    @Override
-    public void close(StreamWindowManager manager) throws BackingStoreException {
-        if (bufferSize > 0) flush(manager);
     }
 
     private void appendUnbuffered(StreamWindowManager windows, long timestamp, Object[] value) throws BackingStoreException {
@@ -154,7 +148,6 @@ public class CountBasedWBMH implements WindowingMechanism {
             windows.putSummaryWindow(lastWindow);
         } else {
             // create new window holding the latest element
-            //long newSWID = lastSWID + 1;
             SummaryWindow newWindow = windows.createEmptySummaryWindow(timestamp, timestamp, N, N, lastSWID, -1);
             windows.insertIntoSummaryWindow(newWindow, timestamp, value);
             windows.putSummaryWindow(newWindow);
@@ -171,6 +164,7 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     /*NOTE: code here depends on the fact that append()/flush()/close() calls are serialized (by Stream).
             Else we would need more careful synchronization */
+
     private void appendBuffered(StreamWindowManager windows, long ts, Object[] value) throws BackingStoreException {
         while (activeBuffer == null) {
             try {
@@ -180,100 +174,66 @@ public class CountBasedWBMH implements WindowingMechanism {
         }
         assert !activeBuffer.isFull();
         activeBuffer.append(ts, value);
-        if (activeBuffer.isFull()) { // buffer is full, flush
-            // 1. Start flushing current active buffer in a different thread
-            IngestBuffer flushingBuffer = activeBuffer;
-            executorService.submit(() -> {
-                flushLock.lock();
-                try {
-                    flushFullBuffer(windows, flushingBuffer);
-                    flushingBuffer.clear();
-                    boolean offered = emptyBuffers.offer(flushingBuffer);
-                    assert offered;
-                } catch (BackingStoreException e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    flushLock.unlock();
-                }
-            });
-            // 2. Deactivate current buffer. Next call to append() will wait for an empty buffer to activate
-            activeBuffer = null;
+        if (activeBuffer.isFull()) {
+            flushAndDeactivateActiveBuffer(windows, true);
         }
     }
 
     @Override
     public void flush(StreamWindowManager windows) throws BackingStoreException {
-        if (bufferSize == 0 || activeBuffer == null) return;
-        flushLock.lock();
-        try {
-            if (activeBuffer.isFull()) {
-                flushFullBuffer(windows, activeBuffer);
-            } else { // append elements one by one
-                for (int i = 0; i < activeBuffer.size(); ++i) {
-                    appendUnbuffered(windows, activeBuffer.getTimestamp(i), activeBuffer.getValue(i));
-                }
-            }
-            activeBuffer.clear();
-            boolean offered = emptyBuffers.offer(activeBuffer);
-            assert offered;
-        } finally {
-            flushLock.unlock();
+        if (bufferSize > 0) flushAndDeactivateActiveBuffer(windows, false);
+    }
+
+    @Override
+    public void close(StreamWindowManager manager) throws BackingStoreException {
+        flush(manager);
+    }
+
+    /**
+     * Flush activeBuffer either in the foreground or in a different background thread (per the argument), and deactivate
+     * it (i.e. set the variable to null so that the next call to append() will have to wait for an empty buffer)
+     */
+    private void flushAndDeactivateActiveBuffer(StreamWindowManager windows, boolean background)
+            throws BackingStoreException {
+        flushSemaphore.acquireUninterruptibly();
+        if (activeBuffer == null) {
+            flushSemaphore.release();
+            return;
+        }
+        if (background) {
+            IngestBuffer bufferToFlush = activeBuffer;
+            executorService.submit(() -> flushBuffer(windows, bufferToFlush));
+        } else {
+            flushBuffer(windows, activeBuffer);
         }
         activeBuffer = null;
     }
 
-    /**
-     * Set mergeCounts[(b1, b2)] = first N' >= N such that (b0, b1) will need to be
-     *                             merged after N' elements have been inserted
-     */
-    private void updateMergeCountFor(SummaryWindow b0, SummaryWindow b1, long N) {
-        if (b0 == null || b1 == null) return;
-
-        Heap.Entry<Long, Long> existingEntry = heapEntries.remove(b0.ts);
-        if (existingEntry != null) mergeCounts.delete(existingEntry);
-
-        long newMergeCount = windowing.getFirstContainingTime(b0.cs, b1.ce, N);
-        if (newMergeCount != -1) {
-            heapEntries.put(b0.ts, mergeCounts.insert(newMergeCount, b0.ts));
+    /** flushSemaphore must be acquired before calling this method; this method will release it */
+    private void flushBuffer(StreamWindowManager windows, IngestBuffer buffer) {
+        try {
+            if (buffer.isFull()) {
+                flushFullBuffer(windows, buffer);
+            } else {
+                flushPartialBuffer(windows, buffer);
+            }
+            buffer.clear();
+            boolean offered = emptyBuffers.offer(buffer);
+            assert offered;
+        } catch (BackingStoreException e) {
+            throw new RuntimeException(e);
+        } finally {
+            flushSemaphore.release();
         }
     }
 
-
-    /** Advance count marker to N, apply the WBMH test, process any merges that result */
-    private void processMergesUntil(StreamWindowManager windows, long N) throws BackingStoreException {
-        while (!mergeCounts.isEmpty() && mergeCounts.getMinimum().getKey() <= N) {
-            Heap.Entry<Long, Long> entry = mergeCounts.extractMinimum();
-            Heap.Entry<Long, Long> removed = heapEntries.remove(entry.getValue());
-            assert removed == entry;
-            SummaryWindow b0 = windows.getSummaryWindow(entry.getValue());
-            // We will now merge b0's successor b1 into b0. We also need to update b{-1}'s and
-            // b2's prev and next pointers and b{-1} and b0's heap entries
-            assert b0.nextTS != -1;
-            SummaryWindow b1 = windows.deleteSummaryWindow(b0.nextTS);
-            SummaryWindow b2 = b1.nextTS == -1 ? null : windows.getSummaryWindow(b1.nextTS);
-            SummaryWindow bm1 = b0.prevTS == -1 ? null : windows.getSummaryWindow(b0.prevTS); // b{-1}
-
-            windows.mergeSummaryWindows(b0, b1);
-
-            if (bm1 != null) bm1.nextTS = b0.ts;
-            b0.nextTS = b1.nextTS;
-            if (b2 != null) b2.prevTS = b0.ts;
-            if (b1.ts == lastSWID) lastSWID = b0.ts;
-
-            Heap.Entry<Long, Long> b1entry = heapEntries.remove(b1.ts);
-            if (b1entry != null) mergeCounts.delete(b1entry);
-            updateMergeCountFor(bm1, b0, N);
-            updateMergeCountFor(b0, b2, N);
-
-            if (bm1 != null) windows.putSummaryWindow(bm1);
-            windows.putSummaryWindow(b0);
-            if (b2 != null) windows.putSummaryWindow(b2);
+    private void flushPartialBuffer(StreamWindowManager windows, IngestBuffer buffer) throws BackingStoreException {
+        for (int i = 0; i < buffer.size(); ++i) {
+            appendUnbuffered(windows, buffer.getTimestamp(i), buffer.getValue(i));
         }
     }
 
     private void flushFullBuffer(StreamWindowManager windows, IngestBuffer buffer) throws BackingStoreException {
-        assert bufferSize > 0 && buffer.isFull();
-
         long lastExtantWindowID = lastSWID;
         SummaryWindow lastExtantWindow;
         if (lastExtantWindowID != -1) {
@@ -282,9 +242,9 @@ public class CountBasedWBMH implements WindowingMechanism {
         } else {
             lastExtantWindow = null;
         }
-        SummaryWindow[] newWindows = new SummaryWindow[bufferWindowLengths.size()];
 
         // create new windows
+        SummaryWindow[] newWindows = new SummaryWindow[bufferWindowLengths.size()];
         {
             long cBase = (lastExtantWindow == null) ? 0 : lastExtantWindow.ce + 1;
             int cStartOffset = 0, cEndOffset;
@@ -325,5 +285,54 @@ public class CountBasedWBMH implements WindowingMechanism {
 
         // process any pending merges (should all be in the older windows)
         processMergesUntil(windows, N);
+    }
+
+
+    /** Advance count marker to N, apply the WBMH test, process any merges that result */
+    private void processMergesUntil(StreamWindowManager windows, long N) throws BackingStoreException {
+        while (!mergeCounts.isEmpty() && mergeCounts.getMinimum().getKey() <= N) {
+            Heap.Entry<Long, Long> entry = mergeCounts.extractMinimum();
+            Heap.Entry<Long, Long> removed = heapEntries.remove(entry.getValue());
+            assert removed == entry;
+            SummaryWindow b0 = windows.getSummaryWindow(entry.getValue());
+            // We will now merge b0's successor b1 into b0. We also need to update b{-1}'s and
+            // b2's prev and next pointers and b{-1} and b0's heap entries
+            assert b0.nextTS != -1;
+            SummaryWindow b1 = windows.deleteSummaryWindow(b0.nextTS);
+            SummaryWindow b2 = b1.nextTS == -1 ? null : windows.getSummaryWindow(b1.nextTS);
+            SummaryWindow bm1 = b0.prevTS == -1 ? null : windows.getSummaryWindow(b0.prevTS); // b{-1}
+
+            windows.mergeSummaryWindows(b0, b1);
+
+            if (bm1 != null) bm1.nextTS = b0.ts;
+            b0.nextTS = b1.nextTS;
+            if (b2 != null) b2.prevTS = b0.ts;
+            if (b1.ts == lastSWID) lastSWID = b0.ts;
+
+            Heap.Entry<Long, Long> b1entry = heapEntries.remove(b1.ts);
+            if (b1entry != null) mergeCounts.delete(b1entry);
+            updateMergeCountFor(bm1, b0, N);
+            updateMergeCountFor(b0, b2, N);
+
+            if (bm1 != null) windows.putSummaryWindow(bm1);
+            windows.putSummaryWindow(b0);
+            if (b2 != null) windows.putSummaryWindow(b2);
+        }
+    }
+
+    /**
+     * Set mergeCounts[(b1, b2)] = first N' >= N such that (b0, b1) will need to be
+     *                             merged after N' elements have been inserted
+     */
+    private void updateMergeCountFor(SummaryWindow b0, SummaryWindow b1, long N) {
+        if (b0 == null || b1 == null) return;
+
+        Heap.Entry<Long, Long> existingEntry = heapEntries.remove(b0.ts);
+        if (existingEntry != null) mergeCounts.delete(existingEntry);
+
+        long newMergeCount = windowing.getFirstContainingTime(b0.cs, b1.ce, N);
+        if (newMergeCount != -1) {
+            heapEntries.put(b0.ts, mergeCounts.insert(newMergeCount, b0.ts));
+        }
     }
 }

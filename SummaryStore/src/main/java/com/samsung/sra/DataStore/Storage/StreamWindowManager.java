@@ -75,6 +75,9 @@ public class StreamWindowManager implements Serializable {
 
     /** Get all summary windows overlapping [t0, t1] */
     public Stream<SummaryWindow> getSummaryWindowsOverlapping(long t0, long t1) throws BackingStoreException {
+        if (summaryWindowStarts.isEmpty()) {
+            return Stream.empty();
+        }
         Long l = summaryWindowStarts.floor(t0); // first window with tStart <= t0
         Long r = summaryWindowStarts.higher(t1); // first window with tStart > t1
         if (r == null) {
