@@ -10,7 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
-import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 /**
@@ -27,8 +27,8 @@ public class StreamWindowManager implements Serializable {
     private final WindowOperator[] operators;
 
     /* Read indexes, map window.tStart -> window.ID. Used when answering queries */
-    private final TreeMap<Long, Long> summaryWindowIndex = new TreeMap<>();
-    private final TreeMap<Long, Long> landmarkWindowIndex = new TreeMap<>();
+    private final TreeSet<Long> summaryWindowStarts = new TreeSet<>();
+    private final TreeSet<Long> landmarkWindowStarts = new TreeSet<>();
     //transient BTreeMap<Long, Long> summaryWindowIndex;
 
     public StreamWindowManager(long streamID, WindowOperator[] operators) {
@@ -40,14 +40,12 @@ public class StreamWindowManager implements Serializable {
         this.backingStore = backingStore;
     }
 
-    public SummaryWindow createEmptySummaryWindow(
-            long prevSWID, long thisSWID, long nextSWID,
-            long tStart, long tEnd, long cStart, long cEnd) {
-        return new SummaryWindow(operators, prevSWID, thisSWID, nextSWID, tStart, tEnd, cStart, cEnd);
+    public SummaryWindow createEmptySummaryWindow(long ts, long te, long cs, long ce, long prevTS, long nextTS) {
+        return new SummaryWindow(operators, ts, te, cs, ce, prevTS, nextTS);
     }
 
     public void insertIntoSummaryWindow(SummaryWindow window, long ts, Object[] value) {
-        assert window.tStart <= ts && (window.tEnd == -1 || ts <= window.tEnd)
+        assert window.ts <= ts && (window.te == -1 || ts <= window.te)
                 && operators.length == window.aggregates.length;
         if (value == LANDMARK_SENTINEL) {
             // value is actually going into landmark bucket, do nothing here. We only processed it this far so that the
@@ -62,8 +60,8 @@ public class StreamWindowManager implements Serializable {
     /** Replace windows[0] with union(windows) */
     public void mergeSummaryWindows(SummaryWindow... windows) {
         if (windows.length == 0) return;
-        windows[0].cEnd = windows[windows.length - 1].cEnd;
-        windows[0].tEnd = windows[windows.length - 1].tEnd;
+        windows[0].ce = windows[windows.length - 1].ce;
+        windows[0].te = windows[windows.length - 1].te;
 
         for (int opNum = 0; opNum < operators.length; ++opNum) {
             final int i = opNum; // work around Java dumbness re stream.map arguments
@@ -77,15 +75,15 @@ public class StreamWindowManager implements Serializable {
 
     /** Get all summary windows overlapping [t0, t1] */
     public Stream<SummaryWindow> getSummaryWindowsOverlapping(long t0, long t1) throws BackingStoreException {
-        Long l = summaryWindowIndex.floorKey(t0); // first window with tStart <= t0
-        Long r = summaryWindowIndex.higherKey(t1); // first window with tStart > t1
+        Long l = summaryWindowStarts.floor(t0); // first window with tStart <= t0
+        Long r = summaryWindowStarts.higher(t1); // first window with tStart > t1
         if (r == null) {
-            r = summaryWindowIndex.lastKey() + 1;
+            r = summaryWindowStarts.last() + 1;
         }
         //logger.debug("Overapproximated time range = [{}, {})", l, r);
         // Query on all windows with l <= tStart < r
-        return summaryWindowIndex
-                .subMap(l, true, r, false).values().stream()
+        return summaryWindowStarts
+                .subSet(l, true, r, false).stream()
                 .map(swid -> {
                     try {
                         return getSummaryWindow(swid);
@@ -97,30 +95,31 @@ public class StreamWindowManager implements Serializable {
 
     public SummaryWindow deleteSummaryWindow(long swid) throws BackingStoreException {
         SummaryWindow window = backingStore.deleteSummaryWindow(this, swid);
-        summaryWindowIndex.remove(window.tStart);
+        assert window.ts == swid;
+        summaryWindowStarts.remove(window.ts);
         return window;
     }
 
-    public void putSummaryWindow(long swid, SummaryWindow window) throws BackingStoreException {
-        summaryWindowIndex.put(window.tStart, swid);
-        backingStore.putSummaryWindow(this, swid, window);
+    public void putSummaryWindow(SummaryWindow window) throws BackingStoreException {
+        summaryWindowStarts.add(window.ts);
+        backingStore.putSummaryWindow(this, window.ts, window);
     }
 
     public long getNumSummaryWindows() {
-        return summaryWindowIndex.size();
+        return summaryWindowStarts.size();
     }
-
 
     byte[] serializeSummaryWindow(SummaryWindow window) {
         assert window != null;
         ProtoSummaryWindow.Builder protoWindow;
         try {
-            protoWindow = ProtoSummaryWindow.newBuilder().
-                    setThisSWID(window.thisSWID).
-                    setNextSWID(window.nextSWID).
-                    setPrevSWID(window.prevSWID).
-                    setTStart(window.tStart).setTEnd(window.tEnd).
-                    setCStart(window.cStart).setCEnd(window.cEnd);
+            protoWindow = ProtoSummaryWindow.newBuilder()
+                    .setTs(window.ts)
+                    .setTe(window.te)
+                    .setCs(window.cs)
+                    .setCe(window.ce)
+                    .setPrevTS(window.prevTS)
+                    .setNextTS(window.nextTS);
         } catch (Exception e) {
             logger.error("Exception in serializing window", e);
             throw new RuntimeException(e);
@@ -147,13 +146,12 @@ public class StreamWindowManager implements Serializable {
             throw new RuntimeException(e);
         }
         SummaryWindow window = new SummaryWindow();
-        window.thisSWID = protoSummaryWindow.getThisSWID();
-        window.prevSWID = protoSummaryWindow.getPrevSWID();
-        window.nextSWID = protoSummaryWindow.getNextSWID();
-        window.tStart = protoSummaryWindow.getTStart();
-        window.tEnd = protoSummaryWindow.getTEnd();
-        window.cStart = protoSummaryWindow.getCStart();
-        window.cEnd = protoSummaryWindow.getCEnd();
+        window.ts = protoSummaryWindow.getTs();
+        window.te = protoSummaryWindow.getTe();
+        window.cs = protoSummaryWindow.getCs();
+        window.ce = protoSummaryWindow.getCe();
+        window.prevTS = protoSummaryWindow.getPrevTS();
+        window.nextTS = protoSummaryWindow.getNextTS();
 
         assert protoSummaryWindow.getOperatorCount() == operators.length;
         window.aggregates = new Object[operators.length];
@@ -170,21 +168,21 @@ public class StreamWindowManager implements Serializable {
 
     /** Get all landmark windows overlapping [t0, t1] */
     public Stream<LandmarkWindow> getLandmarkWindowsOverlapping(long t0, long t1) throws BackingStoreException {
-        if (landmarkWindowIndex.isEmpty()) { // no landmarks
+        if (landmarkWindowStarts.isEmpty()) { // no landmarks
             return Stream.empty();
         }
-        Long l = landmarkWindowIndex.floorKey(t0); // first window with tStart <= t0
-        Long r = landmarkWindowIndex.higherKey(t1); // first window with tStart > t1
+        Long l = landmarkWindowStarts.floor(t0); // first window with tStart <= t0
+        Long r = landmarkWindowStarts.higher(t1); // first window with tStart > t1
         if (l == null) {
-            l = landmarkWindowIndex.firstKey();
+            l = landmarkWindowStarts.first();
         }
         if (r == null) {
-            r = landmarkWindowIndex.lastKey() + 1;
+            r = landmarkWindowStarts.last() + 1;
         }
         //logger.debug("Overapproximated time range = [{}, {})", l, r);
         // Query on all windows with l <= tStart < r
-        return landmarkWindowIndex
-                .subMap(l, true, r, false).values().stream()
+        return landmarkWindowStarts
+                .subSet(l, true, r, false).stream()
                 .map(lwid -> {
                     try {
                         return getLandmarkWindow(lwid);
@@ -192,26 +190,26 @@ public class StreamWindowManager implements Serializable {
                         throw new RuntimeException(e);
                     }
                 })
-                .filter(w -> w.tEnd >= t0); // filter needed because very first window may not overlap [t0, t1]
+                .filter(w -> w.te >= t0); // filter needed because very first window may not overlap [t0, t1]
     }
 
-    public void putLandmarkWindow(long lwid, LandmarkWindow window) throws BackingStoreException {
-        landmarkWindowIndex.put(window.tStart, lwid);
-        backingStore.putLandmarkWindow(this, lwid, window);
+    public void putLandmarkWindow(LandmarkWindow window) throws BackingStoreException {
+        landmarkWindowStarts.add(window.ts);
+        backingStore.putLandmarkWindow(this, window.ts, window);
     }
 
     public long getNumLandmarkWindows() {
-        return landmarkWindowIndex.size();
+        return landmarkWindowStarts.size();
     }
 
     public void printWindows(boolean printPerWindowState, StreamStatistics stats) throws BackingStoreException {
         System.out.println(String.format("Stream %d with %d elements in %d summary windows and %d landmark windows",
                 streamID, stats.getNumValues(), getNumSummaryWindows(), getNumLandmarkWindows()));
         if (printPerWindowState) {
-            for (long swid : summaryWindowIndex.values()) {
+            for (long swid : summaryWindowStarts) {
                 System.out.println("\t" + getSummaryWindow(swid));
             }
-            for (long lwid : landmarkWindowIndex.values()) {
+            for (long lwid : landmarkWindowStarts) {
                 System.out.println("\t" + getLandmarkWindow(lwid));
             }
         }

@@ -140,30 +140,30 @@ public class CountBasedWBMH implements WindowingMechanism {
         if (bufferSize > 0) flush(manager);
     }
 
-    private void appendUnbuffered(StreamWindowManager windows, long ts, Object[] value) throws BackingStoreException {
+    private void appendUnbuffered(StreamWindowManager windows, long timestamp, Object[] value) throws BackingStoreException {
         // merge existing windows
         processMergesUntil(windows, N + 1);
 
         // insert newest element, creating a new window for it if necessary
         SummaryWindow lastWindow = lastSWID == -1 ? null : windows.getSummaryWindow(lastSWID);
-        if (lastWindow != null && lastWindow.cEnd - lastWindow.cStart + 1 < windowing.getSizeOfFirstWindow()) {
+        if (lastWindow != null && lastWindow.ce - lastWindow.cs + 1 < windowing.getSizeOfFirstWindow()) {
             // last window isn't yet full; insert new value into it
-            lastWindow.cEnd = N;
-            lastWindow.tEnd = ts;
-            windows.insertIntoSummaryWindow(lastWindow, ts, value);
-            windows.putSummaryWindow(lastSWID, lastWindow);
+            lastWindow.ce = N;
+            lastWindow.te = timestamp;
+            windows.insertIntoSummaryWindow(lastWindow, timestamp, value);
+            windows.putSummaryWindow(lastWindow);
         } else {
             // create new window holding the latest element
-            long newSWID = lastSWID + 1;
-            SummaryWindow newWindow = windows.createEmptySummaryWindow(lastSWID, newSWID, -1, ts, ts, N, N);
-            windows.insertIntoSummaryWindow(newWindow, ts, value);
-            windows.putSummaryWindow(newSWID, newWindow);
+            //long newSWID = lastSWID + 1;
+            SummaryWindow newWindow = windows.createEmptySummaryWindow(timestamp, timestamp, N, N, lastSWID, -1);
+            windows.insertIntoSummaryWindow(newWindow, timestamp, value);
+            windows.putSummaryWindow(newWindow);
             if (lastWindow != null) {
-                lastWindow.nextSWID = newSWID;
+                lastWindow.nextTS = timestamp;
                 updateMergeCountFor(lastWindow, newWindow, N + 1);
-                windows.putSummaryWindow(lastSWID, lastWindow);
+                windows.putSummaryWindow(lastWindow);
             }
-            lastSWID = newSWID;
+            lastSWID = timestamp;
         }
 
         ++N;
@@ -229,12 +229,12 @@ public class CountBasedWBMH implements WindowingMechanism {
     private void updateMergeCountFor(SummaryWindow b0, SummaryWindow b1, long N) {
         if (b0 == null || b1 == null) return;
 
-        Heap.Entry<Long, Long> existingEntry = heapEntries.remove(b0.thisSWID);
+        Heap.Entry<Long, Long> existingEntry = heapEntries.remove(b0.ts);
         if (existingEntry != null) mergeCounts.delete(existingEntry);
 
-        long newMergeCount = windowing.getFirstContainingTime(b0.cStart, b1.cEnd, N);
+        long newMergeCount = windowing.getFirstContainingTime(b0.cs, b1.ce, N);
         if (newMergeCount != -1) {
-            heapEntries.put(b0.thisSWID, mergeCounts.insert(newMergeCount, b0.thisSWID));
+            heapEntries.put(b0.ts, mergeCounts.insert(newMergeCount, b0.ts));
         }
     }
 
@@ -242,34 +242,32 @@ public class CountBasedWBMH implements WindowingMechanism {
     /** Advance count marker to N, apply the WBMH test, process any merges that result */
     private void processMergesUntil(StreamWindowManager windows, long N) throws BackingStoreException {
         while (!mergeCounts.isEmpty() && mergeCounts.getMinimum().getKey() <= N) {
-            //logger.debug(" ======= In WBMH before merge ========= ");
-
             Heap.Entry<Long, Long> entry = mergeCounts.extractMinimum();
             Heap.Entry<Long, Long> removed = heapEntries.remove(entry.getValue());
             assert removed == entry;
             SummaryWindow b0 = windows.getSummaryWindow(entry.getValue());
             // We will now merge b0's successor b1 into b0. We also need to update b{-1}'s and
             // b2's prev and next pointers and b{-1} and b0's heap entries
-            assert b0.nextSWID != -1;
-            SummaryWindow b1 = windows.deleteSummaryWindow(b0.nextSWID);
-            SummaryWindow b2 = b1.nextSWID == -1 ? null : windows.getSummaryWindow(b1.nextSWID);
-            SummaryWindow bm1 = b0.prevSWID == -1 ? null : windows.getSummaryWindow(b0.prevSWID); // b{-1}
+            assert b0.nextTS != -1;
+            SummaryWindow b1 = windows.deleteSummaryWindow(b0.nextTS);
+            SummaryWindow b2 = b1.nextTS == -1 ? null : windows.getSummaryWindow(b1.nextTS);
+            SummaryWindow bm1 = b0.prevTS == -1 ? null : windows.getSummaryWindow(b0.prevTS); // b{-1}
 
             windows.mergeSummaryWindows(b0, b1);
 
-            if (bm1 != null) bm1.nextSWID = b0.thisSWID;
-            b0.nextSWID = b1.nextSWID;
-            if (b2 != null) b2.prevSWID = b0.thisSWID;
-            if (b1.thisSWID == lastSWID) lastSWID = b0.thisSWID;
+            if (bm1 != null) bm1.nextTS = b0.ts;
+            b0.nextTS = b1.nextTS;
+            if (b2 != null) b2.prevTS = b0.ts;
+            if (b1.ts == lastSWID) lastSWID = b0.ts;
 
-            Heap.Entry<Long, Long> b1entry = heapEntries.remove(b1.thisSWID);
+            Heap.Entry<Long, Long> b1entry = heapEntries.remove(b1.ts);
             if (b1entry != null) mergeCounts.delete(b1entry);
             updateMergeCountFor(bm1, b0, N);
             updateMergeCountFor(b0, b2, N);
 
-            if (bm1 != null) windows.putSummaryWindow(bm1.thisSWID, bm1);
-            windows.putSummaryWindow(b0.thisSWID, b0);
-            if (b2 != null) windows.putSummaryWindow(b2.thisSWID, b2);
+            if (bm1 != null) windows.putSummaryWindow(bm1);
+            windows.putSummaryWindow(b0);
+            if (b2 != null) windows.putSummaryWindow(b2);
         }
     }
 
@@ -280,7 +278,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         SummaryWindow lastExtantWindow;
         if (lastExtantWindowID != -1) {
             lastExtantWindow = windows.getSummaryWindow(lastExtantWindowID);
-            lastExtantWindow.nextSWID = lastExtantWindowID + 1;
+            lastExtantWindow.nextTS = buffer.getTimestamp(0);
         } else {
             lastExtantWindow = null;
         }
@@ -288,17 +286,20 @@ public class CountBasedWBMH implements WindowingMechanism {
 
         // create new windows
         {
-            long cBase = (lastExtantWindow == null) ? 0 : lastExtantWindow.cEnd + 1;
+            long cBase = (lastExtantWindow == null) ? 0 : lastExtantWindow.ce + 1;
             int cStartOffset = 0, cEndOffset;
             for (int wNum = 0; wNum < newWindows.length; ++wNum) {
                 int wSize = bufferWindowLengths.get(newWindows.length - 1 - wNum).intValue();
                 cEndOffset = cStartOffset + wSize - 1;
+
                 SummaryWindow window = windows.createEmptySummaryWindow(
-                        lastExtantWindowID + wNum,
-                        lastExtantWindowID + wNum + 1,
-                        ((wNum == newWindows.length - 1) ? -1 : lastExtantWindowID + wNum + 2),
-                        buffer.getTimestamp(cStartOffset), buffer.getTimestamp(cEndOffset),
-                        cBase + cStartOffset, cBase + cEndOffset);
+                        buffer.getTimestamp(cStartOffset),
+                        buffer.getTimestamp(cEndOffset),
+                        cBase + cStartOffset,
+                        cBase + cEndOffset,
+                        wNum == 0 ? lastExtantWindowID : newWindows[wNum-1].ts,
+                        wNum == newWindows.length - 1 ? -1 : buffer.getTimestamp(cEndOffset + 1));
+                if (wNum > 0) assert newWindows[wNum-1].nextTS == window.ts;
                 for (int c = cStartOffset; c <= cEndOffset; ++c) {
                     windows.insertIntoSummaryWindow(window, buffer.getTimestamp(c), buffer.getValue(c));
                 }
@@ -315,12 +316,12 @@ public class CountBasedWBMH implements WindowingMechanism {
         }
 
         // insert all modified windows into backing store
-        if (lastExtantWindow != null) windows.putSummaryWindow(lastExtantWindowID, lastExtantWindow);
-        for (SummaryWindow window: newWindows) windows.putSummaryWindow(window.thisSWID, window);
+        if (lastExtantWindow != null) windows.putSummaryWindow(lastExtantWindow);
+        for (SummaryWindow window: newWindows) windows.putSummaryWindow(window);
 
         // insert complete, advance counter
         N += bufferSize;
-        lastSWID = lastExtantWindowID + newWindows.length;
+        lastSWID = newWindows[newWindows.length-1].ts;
 
         // process any pending merges (should all be in the older windows)
         processMergesUntil(windows, N);

@@ -9,36 +9,32 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 public class LandmarkWindow implements Serializable {
-    public final long lwid;
-    public long tStart, tEnd;
+    public long ts, te;
     public final SortedMap<Long, Object[]> values = new TreeMap<>();
 
-    LandmarkWindow(long lwid, long tStart) {
-        this.lwid = lwid;
-        this.tStart = tStart;
+    LandmarkWindow(long ts) {
+        this.ts = ts;
     }
 
-    public void append(long ts, Object[] value) {
-        assert ts >= tStart && (values.isEmpty() || values.lastKey() < ts);
-        values.put(ts, value);
+    public void append(long timestamp, Object[] value) {
+        assert timestamp >= ts && (values.isEmpty() || values.lastKey() < timestamp);
+        values.put(timestamp, value);
     }
 
-    public void close(long ts) {
-        assert ts >= tStart && (values.isEmpty() || values.lastKey() <= ts);
-        tEnd = ts;
+    public void close(long timestamp) {
+        assert timestamp >= ts && (values.isEmpty() || values.lastKey() <= timestamp);
+        te = timestamp;
     }
 
     @Override
     public String toString() {
-        return String.format("<landmark-window %d, time range [%d:%d], %d values",
-                lwid, tStart, tEnd, values.size());
+        return String.format("<landmark-window: time range [%d:%d], %d values", ts, te, values.size());
     }
 
     public byte[] serialize() {
         ProtoLandmarkWindow.Builder builder = ProtoLandmarkWindow.newBuilder()
-                .setLwid(lwid)
-                .setTStart(tStart)
-                .setTEnd(tEnd);
+                .setTs(ts)
+                .setTe(te);
         for (Map.Entry<Long, Object[]> entry: values.entrySet()) {
             builder.addTimestamp(entry.getKey());
             builder.addValue((long) entry.getValue()[0]);
@@ -53,8 +49,8 @@ public class LandmarkWindow implements Serializable {
         } catch (InvalidProtocolBufferException e) {
             throw new RuntimeException(e);
         }
-        LandmarkWindow window = new LandmarkWindow(proto.getLwid(), proto.getTStart());
-        window.tEnd = proto.getTEnd();
+        LandmarkWindow window = new LandmarkWindow(proto.getTs());
+        window.te = proto.getTe();
         int N = proto.getTimestampCount();
         assert N == proto.getValueCount();
         for (int i = 0; i < N; ++i) {

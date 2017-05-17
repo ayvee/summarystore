@@ -27,8 +27,7 @@ class Stream implements Serializable {
 
     final StreamStatistics stats;
     private long tLastAppend = -1, tLastLandmarkStart = -1, tLastLandmarkEnd = -1;
-    private long activeLWID = -1; // id of active landmark window
-    private long nextLWID = 0; // id of next landmark window to be created
+    private boolean isLandmarkActive = false;
 
     /**
      * Lock used to serialize external write actions (append, start/end landmark, flush, close).
@@ -61,16 +60,16 @@ class Stream implements Serializable {
         }
         tLastAppend = ts;
         stats.append(ts, value);
-        if (activeLWID == -1) {
+        if (!isLandmarkActive) {
             // insert into decayed window sequence
             windowingMechanism.append(windowManager, ts, value);
         } else {
             // update decayed windowing, aging it by one position, but don't actually insert value into decayed window;
             // see how LANDMARK_SENTINEL is handled in StreamWindowManager.insertIntoSummaryWindow
             windowingMechanism.append(windowManager, ts, StreamWindowManager.LANDMARK_SENTINEL);
-            LandmarkWindow window = windowManager.getLandmarkWindow(activeLWID);
+            LandmarkWindow window = windowManager.getLandmarkWindow(tLastLandmarkStart);
             window.append(ts, value);
-            windowManager.putLandmarkWindow(activeLWID, window);
+            windowManager.putLandmarkWindow(window);
         }
     }
 
@@ -78,12 +77,12 @@ class Stream implements Serializable {
         if (ts <= tLastAppend || ts < tLastLandmarkStart || ts <= tLastLandmarkEnd) {
             throw new StreamException("attempting to retroactively start landmark");
         }
-        if (activeLWID != -1) {
+        if (isLandmarkActive) {
             return;
         }
         tLastLandmarkStart = ts;
-        activeLWID = nextLWID++;
-        windowManager.putLandmarkWindow(activeLWID, new LandmarkWindow(activeLWID, ts));
+        isLandmarkActive = true;
+        windowManager.putLandmarkWindow(new LandmarkWindow(ts));
     }
 
     void endLandmark(long ts) throws StreamException, BackingStoreException {
@@ -91,10 +90,10 @@ class Stream implements Serializable {
             throw new StreamException("attempting to retroactively end landmark");
         }
         tLastLandmarkEnd = ts;
-        LandmarkWindow window = windowManager.getLandmarkWindow(activeLWID);
+        LandmarkWindow window = windowManager.getLandmarkWindow(tLastLandmarkStart);
         window.close(ts);
-        windowManager.putLandmarkWindow(activeLWID, window);
-        activeLWID = -1;
+        windowManager.putLandmarkWindow(window);
+        isLandmarkActive = false;
     }
 
     Object query(int operatorNum, long t0, long t1, Object[] queryParams) throws BackingStoreException {

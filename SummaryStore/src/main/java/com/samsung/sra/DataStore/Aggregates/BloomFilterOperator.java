@@ -106,9 +106,9 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
             MutableBoolean answer = new MutableBoolean(false);
             summaryWindows.forEach(window -> {
                 if (T0.longValue() != -1L) {
-                    T0.setValue(window.tStart);
+                    T0.setValue(window.ts);
                 }
-                T1.setValue(window.tEnd);
+                T1.setValue(window.te);
                 if (answer.isFalse()) {
                     answer.setValue(bloomRetriever.apply(window).isPresent(bytes));
                 }

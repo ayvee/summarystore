@@ -63,18 +63,18 @@ class SumEstimator {
         windows.forEach(w -> {
             numWindows.increment();
             if (numWindows.toLong() == 1) { // first window
-                ts = w.tStart;
+                ts = w.ts;
                 Sl = sumRetriever.apply(w);
             } else if (numWindows.toLong() == 2) { // second window
-                tm0 = w.tStart;
+                tm0 = w.ts;
                 Sm = Sr = sumRetriever.apply(w);
-                tm1 = w.tStart;
+                tm1 = w.ts;
             } else { // third or later window
-                tm1 = w.tStart;
+                tm1 = w.ts;
                 Sr = sumRetriever.apply(w);
                 Sm += Sr;
             }
-            lastTEnd.setValue(w.tEnd);
+            lastTEnd.setValue(w.te);
         });
         nDecayedWindows = numWindows.toLong();
         assert nDecayedWindows > 0;
@@ -104,11 +104,11 @@ class SumEstimator {
 
     private void processLandmarkWindows(Stream<LandmarkWindow> windows, Function<Object[], Long> valueParser) {
         windows.forEach(w -> {
-            Tl -= overlap(w.tStart, w.tEnd, ts, tm0-1);
-            tl -= overlap(w.tStart, w.tEnd, t0, tm0-1);
+            Tl -= overlap(w.ts, w.te, ts, tm0-1);
+            tl -= overlap(w.ts, w.te, t0, tm0-1);
             if (nDecayedWindows > 1) {
-                Tr -= overlap(w.tStart, w.tEnd, tm1, te);
-                tr -= overlap(w.tStart, w.tEnd, tm1, t1);
+                Tr -= overlap(w.ts, w.te, tm1, te);
+                tr -= overlap(w.ts, w.te, tm1, t1);
             }
 
             w.values.forEach((t, v) -> {
