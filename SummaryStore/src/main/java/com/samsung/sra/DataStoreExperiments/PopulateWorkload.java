@@ -132,45 +132,6 @@ public class PopulateWorkload {
         }
     }
 
-    public static void test() throws Exception {
-        File configFile = File.createTempFile("test-workload", "toml");
-        configFile.deleteOnExit();
-        try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(configFile.getAbsolutePath()))) {
-            writer.write(
-                       "directory = \"/tmp\"\n"
-                    + "[data]\n"
-                    + "tstart = 0\n"
-                    + "tend = 10_000_000\n"
-                    + "stream-generator = \"RandomStreamGenerator\"\n"
-                    + "interarrivals = {distribution = \"FixedDistribution\", value = 1}\n"
-                    + "values = {distribution = \"FixedDistribution\", value = 1}\n"
-                    + "[workload]\n"
-                    + "enable-parallelism = true\n"
-            );
-        }
-        Configuration conf = new Configuration(configFile);
-        assert conf.getTstart() == 0;
-        long T = conf.getTend();
-        int Q = 1000;
-
-        Workload workload = new Workload();
-        List<Query> queries = new ArrayList<>();
-        workload.put("", queries);
-        Random random = new Random(0);
-        for (int q = 0; q < Q; ++q) {
-            long a = Math.floorMod(random.nextLong(), T), b = Math.floorMod(random.nextLong(), T);
-            long l = Math.min(a, b), r = Math.max(a, b);
-            queries.add(new Query(Query.Type.COUNT, l, r, 0, null));
-        }
-        computeTrueAnswers(conf, workload);
-        for (Query q : queries) {
-            if (q.r - q.l + 1 != q.trueAnswer.get()) {
-                throw new RuntimeException("incorrect answer in query " + q);
-            }
-        }
-        logger.info("Test succeeded");
-    }
-
     public static void main(String[] args) throws Exception {
         //test(); System.exit(0);
         File configFile;

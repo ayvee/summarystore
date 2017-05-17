@@ -1,8 +1,5 @@
 package com.samsung.sra.DataStore;
 
-import com.samsung.sra.DataStore.Aggregates.CMSOperator;
-import com.samsung.sra.DataStore.Aggregates.MaxOperator;
-import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
 import com.samsung.sra.DataStore.Storage.BackingStore;
 import com.samsung.sra.DataStore.Storage.BackingStoreException;
 import com.samsung.sra.DataStore.Storage.MainMemoryBackingStore;
@@ -30,7 +27,7 @@ public class SummaryStore implements AutoCloseable {
     private final String indexesFile;
     private final ExecutorService executorService;
 
-    private ConcurrentHashMap<Long, Stream> streams;
+    ConcurrentHashMap<Long, Stream> streams; // package-local rather than private to allow access from SummaryStoreTest
     private final boolean readonly;
 
     /**
@@ -223,53 +220,21 @@ public class SummaryStore implements AutoCloseable {
         return ret;
     }
 
-    public StreamStatistics getStreamStatistics(long streamID) throws StreamException {
-        return new StreamStatistics(getStream(streamID).stats);
+    /**
+     * Get number of landmark windows in specified stream. Use a null streamID to get total count over all streams
+     */
+    public long getNumLandmarkWindows(Long streamID) throws StreamException {
+        Collection<Stream> streams = streamID != null
+                ? Collections.singletonList(getStream(streamID))
+                : this.streams.values();
+        long ret = 0;
+        for (Stream sm : streams) {
+            ret += sm.getNumLandmarkWindows();
+        }
+        return ret;
     }
 
-    public static void main(String[] args) {
-        SummaryStore store = null;
-        try {
-            String storeLoc = "/tmp/tdstore";
-            Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + storeLoc + "*"}).waitFor();
-            store = new SummaryStore(storeLoc);
-            //store = new SummaryStore(null);
-            long streamID = 0;
-            if (!store.streams.containsKey(streamID)) {
-                Windowing windowing
-                        = new GenericWindowing(new ExponentialWindowLengths(2));
-                        //= new RationalPowerWindowing(1, 1);
-                store.registerStream(streamID, new CountBasedWBMH(windowing, 33),
-                        new SimpleCountOperator(),
-                        new CMSOperator(5, 100, 0),
-                        new MaxOperator());
-                for (long i = 0; i < 1022; ++i) {
-                    if (i == 491) {
-                        store.startLandmark(streamID, i);
-                    }
-                    store.append(streamID, i, i % 10, 1000L);
-                    if (i == 500) {
-                        store.endLandmark(streamID, i);
-                    }
-                    store.printWindowState(streamID);
-                }
-                store.flush(streamID);
-            }
-            store.printWindowState(streamID, true);
-            long t0 = 1, t1 = 511;
-            System.out.println("[" + t0 + ", " + t1 + "] count = " + store.query(streamID, t0, t1, 0, 0.95));
-            System.out.println("[" + t0 + ", " + t1 + "] freq(8) = " + store.query(streamID, t0, t1, 1, 8L));
-            System.out.println("[" + t0 + ", " + t1 + "] max = " + store.query(streamID, t0, t1, 2));
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            if (store != null) {
-                try {
-                    store.close();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }
+    public StreamStatistics getStreamStatistics(long streamID) throws StreamException {
+        return new StreamStatistics(getStream(streamID).stats);
     }
 }

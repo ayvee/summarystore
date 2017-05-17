@@ -109,7 +109,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         } else {
             emptyBuffers = null;
         }
-        logger.debug("Buffer covers {} windows and {} values", bufferWindowLengths.size(), bufferSize);
+        logger.info("Ingest buffer covers {} windows and {} values", bufferWindowLengths.size(), bufferSize);
     }
 
     public CountBasedWBMH(Windowing windowing) {
