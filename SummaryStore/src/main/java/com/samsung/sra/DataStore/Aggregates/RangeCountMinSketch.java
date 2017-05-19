@@ -14,7 +14,7 @@ public class RangeCountMinSketch {
     public RangeCountMinSketch(long N) {// int depth, int width) {
         this.N = N;
         L = (int)Math.ceil(Math.log(N) / Math.log(2));
-        int seed = 0; // fixme?
+        int seed = 0;
         for (int l = 0; l <= L; ++l) {
             //sketches.add(new CountMinSketch(depth, width, seed));
             sketches.add(new CountMinSketch(0.01, 0.95, seed));

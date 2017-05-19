@@ -14,8 +14,7 @@ import java.util.stream.Stream;
 
 /**
  * A = CountMinSketch
- * V = [value to insert: long, count of value (default 1): long]. Count = 1 is a classic CMS
-       TODO: change to [byte[], Long]. streamlib already has most of the needed code, just need some wrapper functions
+ * V = Long
  * R = Long, a count
  * E = Pair<Double, Double>, a CI
  */

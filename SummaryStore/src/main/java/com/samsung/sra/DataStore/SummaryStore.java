@@ -17,8 +17,10 @@ import java.util.concurrent.TimeUnit;
 /**
  * Start here. Most external code will only construct and interact with an instance of this class.
  *
- * Forwards all API calls to Stream, after serializing any calls that modify the stream (append, start/end landmark,
- * flush, close).
+ * All calls that modify a stream (append, landmark, flush, close) must be serialized. If calling code cannot do it on
+ * its own it must set a flag in registerStream to have us use a lock.
+ *
+ * This class forwards all API calls to Stream.
  */
 public class SummaryStore implements AutoCloseable {
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(SummaryStore.class);
@@ -27,7 +29,7 @@ public class SummaryStore implements AutoCloseable {
     private final String indexesFile;
     private final ExecutorService executorService;
 
-    ConcurrentHashMap<Long, Stream> streams; // package-local rather than private to allow access from SummaryStoreTest
+    final ConcurrentHashMap<Long, Stream> streams; // package-local rather than private to allow access from SummaryStoreTest
     private final boolean readonly;
 
     /**
@@ -45,7 +47,7 @@ public class SummaryStore implements AutoCloseable {
         }
         this.readonly = readonly;
         executorService = Executors.newCachedThreadPool();
-        deserializeIndexes();
+        streams = deserializeIndexes();
     }
 
     public SummaryStore(String filePrefix, long cacheSizePerStream)
@@ -66,39 +68,40 @@ public class SummaryStore implements AutoCloseable {
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(indexesFile))) {
             oos.writeObject(streams);
         }
-        //backingStore.putMetadata(streams);
     }
 
-    private void deserializeIndexes() throws IOException, ClassNotFoundException {
+    private ConcurrentHashMap<Long, Stream> deserializeIndexes() throws IOException, ClassNotFoundException {
         File file;
         if (indexesFile == null || !(file = new File(indexesFile)).exists()) {
-            streams = new ConcurrentHashMap<>();
+            return new ConcurrentHashMap<>();
         } else {
             try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
-                streams = (ConcurrentHashMap<Long, Stream>) ois.readObject();
-                for (Stream si: streams.values()) {
+                ConcurrentHashMap<Long, Stream> ret = (ConcurrentHashMap<Long, Stream>) ois.readObject();
+                for (Stream si: ret.values()) {
                     si.populateTransientFields(backingStore, executorService);
                 }
+                return ret;
             }
         }
-        /*Object uncast = backingStore.getMetadata();
-        if (uncast != null) {
-            streams = (ConcurrentHashMap<Long, Stream>) uncast;
-            for (Stream si: streams.values()) {
-                si.populateTransientFields(backingStore, executorService);
-            }
-        } else {
-            streams = new ConcurrentHashMap<>();
-        }*/
     }
 
     public void registerStream(final long streamID, WindowingMechanism windowingMechanism, WindowOperator... operators)
+            throws BackingStoreException, StreamException {
+        registerStream(streamID, false, windowingMechanism, operators);
+    }
+
+    /**
+     * Register a stream with specified windowing and operators. Set the optional synchronizeWrites flag to true to
+     * make Stream use a lock to serialize all append/landmark/flush/close calls
+     */
+    public void registerStream(final long streamID, boolean synchronizeWrites,
+                               WindowingMechanism windowingMechanism, WindowOperator... operators)
             throws StreamException, BackingStoreException {
         synchronized (streams) {
             if (streams.containsKey(streamID)) {
                  throw new StreamException("attempting to register streamID " + streamID + " multiple times");
             } else {
-                Stream sm = new Stream(streamID, windowingMechanism, operators);
+                Stream sm = new Stream(streamID, synchronizeWrites, windowingMechanism, operators);
                 sm.populateTransientFields(backingStore, executorService);
                 streams.put(streamID, sm);
             }
@@ -122,14 +125,7 @@ public class SummaryStore implements AutoCloseable {
     }
 
     public void append(long streamID, long ts, Object value) throws StreamException, BackingStoreException {
-        Stream stream = getStream(streamID);
-        stream.extLock.lock();
-        try {
-            //logger.trace("Appending new value: <ts: " + ts + ", val: " + value + ">");
-            stream.append(ts, value);
-        } finally {
-            stream.extLock.unlock();
-        }
+        getStream(streamID).append(ts, value);
     }
 
     /**
@@ -139,13 +135,7 @@ public class SummaryStore implements AutoCloseable {
      * Has no effect is there already is an active landmark window.
      */
     public void startLandmark(long streamID, long timestamp) throws StreamException, BackingStoreException {
-        Stream stream = getStream(streamID);
-        stream.extLock.lock();
-        try {
-            stream.startLandmark(timestamp);
-        } finally {
-            stream.extLock.unlock();
-        }
+        getStream(streamID).startLandmark(timestamp);
     }
 
     /**
@@ -153,13 +143,7 @@ public class SummaryStore implements AutoCloseable {
      * appended value.
      */
     public void endLandmark(long streamID, long timestamp) throws StreamException, BackingStoreException {
-        Stream stream = getStream(streamID);
-        stream.extLock.lock();
-        try {
-            stream.endLandmark(timestamp);
-        } finally {
-            stream.extLock.unlock();
-        }
+        getStream(streamID).endLandmark(timestamp);
     }
 
     public void printWindowState(long streamID, boolean printPerWindowState) throws StreamException, BackingStoreException {
@@ -171,30 +155,15 @@ public class SummaryStore implements AutoCloseable {
     }
 
     public void flush(long streamID) throws BackingStoreException, StreamException {
-        // FIXME: clean up flush logic
-        Stream stream = getStream(streamID);
-        stream.extLock.lock();
-        try {
-            stream.windowingMechanism.flush(stream.windowManager);
-        } finally {
-            stream.extLock.unlock();
-        }
+        getStream(streamID).flush();
     }
 
     @Override
     public void close() throws BackingStoreException, IOException {
-        // FIXME: clean up flush logic
-        synchronized (streams) {
+        synchronized (streams) { // this blocks creating new streams
             if (!readonly) {
-                // wait for all in-process writes and reads to finish
                 for (Stream stream : streams.values()) {
-                    stream.extLock.lock();
-                }
-                // At this point all operations on existing streams will be blocked. New stream
-                // creates are already blocked because we're synchronizing on streams
-                for (Stream stream : streams.values()) {
-                    stream.windowingMechanism.close(stream.windowManager);
-                    backingStore.flushToDisk(stream.windowManager);
+                    stream.close();
                 }
                 serializeIndexes();
             }

@@ -217,4 +217,8 @@ public class StreamWindowManager implements Serializable {
             }
         }
     }
+
+    public void flushToDisk() throws BackingStoreException {
+        backingStore.flushToDisk(this);
+    }
 }

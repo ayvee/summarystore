@@ -19,7 +19,7 @@ public abstract class BackingStore implements AutoCloseable {
     abstract void putLandmarkWindow(StreamWindowManager windowManager, long lwid, LandmarkWindow window) throws BackingStoreException;
 
     /** Flush all entries for specified stream to disk */
-    public void flushToDisk(StreamWindowManager windowManager) throws BackingStoreException {}
+    void flushToDisk(StreamWindowManager windowManager) throws BackingStoreException {}
 
     @Override
     abstract public void close() throws BackingStoreException;
