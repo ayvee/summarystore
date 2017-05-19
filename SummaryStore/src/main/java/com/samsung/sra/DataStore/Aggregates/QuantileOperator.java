@@ -35,16 +35,16 @@ public class QuantileOperator implements WindowOperator<QDigest, Long, Long> {
 
     @Override
     public QDigest merge(Stream<QDigest> aggrs) {
-	QDigest newQDigest = new QDigest(this.comprFactor);
+	    QDigest newQDigest = new QDigest(this.comprFactor);
         for(QDigest digestItem : (Iterable<QDigest>) aggrs::iterator){
             newQDigest = QDigest.unionOf(newQDigest, digestItem);
         }
-	return newQDigest;
+	    return newQDigest;
     }
 
     @Override
-    public QDigest insert(QDigest aggr, long ts, Object... val) {
-	    aggr.offer((long)val[0]);
+    public QDigest insert(QDigest aggr, long ts, Object val) {
+	    aggr.offer((long) val);
         return aggr;
     }
 

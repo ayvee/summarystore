@@ -39,14 +39,15 @@ public class TDigestOperator implements WindowOperator<TDigest, Double, Pair<Dou
     }
 
     @Override
-    public TDigest insert(TDigest aggr, long timestamp, Object[] val) {
-        double value = ((Number) val[0]).doubleValue();
+    public TDigest insert(TDigest aggr, long timestamp, Object val) {
+        /*double value = ((Number) val[0]).doubleValue();
         if (val.length == 1) {
             aggr.add(value);
         } else {
             int weight = ((Number) val[1]).intValue();
             aggr.add(value, weight);
-        }
+        }*/
+        aggr.add(((Number) val).doubleValue());
         return aggr;
     }
 
@@ -104,8 +105,8 @@ public class TDigestOperator implements WindowOperator<TDigest, Double, Pair<Dou
         Function<SummaryWindow, Long> countRetriever = tdigestRetriever.andThen(tdigest ->
                 Math.round((tdigest.cdf(r) - tdigest.cdf(l)) * tdigest.size())
         );
-        Function<Object[], Long> landmarkValueParser = o -> {
-            double v = ((Number) o[0]).doubleValue();
+        Function<Object, Long> landmarkValueParser = o -> {
+            double v = ((Number) o).doubleValue();
             return (l <= v && v <= r) ? 1L : 0L;
         };
         double sdMultiplier = streamStats.getCVInterarrival();

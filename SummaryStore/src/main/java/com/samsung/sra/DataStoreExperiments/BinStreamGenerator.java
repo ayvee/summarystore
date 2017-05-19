@@ -51,7 +51,7 @@ public class BinStreamGenerator implements StreamGenerator {
                 long t = base + ts[i], v = vs[i];
                 if (t >= T0) {
                     if (t <= T1) {
-                        consumer.accept(new Operation(Operation.Type.APPEND, t, new Object[]{v}));
+                        consumer.accept(new Operation(Operation.Type.APPEND, t, v));
                     } else {
                         break;
                     }
@@ -85,7 +85,7 @@ public class BinStreamGenerator implements StreamGenerator {
                 System.out.printf("Run %d\n", i);
                 psg.generate(0, Long.MAX_VALUE, op -> {
                     assert op.type == Operation.Type.APPEND;
-                    System.out.printf("\t%d,%d\n", op.timestamp, (long) op.value[0]);
+                    System.out.printf("\t%d,%d\n", op.timestamp, op.value);
                 });
                 psg.reset();
             }

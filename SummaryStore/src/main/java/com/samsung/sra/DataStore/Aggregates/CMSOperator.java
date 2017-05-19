@@ -64,10 +64,11 @@ public class CMSOperator implements WindowOperator<CountMinSketch,Double,Pair<Do
     }
 
     @Override
-    public CountMinSketch insert(CountMinSketch aggr, long timestamp, Object[] val) {
-        long entry = (long) val[0];
+    public CountMinSketch insert(CountMinSketch aggr, long timestamp, Object val) {
+        /*long entry = (long) val[0];
         long count = val.length > 1 ? (long) val[1] : 1;
-        aggr.add(entry, count);
+        aggr.add(entry, count);*/
+        aggr.add((long) val, 1);
         return aggr;
     }
 
@@ -90,7 +91,7 @@ public class CMSOperator implements WindowOperator<CountMinSketch,Double,Pair<Do
         }
         double sdMultiplier = streamStats.getCVInterarrival();
         return new SumEstimator(t0, t1, summaryWindows, countRetriever, landmarkWindows,
-                o -> ((Number) o[0]).longValue() == targetVal ? 1L : 0L)
+                o -> ((Long) o) == targetVal ? 1L : 0L)
                 .estimate(sdMultiplier, confidenceLevel);
     }
 

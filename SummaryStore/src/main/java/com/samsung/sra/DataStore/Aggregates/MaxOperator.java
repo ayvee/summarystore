@@ -33,8 +33,8 @@ public class MaxOperator implements WindowOperator<Long, Long, Boolean> {
     }
 
     @Override
-    public Long insert(Long aggr, long timestamp, Object[] val) {
-        return Math.max(aggr, ((Number) val[0]).longValue());
+    public Long insert(Long aggr, long timestamp, Object val) {
+        return Math.max(aggr, (Long) val);
     }
 
     @Override
@@ -47,7 +47,7 @@ public class MaxOperator implements WindowOperator<Long, Long, Boolean> {
         MutableLong lmaxM = new MutableLong(EMPTY_MAX);
         landmarkWindows.forEach(w -> w.values.forEach((t, v) -> {
             if (t0 <= t && t <= t1) {
-                lmaxM.setValue(Math.max(lmaxM.longValue(), ((Number) v[0]).longValue()));
+                lmaxM.setValue(Math.max(lmaxM.longValue(), (Long) v));
             }
         }));
         long lmax = lmaxM.longValue();

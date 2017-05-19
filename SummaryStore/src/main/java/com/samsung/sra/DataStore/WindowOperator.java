@@ -25,7 +25,7 @@ public interface WindowOperator<A, R, E> extends Serializable {
     A merge(Stream<A> aggrs);
 
     /** Insert (the potentially multi-dimensional) val into aggr and return the updated aggregate */
-    A insert(A aggr, long timestamp, Object[] val);
+    A insert(A aggr, long timestamp, Object val);
 
     /** Retrieve aggregates from a set of windows spanning [T0, T1] and do a combined query over
      * them. We pass full SummaryWindow objects instead of specific Aggregate objects of type A to allow

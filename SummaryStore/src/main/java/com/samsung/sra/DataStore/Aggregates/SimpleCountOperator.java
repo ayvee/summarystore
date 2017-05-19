@@ -32,7 +32,7 @@ public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Doub
     }
 
     @Override
-    public Long insert(Long aggr, long ts, Object[] val) {
+    public Long insert(Long aggr, long ts, Object val) {
         return aggr + 1;
     }
 

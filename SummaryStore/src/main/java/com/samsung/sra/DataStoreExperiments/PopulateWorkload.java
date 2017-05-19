@@ -9,14 +9,10 @@ import org.apache.commons.lang.mutable.MutableLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.IntStream;
 
@@ -98,7 +94,7 @@ public class PopulateWorkload {
      * queries' answers. Not thread-safe, assumes unique access to matchedIndexes.
      */
     private static void processDataPoint(List<Query> queries, LongRangeMultiSet lrms, int[] matchedIndexes,
-                                         long t, Object[] v) {
+                                         long t, Object v) {
         int matchCount = lrms.lookup(t, matchedIndexes);
         for (int i = 0; i < matchCount; ++i) {
             Query q = queries.get(matchedIndexes[i]);
@@ -107,24 +103,25 @@ public class PopulateWorkload {
                     q.trueAnswer.incrementAndGet();
                     break;
                 case SUM:
-                    q.trueAnswer.addAndGet((long) v[0]);
+                    q.trueAnswer.addAndGet((long) v);
                     break;
                 case BF:
-                    if (v[0].equals(q.params[0])) {
+                    if (v.equals(q.params[0])) {
                         q.trueAnswer.set(1);
                     }
                     break;
                 case CMS:
-                    if (v[0].equals(q.params[0])) {
-                        if (v.length > 1) {
+                    if (v.equals(q.params[0])) {
+                        /*if (v.length > 1) {
                             q.trueAnswer.addAndGet((long) v[1]);
                         } else {
                             q.trueAnswer.incrementAndGet();
-                        }
+                        }*/
+                        q.trueAnswer.incrementAndGet();
                     }
                     break;
                 case MAX_THRESH:
-                    if ((long) v[0] > (long) q.params[0]) {
+                    if ((long) v > (long) q.params[0]) {
                         q.trueAnswer.set(1);
                     }
                     break;

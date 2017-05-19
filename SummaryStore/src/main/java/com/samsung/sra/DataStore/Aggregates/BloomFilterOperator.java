@@ -80,9 +80,9 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
      * @param val
      */
     @Override
-    public BloomFilter insert(BloomFilter aggr, long timestamp, Object[] val) {
+    public BloomFilter insert(BloomFilter aggr, long timestamp, Object val) {
         byte[] bytes = new byte[8];
-        Utilities.longToByteArray((long) val[0], bytes, 0);
+        Utilities.longToByteArray((Long) val, bytes, 0);
         aggr.add(bytes);
         return aggr;
     }
@@ -96,7 +96,7 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
         long val = (long) params[0];
         boolean inLandmark = landmarkWindows
                 .anyMatch(w -> w.values.values().stream()
-                        .anyMatch(v -> ((Number) v[0]).longValue() == val));
+                        .anyMatch(v -> ((Number) v).longValue() == val));
         if (inLandmark) { // found an explicit match in a landmark
             return new ResultError<>(true, 0d);
         } else {

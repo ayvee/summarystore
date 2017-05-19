@@ -15,7 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Start here. All external code will construct and interact with an instance of this class.
+ * Start here. Most external code will only construct and interact with an instance of this class.
  *
  * Forwards all API calls to Stream, after serializing any calls that modify the stream (append, start/end landmark,
  * flush, close).
@@ -62,6 +62,7 @@ public class SummaryStore implements AutoCloseable {
     }
 
     private void serializeIndexes() throws IOException {
+        if (indexesFile == null) return;
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(indexesFile))) {
             oos.writeObject(streams);
         }
@@ -120,7 +121,7 @@ public class SummaryStore implements AutoCloseable {
         return getStream(streamID).query(aggregateNum, t0, t1, queryParams);
     }
 
-    public void append(long streamID, long ts, Object... value) throws StreamException, BackingStoreException {
+    public void append(long streamID, long ts, Object value) throws StreamException, BackingStoreException {
         Stream stream = getStream(streamID);
         stream.extLock.lock();
         try {

@@ -32,8 +32,8 @@ public class SumOperator implements WindowOperator<Long,Double,Pair<Double,Doubl
     }
 
     @Override
-    public Long insert(Long aggr, long ts, Object[] val) {
-        return aggr + (long) val[0];
+    public Long insert(Long aggr, long ts, Object val) {
+        return aggr + (Long) val;
     }
 
     @Override
@@ -55,7 +55,7 @@ public class SumOperator implements WindowOperator<Long,Double,Pair<Double,Doubl
             logger.trace("cv_t = {}, cv_v = {}, mu_v = {}, var = {}, sd = {}",
                     cv_t, cv_v, mu_v, var, sd);*/
 
-        return new SumEstimator(t0, t1, summaryWindows, sumRetriever, landmarkWindows, o -> (long) o[0])
+        return new SumEstimator(t0, t1, summaryWindows, sumRetriever, landmarkWindows, o -> (Long) o)
                 .estimate(sdMultiplier, confidenceLevel);
     }
 

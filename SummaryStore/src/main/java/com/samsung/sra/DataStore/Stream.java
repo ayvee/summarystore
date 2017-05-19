@@ -46,7 +46,7 @@ class Stream implements Serializable {
         windowingMechanism.populateTransientFields(executorService);
     }
 
-    Stream(long streamID, WindowingMechanism windowingMechanism, WindowOperator... operators) {
+    Stream(long streamID, WindowingMechanism windowingMechanism, WindowOperator[] operators) {
         this.streamID = streamID;
         this.operators = operators;
         this.windowingMechanism = windowingMechanism;
@@ -54,7 +54,7 @@ class Stream implements Serializable {
         stats = new StreamStatistics();
     }
 
-    void append(long ts, Object[] value) throws BackingStoreException, StreamException {
+    void append(long ts, Object value) throws BackingStoreException, StreamException {
         if (ts <= tLastAppend || ts < tLastLandmarkStart || ts <= tLastLandmarkEnd) {
             throw new StreamException(String.format("out-of-order insert in stream %d: ts = %d", streamID, ts));
         }

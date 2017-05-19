@@ -32,8 +32,8 @@ public class HyperLogLogOperator implements WindowOperator<HyperLogLog, Long, Lo
     }
 
     @Override
-    public HyperLogLog insert(HyperLogLog aggr, long timestamp, Object[] val) {
-        aggr.insert((int)val[0]);
+    public HyperLogLog insert(HyperLogLog aggr, long timestamp, Object val) {
+        aggr.insert((Integer) val);
         return aggr;
     }
 

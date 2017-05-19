@@ -51,7 +51,7 @@ public class LandmarkTagger implements StreamGenerator {
         MutableLong lastTS = new MutableLong(T0 - 1);
         baseStream.generate(T0, T1, op -> {
             assert op.type == Type.APPEND;
-            if (isLandmark((long) op.value[0])) {
+            if (isLandmark((long) op.value)) {
                 // create landmark window if not already in one
                 if (inLandmark.isFalse()) {
                     inLandmark.setValue(true);

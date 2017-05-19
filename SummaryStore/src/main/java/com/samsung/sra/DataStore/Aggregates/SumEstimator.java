@@ -46,7 +46,7 @@ class SumEstimator {
 
     SumEstimator(long t0, long t1,
                  Stream<SummaryWindow> decayedWindows, Function<SummaryWindow, Long> aggrRetriever,
-                 Stream<LandmarkWindow> landmarkWindows, Function<Object[], Long> rawValueParser) {
+                 Stream<LandmarkWindow> landmarkWindows, Function<Object, Long> rawValueParser) {
         this.t0 = t0;
         this.t1 = t1;
         processDecayedWindows(decayedWindows, aggrRetriever);
@@ -102,7 +102,7 @@ class SumEstimator {
         }
     }
 
-    private void processLandmarkWindows(Stream<LandmarkWindow> windows, Function<Object[], Long> valueParser) {
+    private void processLandmarkWindows(Stream<LandmarkWindow> windows, Function<Object, Long> valueParser) {
         windows.forEach(w -> {
             Tl -= overlap(w.ts, w.te, ts, tm0-1);
             tl -= overlap(w.ts, w.te, t0, tm0-1);

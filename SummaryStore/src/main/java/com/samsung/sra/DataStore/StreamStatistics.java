@@ -21,7 +21,7 @@ public class StreamStatistics implements Serializable {
         this.Vsqsum = that.Vsqsum;
     }
 
-    void append(long ts, Object[] value) {
+    void append(long ts, Object value) {
         assert ts > lastArrivalTimestamp;
         if (firstArrivalTimestamp == -1) {
             firstArrivalTimestamp = ts;
@@ -30,8 +30,8 @@ public class StreamStatistics implements Serializable {
             Isum += I;
             Isqsum += I * I;
         }
-        if (value.length > 0 && value[0] instanceof Number) {
-            double v = ((Number) value[0]).doubleValue();
+        if (value instanceof Number) {
+            double v = ((Number) value).doubleValue();
             Vsum += v;
             Vsqsum += v * v;
         }

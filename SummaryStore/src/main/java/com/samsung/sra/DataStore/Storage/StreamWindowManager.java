@@ -20,7 +20,7 @@ import java.util.stream.Stream;
  */
 public class StreamWindowManager implements Serializable {
     private static final Logger logger = LoggerFactory.getLogger(StreamWindowManager.class);
-    public static final Object[] LANDMARK_SENTINEL = {}; // sentinel used when handling append
+    public static final Object LANDMARK_SENTINEL = new Object(); // sentinel used when handling append
 
     private transient BackingStore backingStore;
     final long streamID;
@@ -44,7 +44,7 @@ public class StreamWindowManager implements Serializable {
         return new SummaryWindow(operators, ts, te, cs, ce, prevTS, nextTS);
     }
 
-    public void insertIntoSummaryWindow(SummaryWindow window, long ts, Object[] value) {
+    public void insertIntoSummaryWindow(SummaryWindow window, long ts, Object value) {
         assert window.ts <= ts && (window.te == -1 || ts <= window.te)
                 && operators.length == window.aggregates.length;
         if (value == LANDMARK_SENTINEL) {

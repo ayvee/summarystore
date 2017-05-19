@@ -32,7 +32,7 @@ public class SummaryStoreTest {
             if (i == 491) {
                 store.startLandmark(streamID, i);
             }
-            store.append(streamID, i, i % 10, 1000L);
+            store.append(streamID, i, i % 10);
             if (i == 500) {
                 store.endLandmark(streamID, i);
             }
@@ -120,13 +120,13 @@ public class SummaryStoreTest {
         long t0 = 1, t1 = 511;
         double delta = 1e-6;
         ResultError<Double, Pair<Double, Double>> countRE = (ResultError) store.query(streamID, t0, t1, 0, 0.95);
-        assertEquals(511.0, countRE.result, delta);
-        assertEquals(511.0, countRE.error.getFirst(), delta);
-        assertEquals(511.0, countRE.error.getSecond(), delta);
+        assertEquals(511, countRE.result, delta);
+        assertEquals(511, countRE.error.getFirst(), delta);
+        assertEquals(511, countRE.error.getSecond(), delta);
         ResultError<Double, Pair<Double, Double>> freq8RE = (ResultError) store.query(streamID, t0, t1, 1, 8L);
-        assertEquals(49987.623419074196, freq8RE.result, delta);
-        assertEquals(1.0, freq8RE.error.getFirst(), delta);
-        assertEquals(73001.0, freq8RE.error.getSecond(), delta);
+        assertEquals(50.9866234190742, freq8RE.result, delta);
+        assertEquals(1, freq8RE.error.getFirst(), delta);
+        assertEquals(74, freq8RE.error.getSecond(), delta);
         ResultError<Long, Boolean> maxRE = (ResultError) store.query(streamID, t0, t1, 2);
         assertEquals(new Long(9), maxRE.result);
         assertEquals(false, maxRE.error);

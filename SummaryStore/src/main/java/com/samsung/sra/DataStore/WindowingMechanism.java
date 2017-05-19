@@ -19,7 +19,7 @@ public interface WindowingMechanism extends Serializable {
      * not need to worry about concurrency, all writes will be serialized before this function is
      * invoked.
      */
-    void append(StreamWindowManager windows, long ts, Object[] value) throws BackingStoreException;
+    void append(StreamWindowManager windows, long ts, Object value) throws BackingStoreException;
 
     // deserialization hook
     default void populateTransientFields(ExecutorService executorService) {}

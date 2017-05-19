@@ -32,9 +32,9 @@ public interface StreamGenerator extends AutoCloseable {
 
         Type type;
         long timestamp;
-        Object[] value;
+        Object value;
 
-        public Operation(Type type, long timestamp, Object[] value) {
+        public Operation(Type type, long timestamp, Object value) {
             this.type = type;
             this.timestamp = timestamp;
             this.value = value;

@@ -40,7 +40,7 @@ public class CSVStreamGenerator implements StreamGenerator {
     }
 
     private Long currTimestamp;
-    private Object[] currValue = null;
+    private Object currValue = null;
 
     private void readNextLine() throws IOException {
         while (true) {
@@ -56,7 +56,7 @@ public class CSVStreamGenerator implements StreamGenerator {
                 long newTimestamp = Long.parseLong(vals[tsIndex]);
                 if (currTimestamp == null || newTimestamp != currTimestamp) {
                     currTimestamp = newTimestamp;
-                    currValue = new Object[]{Long.parseLong(vals[valIndex])};
+                    currValue = Long.parseLong(vals[valIndex]);
                     break;
                 }
             }

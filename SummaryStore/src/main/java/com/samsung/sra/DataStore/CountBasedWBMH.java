@@ -35,17 +35,17 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     private static class IngestBuffer implements Serializable {
         private long[] timestamps;
-        private Object[][] values;
+        private Object[] values;
         private int capacity = 0;
         private int size = 0;
 
         IngestBuffer(int capacity) {
             this.capacity = capacity;
             this.timestamps = new long[capacity];
-            this.values = new Object[capacity][];
+            this.values = new Object[capacity];
         }
 
-        public void append(long ts, Object[] value) {
+        public void append(long ts, Object value) {
             if (size >= capacity) throw new IndexOutOfBoundsException();
             timestamps[size] = ts;
             values[size] = value;
@@ -73,7 +73,7 @@ public class CountBasedWBMH implements WindowingMechanism {
             return timestamps[pos];
         }
 
-        Object[] getValue(int pos) {
+        Object getValue(int pos) {
             if (pos < 0 || pos >= size) throw new IndexOutOfBoundsException();
             return values[pos];
         }
@@ -126,7 +126,7 @@ public class CountBasedWBMH implements WindowingMechanism {
     }
 
     @Override
-    public void append(StreamWindowManager windows, long ts, Object[] value) throws BackingStoreException {
+    public void append(StreamWindowManager windows, long ts, Object value) throws BackingStoreException {
         if (bufferSize == 0) {
             appendUnbuffered(windows, ts, value);
         } else {
@@ -134,7 +134,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         }
     }
 
-    private void appendUnbuffered(StreamWindowManager windows, long timestamp, Object[] value) throws BackingStoreException {
+    private void appendUnbuffered(StreamWindowManager windows, long timestamp, Object value) throws BackingStoreException {
         // merge existing windows
         processMergesUntil(windows, N + 1);
 
@@ -165,7 +165,7 @@ public class CountBasedWBMH implements WindowingMechanism {
     /*NOTE: code here depends on the fact that append()/flush()/close() calls are serialized (by Stream).
             Else we would need more careful synchronization */
 
-    private void appendBuffered(StreamWindowManager windows, long ts, Object[] value) throws BackingStoreException {
+    private void appendBuffered(StreamWindowManager windows, long ts, Object value) throws BackingStoreException {
         while (activeBuffer == null) {
             try {
                 activeBuffer = emptyBuffers.take();
