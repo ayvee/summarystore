@@ -1,0 +1,48 @@
+syntax = "proto2";
+package com.samsung.sra.protocol;
+
+option java_package = "com.samsung.sra.protocol";
+
+// format of the query [streamID] [t1,t2](operators...)
+// typically gateway to snode
+
+message SummaryMessage {
+    enum Type {
+        QUERY = 1;
+        ANSWER = 2;
+        COMMAND = 3;
+    }
+
+    required Type type = 1;
+    optional QueryMessage queryMessage = 2;
+    optional AnswerMessage answerMessage = 3;
+    optional CommandMessage commandMessage = 4;
+
+}
+
+enum Operators {
+    COUNT = 1;
+    SUM = 2;
+    BLOOM = 3;
+    CMS = 4;
+}
+
+message QueryMessage {
+
+    required int64 streamID = 1;
+    optional int64 cStart = 2;
+    optional int64 cEnd = 3;
+    repeated Operators operators = 4;
+}
+
+// format of response (answer, error)
+// typically from snode to gateway
+message AnswerMessage {
+    required int64 answer = 1;
+    required int64 error = 2;
+    optional bytes ci = 3;
+}
+
+message CommandMessage {
+    required string command = 1;
+}
