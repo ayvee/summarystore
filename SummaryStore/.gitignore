@@ -1,5 +1,7 @@
 .idea
 *.iml
+snode.toml
+gw.toml
 
 target
 src/main/java/com/samsung/sra/protocol
