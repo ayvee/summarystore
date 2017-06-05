@@ -6,11 +6,17 @@ import com.samsung.sra.DataStore.Utilities;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
+import org.rocksdb.RocksIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public class RocksDBBackingStore extends BackingStore {
     private static final Logger logger = LoggerFactory.getLogger(RocksDBBackingStore.class);
@@ -117,6 +123,101 @@ public class RocksDBBackingStore extends BackingStore {
     @Override
     SummaryWindow deleteSummaryWindow(StreamWindowManager windowManager, long swid) throws BackingStoreException {
         return getAndOrDeleteSummaryWindow(windowManager, swid, true);
+    }
+
+    /** Iterate over and return all windows overlapping the time-range given in the constructor */
+    private class OverlappingSWIterator implements Iterator<SummaryWindow> {
+        private final RocksIterator rocksIterator;
+        // comment in constructor explains logic
+        private SummaryWindow headWindow, nextWindow;
+
+        private final StreamWindowManager windowManager;
+        private final long t0, t1;
+
+        private OverlappingSWIterator(StreamWindowManager windowManager, long t0, long t1) throws RocksDBException {
+            this.windowManager = windowManager;
+            this.t0 = t0;
+            this.t1 = t1;
+
+            rocksIterator = rocksDB.newIterator();
+            rocksIterator.seek(getRocksDBKey(windowManager.streamID, t0));
+            /* rocksIterator now points to the first window with start timestamp >= t0. If timestamp == t0, we only
+             * need to return this window and its successors. If timestamp > t0, we also need to return the window just
+             * before this one (which is the last window with start timestamp < t0); we store that window in "headWindow"
+             */
+            nextWindow = readFromRocksIterator();
+            if (nextWindow != null && nextWindow.ts > t0 && nextWindow.prevTS != -1) {
+                headWindow = windowManager.deserializeSummaryWindow(
+                        rocksDB.get(getRocksDBKey(windowManager.streamID, nextWindow.prevTS)));
+            } else {
+                headWindow = null;
+            }
+        }
+
+        private SummaryWindow readFromRocksIterator() {
+            if (rocksIterator.isValid()) {
+                byte[] key = rocksIterator.key();
+                if (key.length == KEY_SIZE) {
+                    long streamID = parseRocksDBKeyStreamID(key), ts = parseRocksDBKeyWindowID(key);
+                    if (streamID == windowManager.streamID) {
+                        assert ts >= t0;
+                        if (ts <= t1) {
+                            return windowManager.deserializeSummaryWindow(rocksIterator.value());
+                        }
+                    }
+                }
+            }
+            // at least one of the "iterator is valid" conditions must have failed
+            rocksIterator.dispose();
+            return null;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return headWindow != null || nextWindow != null;
+        }
+
+        @Override
+        public SummaryWindow next() {
+            if (headWindow != null) {
+                SummaryWindow ret = headWindow;
+                headWindow = null;
+                return ret;
+            } else {
+                SummaryWindow ret = nextWindow;
+                rocksIterator.next();
+                nextWindow = readFromRocksIterator();
+                return ret;
+            }
+        }
+    }
+
+    @Override
+    Stream<SummaryWindow> getSummaryWindowsOverlapping(StreamWindowManager windowManager, long t0, long t1)
+            throws BackingStoreException {
+        try {
+            Iterator<SummaryWindow> iterator = new OverlappingSWIterator(windowManager, t0, t1);
+            return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
+        } catch (RocksDBException e) {
+            throw new BackingStoreException(e);
+        }
+    }
+
+    @Override
+    long getNumSummaryWindows(StreamWindowManager windowManager) {
+        RocksIterator iter = null;
+        try {
+            iter = rocksDB.newIterator();
+            iter.seek(getRocksDBKey(windowManager.streamID, 0L));
+            long ct = 0;
+            while (iter.isValid() && parseRocksDBKeyStreamID(iter.key()) == windowManager.streamID) {
+                ++ct;
+                iter.next();
+            }
+            return ct;
+        } finally {
+            if (iter != null) iter.dispose();
+        }
     }
 
     @Override
@@ -244,6 +345,11 @@ public class RocksDBBackingStore extends BackingStore {
     }
 
     /* **** </FIXME>  **** */
+
+    @Override
+    void printWindowState(StreamWindowManager windowManager) throws BackingStoreException {
+        throw new UnsupportedOperationException("RocksDB backing store does not yet implement printWindowState");
+    }
 
     @Override
     public void close() throws BackingStoreException {

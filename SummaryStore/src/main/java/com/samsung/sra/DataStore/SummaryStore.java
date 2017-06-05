@@ -146,12 +146,8 @@ public class SummaryStore implements AutoCloseable {
         getStream(streamID).endLandmark(timestamp);
     }
 
-    public void printWindowState(long streamID, boolean printPerWindowState) throws StreamException, BackingStoreException {
-        getStream(streamID).printWindows(printPerWindowState);
-    }
-
     public void printWindowState(long streamID) throws StreamException, BackingStoreException {
-        printWindowState(streamID, false);
+        getStream(streamID).printWindows();
     }
 
     public void flush(long streamID) throws BackingStoreException, StreamException {
@@ -179,7 +175,7 @@ public class SummaryStore implements AutoCloseable {
     /**
      * Get number of summary windows in specified stream. Use a null streamID to get total count over all streams
      */
-    public long getNumSummaryWindows(Long streamID) throws StreamException {
+    public long getNumSummaryWindows(Long streamID) throws StreamException, BackingStoreException {
         Collection<Stream> streams = streamID != null
                 ? Collections.singletonList(getStream(streamID))
                 : this.streams.values();

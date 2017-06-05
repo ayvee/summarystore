@@ -140,7 +140,7 @@ class Stream implements Serializable {
         }
     }
 
-    long getNumSummaryWindows() {
+    long getNumSummaryWindows() throws BackingStoreException {
         return windowManager.getNumSummaryWindows();
     }
 
@@ -148,8 +148,8 @@ class Stream implements Serializable {
         return windowManager.getNumLandmarkWindows();
     }
 
-    void printWindows(boolean printPerWindowState) throws BackingStoreException {
-        windowManager.printWindows(printPerWindowState, stats);
+    void printWindows() throws BackingStoreException {
+        windowManager.printWindows();
     }
 
     void flush() throws BackingStoreException {

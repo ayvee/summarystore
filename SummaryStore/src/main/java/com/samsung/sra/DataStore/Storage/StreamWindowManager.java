@@ -2,7 +2,6 @@ package com.samsung.sra.DataStore.Storage;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.samsung.sra.DataStore.LandmarkWindow;
-import com.samsung.sra.DataStore.StreamStatistics;
 import com.samsung.sra.DataStore.SummaryWindow;
 import com.samsung.sra.DataStore.WindowOperator;
 import com.samsung.sra.protocol.SummaryStore.ProtoSummaryWindow;
@@ -26,10 +25,9 @@ public class StreamWindowManager implements Serializable {
     final long streamID;
     private final WindowOperator[] operators;
 
-    /* Read indexes, map window.tStart -> window.ID. Used when answering queries */
-    private final TreeSet<Long> summaryWindowStarts = new TreeSet<>();
+    // FIXME: remove
+    /* Read index, maps window.tStart -> window.ID. Used when answering queries */
     private final TreeSet<Long> landmarkWindowStarts = new TreeSet<>();
-    //transient BTreeMap<Long, Long> summaryWindowIndex;
 
     public StreamWindowManager(long streamID, WindowOperator[] operators) {
         this.streamID = streamID;
@@ -75,41 +73,19 @@ public class StreamWindowManager implements Serializable {
 
     /** Get all summary windows overlapping [t0, t1] */
     public Stream<SummaryWindow> getSummaryWindowsOverlapping(long t0, long t1) throws BackingStoreException {
-        if (summaryWindowStarts.isEmpty()) {
-            return Stream.empty();
-        }
-        Long l = summaryWindowStarts.floor(t0); // first window with tStart <= t0
-        Long r = summaryWindowStarts.higher(t1); // first window with tStart > t1
-        if (r == null) {
-            r = summaryWindowStarts.last() + 1;
-        }
-        //logger.debug("Overapproximated time range = [{}, {})", l, r);
-        // Query on all windows with l <= tStart < r
-        return summaryWindowStarts
-                .subSet(l, true, r, false).stream()
-                .map(swid -> {
-                    try {
-                        return getSummaryWindow(swid);
-                    } catch (BackingStoreException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+        return backingStore.getSummaryWindowsOverlapping(this, t0, t1);
     }
 
     public SummaryWindow deleteSummaryWindow(long swid) throws BackingStoreException {
-        SummaryWindow window = backingStore.deleteSummaryWindow(this, swid);
-        assert window.ts == swid;
-        summaryWindowStarts.remove(window.ts);
-        return window;
+        return backingStore.deleteSummaryWindow(this, swid);
     }
 
     public void putSummaryWindow(SummaryWindow window) throws BackingStoreException {
-        summaryWindowStarts.add(window.ts);
         backingStore.putSummaryWindow(this, window.ts, window);
     }
 
-    public long getNumSummaryWindows() {
-        return summaryWindowStarts.size();
+    public long getNumSummaryWindows() throws BackingStoreException {
+        return backingStore.getNumSummaryWindows(this);
     }
 
     byte[] serializeSummaryWindow(SummaryWindow window) {
@@ -205,17 +181,8 @@ public class StreamWindowManager implements Serializable {
         return landmarkWindowStarts.size();
     }
 
-    public void printWindows(boolean printPerWindowState, StreamStatistics stats) throws BackingStoreException {
-        System.out.println(String.format("Stream %d with %d elements in %d summary windows and %d landmark windows",
-                streamID, stats.getNumValues(), getNumSummaryWindows(), getNumLandmarkWindows()));
-        if (printPerWindowState) {
-            for (long swid : summaryWindowStarts) {
-                System.out.println("\t" + getSummaryWindow(swid));
-            }
-            for (long lwid : landmarkWindowStarts) {
-                System.out.println("\t" + getLandmarkWindow(lwid));
-            }
-        }
+    public void printWindows() throws BackingStoreException {
+        backingStore.printWindowState(this);
     }
 
     public void flushToDisk() throws BackingStoreException {

@@ -26,7 +26,7 @@ public class PrintErrorTrend {
         if (args.length <= 3) {
             try (SummaryStore store = new SummaryStore(conf.getStorePrefix(decay), conf.getWindowCacheSize())) {
                 System.out.println("no time range specified, printing window state");
-                store.printWindowState(streamID, true);
+                store.printWindowState(streamID);
             }
             return;
         }
