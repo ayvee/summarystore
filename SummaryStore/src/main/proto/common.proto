@@ -11,13 +11,19 @@ message SummaryMessage {
         QUERY = 1;
         ANSWER = 2;
         COMMAND = 3;
+        APPEND = 4;
+        PING = 5;
     }
 
     required Type type = 1;
-    optional QueryMessage queryMessage = 2;
-    optional AnswerMessage answerMessage = 3;
-    optional CommandMessage commandMessage = 4;
 
+    oneof onemsg {
+        QueryMessage queryMessage = 2;
+        AnswerMessage answerMessage = 3;
+        AppendMessage appendMessage = 4;
+        CommandMessage commandMessage = 5;
+        PingMessage pingMessage = 6;
+    }
 }
 
 enum Operators {
@@ -25,6 +31,13 @@ enum Operators {
     SUM = 2;
     BLOOM = 3;
     CMS = 4;
+}
+
+message AppendMessage {
+    required int64 streamID = 1;
+    required int64 timestamp = 2;
+    repeated bytes value = 3;
+
 }
 
 message QueryMessage {
@@ -45,4 +58,8 @@ message AnswerMessage {
 
 message CommandMessage {
     required string command = 1;
+}
+
+message PingMessage {
+    required string ping = 1;
 }
