@@ -91,7 +91,7 @@ public class SummaryStore implements AutoCloseable {
         StreamManager streamManager = getStreamManager(streamID);
         streamManager.lock.writeLock().lock();
         try {
-            //logger.debug("Appending new value: <ts: " + ts + ", val: " + value + ">");
+            logger.debug("Appending new value: <ts: " + ts + ", val: " + value + ">");
             streamManager.append(ts, value);
         } finally {
             streamManager.lock.writeLock().unlock();

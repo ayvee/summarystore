@@ -33,6 +33,11 @@ enum Operators {
     CMS = 4;
 }
 
+enum Commands {
+    NumWindows = 1;
+    StoreSize = 2;
+}
+
 message AppendMessage {
     required int64 streamID = 1;
     required int64 timestamp = 2;
@@ -57,7 +62,9 @@ message AnswerMessage {
 }
 
 message CommandMessage {
-    required string command = 1;
+    required int64 streamID = 1;
+    repeated Commands command = 2;
+
 }
 
 message PingMessage {
