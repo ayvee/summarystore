@@ -60,12 +60,9 @@ message QueryMessage {
     repeated Operator operator = 4;
 }
 
-// format of response (answer, error)
-// typically from snode to gateway
 message AnswerMessage {
-    required int64 answer = 1;
-    required int64 error = 2;
-    optional bytes ci = 3;
+
+    repeated bytes ansObj = 1;
 }
 
 message CommandMessage {

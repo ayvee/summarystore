@@ -4,7 +4,8 @@ import com.clearspring.analytics.stream.frequency.CMSProtofier;
 import com.clearspring.analytics.stream.frequency.CountMinSketch;
 import com.samsung.sra.DataStore.*;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
-import org.apache.commons.math3.util.Pair;
+//import org.apache.commons.math3.util.Pair;
+import org.apache.commons.lang3.tuple.Pair;
 import com.samsung.sra.protocol.Common.OpType;
 
 import java.util.Arrays;

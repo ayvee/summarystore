@@ -4,7 +4,10 @@ import com.samsung.sra.DataStore.*;
 import com.samsung.sra.protocol.Common;
 import com.samsung.sra.protocol.Common.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
-import org.apache.commons.math3.util.Pair;
+//import org.apache.commons.math3.util.Pair;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,7 +74,7 @@ public class SumOperator implements WindowOperator<Long,Double,Pair<Double,Doubl
 
     @Override
     public ResultError<Double, Pair<Double, Double>> getEmptyQueryResult() {
-        return new ResultError<>(0d, new Pair<>(0d, 0d));
+        return new ResultError<>(0d, new ImmutablePair<>(0d, 0d));
     }
 
     @Override
