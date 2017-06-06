@@ -130,6 +130,10 @@ public class SummaryStoreTest {
         ResultError<Long, Boolean> maxRE = (ResultError) store.query(streamID, t0, t1, 2);
         assertEquals(new Long(9), maxRE.result);
         assertEquals(false, maxRE.error);
+        ResultError<Double, Pair<Double, Double>> fullCountRE = (ResultError) store.query(streamID, 0, 1021, 0, 0.95);
+        assertEquals(1022, fullCountRE.result, delta);
+        assertEquals(1022, fullCountRE.error.getFirst(), delta);
+        assertEquals(1022, fullCountRE.error.getSecond(), delta);
     }
 
     private static void assertSummaryPropertyEquals(Integer[] expected, List<SummaryWindow> windows,
