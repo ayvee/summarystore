@@ -11,7 +11,7 @@ import java.util.List;
 
 public class PrintErrorTrend {
     private static final long streamID = 0L;
-    private static final int operatorIndex = 0; // FIXME
+    private static final int operatorIndex = 0;
 
     public static void main(String[] args) throws Exception {
         File configFile;

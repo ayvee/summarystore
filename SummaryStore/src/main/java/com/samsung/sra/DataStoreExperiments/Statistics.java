@@ -41,7 +41,7 @@ public class Statistics implements Serializable {
             double probability = (Double)weighti.next() / totalWeight;
             N += stat.N;
             sum += probability * stat.sum;
-            sqsum += probability * stat.sqsum; // FIXME
+            sqsum += probability * stat.sqsum;
             min = Math.min(min, stat.min);
             max = Math.max(max, stat.max);
             haveCDF = haveCDF && stat.cdf != null;

@@ -173,7 +173,6 @@ class RunComparison {
                 .help("metrics to print")
                 .nargs("+")
                 .setDefault("error:p95", "latency:p95", "ci-width:p95", "ci-miss-rate");
-        // TODO: helper to print latency metrics
         parser.addArgument("-force-run").help("force running workload, ignoring any memoized results").action(Arguments.storeTrue());
         //parser.addArgument("-weight").help("function assigning weights to each query class (allowed: \"uniform\")");
 
@@ -220,7 +219,7 @@ class RunComparison {
                 metrics.put(metricName, metric);
             }
             /*String weightFunctionName = parsed.get("weight");
-            if (metricName != null || weightFunctionName != null) { // TODO: move into Configuration?
+            if (metricName != null || weightFunctionName != null) {
                 if (metricName == null || weightFunctionName == null) {
                     throw new IllegalArgumentException("either both metric and weight function should be specified or neither");
                 }

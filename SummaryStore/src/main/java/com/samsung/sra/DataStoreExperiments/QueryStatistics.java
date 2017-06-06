@@ -9,10 +9,7 @@ import java.io.Serializable;
  * Statistics over a set of query answer observations. Use {@link Statistics} instead if you want generic statistics
  * over a set of numeric observations.
  *
- * Records
- * 1. The distribution over percentage error in query answers
- * 2. CI miss rate: what fraction of query answers fell outside the CI bound?
- * 3. TODO: some measure of CI width
+ * Records error, latency and CI width stats.
  */
 public class QueryStatistics implements Serializable {
     private static final int defaultNCDFBins = 10000;

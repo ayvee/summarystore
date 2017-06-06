@@ -33,7 +33,6 @@ public class Utilities {
     private static final NormalDistribution normalDist = new NormalDistribution(0, 1);
 
     public static double getNormalQuantile(double P) {
-        // TODO: check if access is thread-safe
         return normalDist.inverseCumulativeProbability(P);
     }
 }

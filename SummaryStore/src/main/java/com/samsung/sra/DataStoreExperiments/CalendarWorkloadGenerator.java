@@ -6,7 +6,7 @@ import org.apache.commons.math3.util.Pair;
 
 import java.util.*;
 
-/** Generate a workload of random count/sum/(TODO) queries with calendar age/lengths. */
+/** Generate a workload of random queries with calendar age/lengths. */
 public class CalendarWorkloadGenerator implements WorkloadGenerator {
     private final List<OperatorInfo> operators = new ArrayList<>();
     private final long ticksPerS;
@@ -55,7 +55,6 @@ public class CalendarWorkloadGenerator implements WorkloadGenerator {
         Workload workload = new Workload();
         // Age/length classes will sample query ranges from [0s, (T1-T0) in seconds]. We will rescale below to correct
         List<AgeLengthClass> alClasses = CalendarAgeLengths.getClasses((T1 - T0) / ticksPerS);
-        // FIXME? will not work properly if user specifies more than one operator of the same type (e.g. two CMS operators)
         for (OperatorInfo operator: operators) {
             for (AgeLengthClass alCls : alClasses) {
                 String groupName = String.format("%s\t%s", operator.type, alCls.toString());

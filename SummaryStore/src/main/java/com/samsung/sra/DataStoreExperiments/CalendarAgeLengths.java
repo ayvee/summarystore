@@ -30,7 +30,7 @@ public class CalendarAgeLengths {
     }
 
     public static Collection<Bin> getAllBins() {
-        return bins; // TODO: copy
+        return new ArrayList<>(bins);
     }
 
     /**

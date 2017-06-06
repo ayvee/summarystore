@@ -16,7 +16,7 @@ public interface Windowing extends Serializable {
      */
     long getFirstContainingTime(long l, long r, long T);
 
-    // FIXME?  Strictly, unnecessary; can replace with getFirstContainingTime(T-k, T, T+1) == 0
+    // Strictly, unnecessary; can replace with getFirstContainingTime(T-k, T, T+1) == 0
     long getSizeOfFirstWindow();
 
     /**

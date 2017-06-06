@@ -143,7 +143,7 @@ public class Configuration {
         } else { // a primitive
             assert node instanceof Number || node instanceof String || node instanceof Character || node instanceof Boolean
                     : "unknown node class " + node.getClass();
-            builder.append(node); // TODO: verify that HashCodeBuilder handles Object-casted primitives sensibly
+            builder.append(node);
         }
     }
 

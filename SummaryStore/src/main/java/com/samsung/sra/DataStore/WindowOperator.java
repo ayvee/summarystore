@@ -30,8 +30,6 @@ public interface WindowOperator<A, R, E> extends Serializable {
     /** Retrieve aggregates from a set of windows spanning [T0, T1] and do a combined query over
      * them. We pass full SummaryWindow objects instead of specific Aggregate objects of type A to allow
      * query() to access SummaryWindow metadata.
-     * TODO: pass an additional Function<SummaryWindow, SummaryWindowMetadata> metadataRetriever as argument,
-     *       instead of letting query() manhandle SummaryWindow objects
      */
     ResultError<R, E> query(StreamStatistics streamStats,
                             Stream<SummaryWindow> summaryWindows, Function<SummaryWindow, A> summaryRetriever,
