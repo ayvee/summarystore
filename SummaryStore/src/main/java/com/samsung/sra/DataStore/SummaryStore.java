@@ -3,6 +3,7 @@ package com.samsung.sra.DataStore;
 import com.samsung.sra.DataStore.Aggregates.CMSOperator;
 import com.samsung.sra.DataStore.Aggregates.MaxOperator;
 import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
+import com.samsung.sra.protocol.Common.OpType;
 import org.rocksdb.RocksDBException;
 import org.slf4j.LoggerFactory;
 
@@ -72,6 +73,10 @@ public class SummaryStore implements AutoCloseable {
             throw new StreamException("invalid streamID " + streamID);
         }
         return streamManager;
+    }
+
+    public int getOpSequenceForStream(long streamID, OpType opType) throws StreamException{
+        return getStreamManager(streamID).getSequenceForOp(opType);
     }
 
     public Object query(long streamID, long t0, long t1, int aggregateNum, Object... queryParams) throws StreamException, QueryException, RocksDBException {

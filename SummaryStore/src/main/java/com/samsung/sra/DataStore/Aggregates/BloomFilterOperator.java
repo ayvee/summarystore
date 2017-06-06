@@ -3,6 +3,7 @@ package com.samsung.sra.DataStore.Aggregates;
 import com.clearspring.analytics.stream.membership.BFProtofier;
 import com.clearspring.analytics.stream.membership.BloomFilter;
 import com.samsung.sra.DataStore.*;
+import com.samsung.sra.protocol.Common.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 import org.apache.commons.lang.mutable.MutableBoolean;
 import org.apache.commons.lang.mutable.MutableLong;
@@ -30,6 +31,7 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
     private int filterSize; // = 128
     private int nrHashes; // = 7
     private static Logger logger = LoggerFactory.getLogger(BloomFilterOperator.class);
+    private static final OpType opType = OpType.BLOOM;
 
     public BloomFilterOperator(int nrHashes, int filterSize) {
         this.filterSize = filterSize;
@@ -37,6 +39,11 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
     }
 
     private static final List<String> supportedQueries = Collections.singletonList("simplebloom");
+
+    @Override
+    public OpType getOpType() {
+        return opType;
+    }
 
     @Override
     public List<String> getSupportedQueryTypes() {

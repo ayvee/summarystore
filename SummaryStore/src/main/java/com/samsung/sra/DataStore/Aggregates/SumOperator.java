@@ -1,6 +1,8 @@
 package com.samsung.sra.DataStore.Aggregates;
 
 import com.samsung.sra.DataStore.*;
+import com.samsung.sra.protocol.Common;
+import com.samsung.sra.protocol.Common.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 import org.apache.commons.math3.util.Pair;
 import org.slf4j.Logger;
@@ -17,9 +19,16 @@ public class SumOperator implements WindowOperator<Long,Double,Pair<Double,Doubl
 
     private static final List<String> supportedQueries = Collections.singletonList("sum");
 
+    private static final OpType opType = OpType.SUM;
+
     @Override
     public List<String> getSupportedQueryTypes() {
         return supportedQueries;
+    }
+
+    @Override
+    public Common.OpType getOpType() {
+        return opType;
     }
 
     @Override

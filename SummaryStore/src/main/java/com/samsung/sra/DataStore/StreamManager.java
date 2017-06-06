@@ -1,12 +1,14 @@
 package com.samsung.sra.DataStore;
 
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.samsung.sra.protocol.Common.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoSummaryWindow;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
+import java.util.HashMap;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -57,10 +59,34 @@ class StreamManager implements Serializable {
 
     private transient ExecutorService executorService;
 
+    private final HashMap<OpType, Integer> opSequenceMap = new HashMap<>();
+
+
     void populateTransientFields(BackingStore backingStore, ExecutorService executorService) {
         this.backingStore = backingStore;
         this.executorService = executorService;
         windowingMechanism.populateTransientFields();
+    }
+
+    private void populateOpSequenceMap(WindowOperator... operators) {
+        int seq=0;
+        for(WindowOperator operator:operators) {
+            if(opSequenceMap.containsKey(operator.getOpType())) {
+                logger.error("OpSequenceMap already has operator for " + operator.getOpType().toString()
+                + "\nFIXME: currently store does not support multiple ops for same query type");
+            } else {
+                opSequenceMap.put(operator.getOpType(), seq++);
+            }
+        }
+    }
+
+    public int getSequenceForOp(OpType opType) {
+        if(opSequenceMap.containsKey(opType)) {
+            return opSequenceMap.get(opType);
+        } else {
+            logger.error("No operator found for Type: " + opType.toString());
+            return -1;
+        }
     }
 
     ExecutorService getExecutorService() {
@@ -76,6 +102,8 @@ class StreamManager implements Serializable {
         this.windowingMechanism = windowingMechanism;
         this.operators = operators;
         this.stats = new StreamStatistics();
+
+        populateOpSequenceMap(operators);
     }
 
     void append(long ts, Object[] value) throws RocksDBException, StreamException {

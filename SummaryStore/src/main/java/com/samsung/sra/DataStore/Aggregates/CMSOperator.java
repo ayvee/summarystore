@@ -5,6 +5,7 @@ import com.clearspring.analytics.stream.frequency.CountMinSketch;
 import com.samsung.sra.DataStore.*;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 import org.apache.commons.math3.util.Pair;
+import com.samsung.sra.protocol.Common.OpType;
 
 import java.util.Arrays;
 import java.util.List;
@@ -21,12 +22,18 @@ import java.util.stream.Stream;
  */
 public class CMSOperator implements WindowOperator<CountMinSketch,Double,Pair<Double,Double>> {
     private static List<String> supportedQueryTypes = Arrays.asList("frequency", "cms");
+    private static final OpType opType = OpType.CMS;
+
 
     @Override
     public List<String> getSupportedQueryTypes() {
         return supportedQueryTypes;
     }
 
+    @Override
+    public OpType getOpType() {
+        return opType;
+    }
     private int depth, width, seed;
 
     public CMSOperator(int depth, int width, int seed) {

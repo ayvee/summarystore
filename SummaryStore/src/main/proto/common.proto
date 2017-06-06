@@ -26,11 +26,18 @@ message SummaryMessage {
     }
 }
 
-enum Operators {
+enum OpType {
     COUNT = 1;
     SUM = 2;
     BLOOM = 3;
     CMS = 4;
+    MAX = 5;
+    FREQ = 6;
+}
+
+message Operator {
+    required OpType opType = 1;
+    optional bytes params = 2;
 }
 
 enum Commands {
@@ -50,7 +57,7 @@ message QueryMessage {
     required int64 streamID = 1;
     optional int64 cStart = 2;
     optional int64 cEnd = 3;
-    repeated Operators operators = 4;
+    repeated Operator operator = 4;
 }
 
 // format of response (answer, error)

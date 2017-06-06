@@ -1,8 +1,10 @@
 package com.samsung.sra.DataStore.Aggregates;
 
+import com.samsung.sra.protocol.Common.OpType;
 import com.samsung.sra.DataStore.*;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 import org.apache.commons.math3.util.Pair;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,9 +18,16 @@ public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Doub
 
     private static final List<String> supportedQueries = Collections.singletonList("count");
 
+    private static final OpType opType = OpType.COUNT;
+
     @Override
     public List<String> getSupportedQueryTypes() {
         return supportedQueries;
+    }
+
+    @Override
+    public OpType getOpType() {
+        return opType;
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.samsung.sra.DataStore;
 
+import com.samsung.sra.protocol.Common.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 
 import java.io.Serializable;
@@ -18,7 +19,10 @@ import java.util.stream.Stream;
 public interface WindowOperator<A, R, E> extends Serializable {
     List<String> getSupportedQueryTypes();
 
-    /** Create an empty aggregate (containing zero elements) */
+    /** return OpType; i.e, OpType.MAX */
+    OpType getOpType();
+
+        /** Create an empty aggregate (containing zero elements) */
     A createEmpty();
 
     /** Union a sequence of aggregates into one */

@@ -2,6 +2,7 @@ package com.samsung.sra.DataStore.Aggregates;
 
 import com.samsung.sra.DataStore.*;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
+import com.samsung.sra.protocol.Common.OpType;
 
 import java.util.Collections;
 import java.util.List;
@@ -12,10 +13,16 @@ import java.util.stream.Stream;
  * TODO: serialization */
 public class HyperLogLogOperator implements WindowOperator<HyperLogLog, Long, Long> {
     private static List<String> supportedQueries = Collections.singletonList("count");
+    private static final OpType opType = OpType.COUNT;
 
     @Override
     public List<String> getSupportedQueryTypes() {
         return supportedQueries;
+    }
+
+    @Override
+    public OpType getOpType() {
+        return opType;
     }
 
     @Override

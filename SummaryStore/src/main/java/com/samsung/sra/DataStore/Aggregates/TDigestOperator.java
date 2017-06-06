@@ -3,6 +3,8 @@ package com.samsung.sra.DataStore.Aggregates;
 import com.clearspring.analytics.stream.quantile.TDigest;
 import com.google.protobuf.ByteString;
 import com.samsung.sra.DataStore.*;
+import com.samsung.sra.protocol.Common;
+import com.samsung.sra.protocol.Common.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 import org.apache.commons.math3.util.Pair;
 
@@ -23,9 +25,16 @@ public class TDigestOperator implements WindowOperator<TDigest, Double, Pair<Dou
         this.compression = (nbytes - 16) / 60; // see TDigest.size()
     }
 
+    private static final OpType opType = OpType.FREQ;
+
     @Override
     public List<String> getSupportedQueryTypes() {
         return supportedQueries;
+    }
+
+    @Override
+    public OpType getOpType() {
+        return opType;
     }
 
     @Override
