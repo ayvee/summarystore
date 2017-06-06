@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -24,8 +25,11 @@ public class RocksDBBackingStore extends BackingStore {
     private final RocksDB rocksDB;
     private final Options rocksDBOptions;
     private final long cacheSizePerStream;
-    // map streamID -> windowID -> window
-    private final ConcurrentHashMap<Long, ConcurrentHashMap<Long, SummaryWindow>> cache;
+    /**
+     * Map streamID -> windowID -> window. Caching is exclusive and each stream's cache holds a suffix of the stream
+     * (its newest windows) of length <= cacheSizePerStream
+     */
+    private final ConcurrentHashMap<Long, ConcurrentSkipListMap<Long, SummaryWindow>> cache;
 
     /**
      * @param rocksPath  on-disk path
@@ -53,44 +57,52 @@ public class RocksDBBackingStore extends BackingStore {
      * RocksDB key = <streamID, windowID>. Since we ensure windowIDs are assigned in increasing
      * order, this lays out data in temporal order within streams
      */
-    private byte[] getRocksDBKey(long streamID, long windowID) {
+    private static byte[] getRocksDBKey(long streamID, long windowID) {
         byte[] keyArray = new byte[KEY_SIZE];
         Utilities.longToByteArray(streamID, keyArray, 0);
         Utilities.longToByteArray(windowID, keyArray, 8);
         return keyArray;
     }
 
-    private long parseRocksDBKeyStreamID(byte[] keyArray) {
+    private static long parseRocksDBKeyStreamID(byte[] keyArray) {
         return Utilities.byteArrayToLong(keyArray, 0);
     }
 
-    private long parseRocksDBKeyWindowID(byte[] keyArray) {
+    private static long parseRocksDBKeyWindowID(byte[] keyArray) {
         return Utilities.byteArrayToLong(keyArray, 8);
     }
 
     /**
-     * Insert value into cache, evicting another cached entry if necessary
+     * Attempt to insert value into cache, evicting an older entry if necessary and possible. Insert might fail if
+     * cache is full and all entries already in cache are newer. Returns true iff insert succeeded.
      */
-    private void insertIntoCache(ConcurrentHashMap<Long, SummaryWindow> streamCache, StreamWindowManager windowManager,
+    private boolean insertIntoCache(ConcurrentSkipListMap<Long, SummaryWindow> streamCache, StreamWindowManager windowManager,
                                  long swid, SummaryWindow window) throws RocksDBException {
         assert streamCache != null;
-        if (streamCache.size() >= cacheSizePerStream) { // evict something
-            Map.Entry<Long, SummaryWindow> evicted = streamCache.entrySet().iterator().next();
-            byte[] evictedKey = getRocksDBKey(windowManager.streamID, evicted.getKey());
-            byte[] evictedValue = windowManager.serializeSummaryWindow(evicted.getValue());
-            rocksDB.put(evictedKey, evictedValue);
+        if (streamCache.size() >= cacheSizePerStream && streamCache.firstKey() > swid) {
+            // cache is full && all entries in cache are newer than this window
+            return false;
+        } else {
+            if (streamCache.size() >= cacheSizePerStream && !streamCache.containsKey(swid)) { // evict oldest
+                long evictedSWID = streamCache.firstKey();
+                SummaryWindow evictedWindow = streamCache.remove(evictedSWID);
+                byte[] evictedKey = getRocksDBKey(windowManager.streamID, evictedSWID);
+                byte[] evictedValue = windowManager.serializeSummaryWindow(evictedWindow);
+                rocksDB.put(evictedKey, evictedValue);
+            }
+            streamCache.put(swid, window);
+            return true;
         }
-        streamCache.put(swid, window);
     }
 
     private SummaryWindow getAndOrDeleteSummaryWindow(StreamWindowManager windowManagar, long swid, boolean delete)
             throws BackingStoreException {
-        ConcurrentHashMap<Long, SummaryWindow> streamCache;
+        ConcurrentSkipListMap<Long, SummaryWindow> streamCache;
         if (cache == null) {
             streamCache = null;
         } else {
             streamCache = cache.get(windowManagar.streamID);
-            if (streamCache == null) cache.put(windowManagar.streamID, streamCache = new ConcurrentHashMap<>());
+            if (streamCache == null) cache.put(windowManagar.streamID, streamCache = new ConcurrentSkipListMap<>());
         }
 
         SummaryWindow window = streamCache != null ? streamCache.get(swid) : null;
@@ -104,9 +116,13 @@ public class RocksDBBackingStore extends BackingStore {
                 window = windowManagar.deserializeSummaryWindow(rocksValue);
                 if (delete) {
                     rocksDB.remove(rocksKey);
-                }
-                if (streamCache != null) {
-                    insertIntoCache(streamCache, windowManagar, swid, window);
+                } else {
+                    if (streamCache != null) {
+                        boolean inserted = insertIntoCache(streamCache, windowManagar, swid, window);
+                        if (inserted) {
+                            rocksDB.remove(rocksKey);
+                        }
+                    }
                 }
                 return window;
             } catch (RocksDBException e) {
@@ -125,8 +141,8 @@ public class RocksDBBackingStore extends BackingStore {
         return getAndOrDeleteSummaryWindow(windowManager, swid, true);
     }
 
-    /** Iterate over and return all windows overlapping the time-range given in the constructor */
-    private class OverlappingSWIterator implements Iterator<SummaryWindow> {
+    /** Iterate over and return all summary windows in RocksDB overlapping the time-range given in the constructor */
+    private class OverlappingRocksIterator implements Iterator<SummaryWindow> {
         private final RocksIterator rocksIterator;
         // comment in constructor explains logic
         private SummaryWindow headWindow, nextWindow;
@@ -134,7 +150,7 @@ public class RocksDBBackingStore extends BackingStore {
         private final StreamWindowManager windowManager;
         private final long t0, t1;
 
-        private OverlappingSWIterator(StreamWindowManager windowManager, long t0, long t1) throws RocksDBException {
+        private OverlappingRocksIterator(StreamWindowManager windowManager, long t0, long t1) throws RocksDBException {
             this.windowManager = windowManager;
             this.t0 = t0;
             this.t1 = t1;
@@ -196,8 +212,25 @@ public class RocksDBBackingStore extends BackingStore {
     Stream<SummaryWindow> getSummaryWindowsOverlapping(StreamWindowManager windowManager, long t0, long t1)
             throws BackingStoreException {
         try {
-            Iterator<SummaryWindow> iterator = new OverlappingSWIterator(windowManager, t0, t1);
-            return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
+            Iterator<SummaryWindow> iterator = new OverlappingRocksIterator(windowManager, t0, t1);
+            Stream<SummaryWindow> rocksWindows =  StreamSupport.stream(
+                    Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
+            ConcurrentSkipListMap<Long, SummaryWindow> streamCache = cache == null ? null
+                    : cache.get(windowManager.streamID);
+            if (streamCache != null && !streamCache.isEmpty() && t0 <= streamCache.lastKey() && t1 >= streamCache.firstKey()) {
+                Long l = streamCache.floorKey(t0);
+                Long r = streamCache.higherKey(t1);
+                if (l == null) {
+                    l = streamCache.firstKey();
+                }
+                if (r == null) {
+                    r = streamCache.lastKey() + 1;
+                }
+                Stream<SummaryWindow> cacheWindows = streamCache.subMap(l, true, r, false).values().stream();
+                return Stream.concat(rocksWindows, cacheWindows);
+            } else {
+                return rocksWindows;
+            }
         } catch (RocksDBException e) {
             throw new BackingStoreException(e);
         }
@@ -214,6 +247,9 @@ public class RocksDBBackingStore extends BackingStore {
                 ++ct;
                 iter.next();
             }
+            if (cache != null && cache.containsKey(windowManager.streamID)) {
+                ct += cache.get(windowManager.streamID).size();
+            }
             return ct;
         } finally {
             if (iter != null) iter.dispose();
@@ -222,23 +258,20 @@ public class RocksDBBackingStore extends BackingStore {
 
     @Override
     void putSummaryWindow(StreamWindowManager windowManager, long swid, SummaryWindow window) throws BackingStoreException {
-        if (cache != null) {
-            ConcurrentHashMap<Long, SummaryWindow> streamCache = cache.get(windowManager.streamID);
-            if (streamCache == null) cache.put(windowManager.streamID, streamCache = new ConcurrentHashMap<>());
-
-            try {
-                insertIntoCache(streamCache, windowManager, swid, window);
-            } catch (RocksDBException e) {
-                throw new BackingStoreException(e);
+        try {
+            boolean insertedIntoCache = false;
+            if (cache != null) {
+                ConcurrentSkipListMap<Long, SummaryWindow> streamCache = cache.get(windowManager.streamID);
+                if (streamCache == null) cache.put(windowManager.streamID, streamCache = new ConcurrentSkipListMap<>());
+                insertedIntoCache = insertIntoCache(streamCache, windowManager, swid, window);
             }
-        } else {
-            byte[] key = getRocksDBKey(windowManager.streamID, swid);
-            byte[] value = windowManager.serializeSummaryWindow(window);
-            try {
+            if (!insertedIntoCache) {
+                byte[] key = getRocksDBKey(windowManager.streamID, swid);
+                byte[] value = windowManager.serializeSummaryWindow(window);
                 rocksDB.put(key, value);
-            } catch (RocksDBException e) {
-                throw new BackingStoreException(e);
             }
+        } catch (RocksDBException e) {
+            throw new BackingStoreException(e);
         }
     }
 
@@ -290,7 +323,7 @@ public class RocksDBBackingStore extends BackingStore {
         }
     }
 
-    /* **** <FIXME> Landmark cache has unbounded size **** */
+    /* **** FIXME: Landmark cache has unbounded size **** */
 
     private static final int LANDMARK_KEY_SIZE = 17;
 
@@ -344,11 +377,28 @@ public class RocksDBBackingStore extends BackingStore {
         stream.put(lwid, window);
     }
 
-    /* **** </FIXME>  **** */
-
     @Override
     void printWindowState(StreamWindowManager windowManager) throws BackingStoreException {
-        throw new UnsupportedOperationException("RocksDB backing store does not yet implement printWindowState");
+        System.out.println("stream " + windowManager.streamID + ":");
+        System.out.println("\tuncached summary windows:");
+        RocksIterator iter = null;
+        try {
+            iter = rocksDB.newIterator();
+            iter.seek(getRocksDBKey(windowManager.streamID, 0L));
+            while (iter.isValid() && parseRocksDBKeyStreamID(iter.key()) == windowManager.streamID) {
+                System.out.println("\t\t" + windowManager.deserializeSummaryWindow(iter.value()));
+                iter.next();
+            }
+            if (cache != null && cache.containsKey(windowManager.streamID)) {
+                System.out.println("\tcached summary windows:");
+                for (SummaryWindow window: cache.get(windowManager.streamID).values()) {
+                    System.out.println("\t\t" + window);
+                }
+            }
+            // TODO: landmarks
+        } finally {
+            if (iter != null) iter.dispose();
+        }
     }
 
     @Override

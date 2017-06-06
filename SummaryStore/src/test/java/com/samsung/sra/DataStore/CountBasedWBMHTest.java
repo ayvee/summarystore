@@ -35,7 +35,7 @@ public class CountBasedWBMHTest {
         };
 
         for (int t = 0; t < expectedEvolution.length; ++t) {
-            wbmh.append(swm, t, new Object[]{0L});
+            wbmh.append(swm, t, 0L);
             assertArrayEquals(expectedEvolution[t], swm
                     .getSummaryWindowsOverlapping(0, t)
                     .map(w -> ((Number) w.aggregates[0]).intValue())
