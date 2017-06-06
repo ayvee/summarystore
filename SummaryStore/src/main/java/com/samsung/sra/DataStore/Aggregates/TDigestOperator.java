@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-/* TODO: consider evaluating and comparing against http://dl.acm.org/citation.cfm?id=1756034 */
+/* Consider evaluating and comparing against http://dl.acm.org/citation.cfm?id=1756034 */
 public class TDigestOperator implements WindowOperator<TDigest, Double, Pair<Double, Double>> {
     private static final List<String> supportedQueries = Arrays.asList("quantile", "frequency");
 

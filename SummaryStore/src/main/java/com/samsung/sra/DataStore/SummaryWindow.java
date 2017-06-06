@@ -10,7 +10,6 @@ public class SummaryWindow implements Serializable {
     // metadata
     /* We use longs for window IDs, timestamps, and count markers. Valid values should be
        non-negative (all three are 0-indexed); use "-1" to indicate null values. */
-    // TODO: weaken access modifiers
     public long ts, te, cs, ce;
     public long prevTS, nextTS;
 

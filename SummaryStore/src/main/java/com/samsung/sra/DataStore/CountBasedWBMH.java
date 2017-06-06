@@ -87,7 +87,7 @@ public class CountBasedWBMH implements WindowingMechanism {
          the other thread appending to the other buffer (until it becomes full) */
 
     private final BlockingQueue<IngestBuffer> emptyBuffers;
-    // FIXME: make ingestBuffer volatile? Not an issue if user issues all writes from same thread
+    // FIXME: make activeBuffer volatile? Not an issue if user issues all writes from same thread
     private IngestBuffer activeBuffer = null;
     // flushSemaphore is basically a lock with one added feature: can "lock" in one thread and "unlock" in another
     private Semaphore flushSemaphore = new Semaphore(1);
