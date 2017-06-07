@@ -47,7 +47,7 @@ enum Commands {
 
 message AppendMessage {
     required int64 streamID = 1;
-    required int64 timestamp = 2;
+    optional int64 timestamp = 2;
     repeated bytes value = 3;
 
 }

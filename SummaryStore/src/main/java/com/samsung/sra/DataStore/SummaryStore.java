@@ -92,7 +92,32 @@ public class SummaryStore implements AutoCloseable {
         }
     }
 
+    /** client specified time stamp; client needs to ensure no out-of-order */
     public void append(long streamID, long ts, Object... value) throws StreamException, RocksDBException {
+        StreamManager streamManager = getStreamManager(streamID);
+
+
+        // FIXME: hack for testing; if client does not specify ts, server assigns
+        if(ts==-1) {
+            ts = Math.abs(System.currentTimeMillis());
+        }
+
+        streamManager.lock.writeLock().lock();
+        try {
+            logger.debug("Appending new value: <ts: " + ts + ", val: " + value + ">");
+            streamManager.append(ts, value);
+        } finally {
+            streamManager.lock.writeLock().unlock();
+        }
+    }
+
+
+    /** system assigned time stamp
+     *  right now unused since SummaryNode assign ts to messages which don't have a ts from SummaryClients
+     */
+    /*
+    public void append_noTime(long streamID, Object... value) throws StreamException, RocksDBException {
+        long ts = System.currentTimeMillis();
         StreamManager streamManager = getStreamManager(streamID);
         streamManager.lock.writeLock().lock();
         try {
@@ -102,6 +127,7 @@ public class SummaryStore implements AutoCloseable {
             streamManager.lock.writeLock().unlock();
         }
     }
+    */
 
     /**
      * Initiate a landmark window with specified start timestamp. timestamp must be strictly larger than last appended
