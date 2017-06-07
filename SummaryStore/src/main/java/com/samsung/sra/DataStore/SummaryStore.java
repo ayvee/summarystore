@@ -62,6 +62,7 @@ public class SummaryStore implements AutoCloseable {
             if (streamManagers.containsKey(streamID)) {
                  throw new StreamException("attempting to register streamID " + streamID + " multiple times");
             } else {
+                logger.info("Registered new Stream " + streamID);
                 streamManagers.put(streamID, new StreamManager(backingStore, executorService, streamID, windowingMechanism, operators));
             }
         }

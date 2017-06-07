@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.HashMap;
+import java.util.NoSuchElementException;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -166,7 +167,13 @@ class StreamManager implements Serializable {
             Long l = summaryWindowIndex.floorKey(t0); // first window with tStart <= t0
             Long r = summaryWindowIndex.higherKey(t1); // first window with tStart > t1
             if (r == null) {
-                r = summaryWindowIndex.lastKey() + 1;
+                try {
+                    r = summaryWindowIndex.lastKey() + 1;
+                } catch (NoSuchElementException e) {
+                    logger.error("Querying " + summaryWindowIndex.toString()
+                            + " isEmpty:" + summaryWindowIndex.isEmpty());
+                    e.printStackTrace();
+                }
             }
             //logger.debug("Overapproximated time range = [{}, {})", l, r);
             // Query on all windows with l <= tStart < r

@@ -24,6 +24,10 @@ message SummaryMessage {
         CommandMessage commandMessage = 5;
         PingMessage pingMessage = 6;
     }
+
+    // useful to identify the source of a message
+    optional int64 srcAddress = 7;
+    optional int64 dstAddress = 8;
 }
 
 enum OpType {
@@ -43,6 +47,7 @@ message Operator {
 enum Commands {
     NumWindows = 1;
     StoreSize = 2;
+    RegisterStream = 3;
 }
 
 message AppendMessage {
