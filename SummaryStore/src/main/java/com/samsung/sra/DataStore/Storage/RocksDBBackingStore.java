@@ -3,10 +3,7 @@ package com.samsung.sra.DataStore.Storage;
 import com.samsung.sra.DataStore.LandmarkWindow;
 import com.samsung.sra.DataStore.SummaryWindow;
 import com.samsung.sra.DataStore.Utilities;
-import org.rocksdb.Options;
-import org.rocksdb.RocksDB;
-import org.rocksdb.RocksDBException;
-import org.rocksdb.RocksIterator;
+import org.rocksdb.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,7 +36,12 @@ public class RocksDBBackingStore extends BackingStore {
     public RocksDBBackingStore(String rocksPath, long cacheSizePerStream) throws BackingStoreException {
         this.cacheSizePerStream = cacheSizePerStream;
         cache = cacheSizePerStream > 0 ? new ConcurrentHashMap<>() : null;
-        rocksDBOptions = new Options().setCreateIfMissing(true);
+        rocksDBOptions = new Options()
+                .setCreateIfMissing(true)
+                .createStatistics()
+                .setStatsDumpPeriodSec(300) // seconds
+                .setMaxBackgroundCompactions(10) // number of threads
+                .setMaxOpenFiles(-1);
         try {
             rocksDB = RocksDB.open(rocksDBOptions, rocksPath);
         } catch (RocksDBException e) {
@@ -115,12 +117,12 @@ public class RocksDBBackingStore extends BackingStore {
                 byte[] rocksValue = rocksDB.get(rocksKey);
                 window = windowManagar.deserializeSummaryWindow(rocksValue);
                 if (delete) {
-                    rocksDB.remove(rocksKey);
+                    rocksDB.delete(rocksKey);
                 } else {
                     if (streamCache != null) {
                         boolean inserted = insertIntoCache(streamCache, windowManagar, swid, window);
                         if (inserted) {
-                            rocksDB.remove(rocksKey);
+                            rocksDB.delete(rocksKey);
                         }
                     }
                 }
@@ -184,7 +186,7 @@ public class RocksDBBackingStore extends BackingStore {
                 }
             }
             // at least one of the "iterator is valid" conditions must have failed
-            rocksIterator.dispose();
+            rocksIterator.close();
             return null;
         }
 
@@ -238,9 +240,7 @@ public class RocksDBBackingStore extends BackingStore {
 
     @Override
     long getNumSummaryWindows(StreamWindowManager windowManager) {
-        RocksIterator iter = null;
-        try {
-            iter = rocksDB.newIterator();
+        try (RocksIterator iter = rocksDB.newIterator()){
             iter.seek(getRocksDBKey(windowManager.streamID, 0L));
             long ct = 0;
             while (iter.isValid() && parseRocksDBKeyStreamID(iter.key()) == windowManager.streamID) {
@@ -251,8 +251,6 @@ public class RocksDBBackingStore extends BackingStore {
                 ct += cache.get(windowManager.streamID).size();
             }
             return ct;
-        } finally {
-            if (iter != null) iter.dispose();
         }
     }
 
@@ -381,9 +379,7 @@ public class RocksDBBackingStore extends BackingStore {
     void printWindowState(StreamWindowManager windowManager) throws BackingStoreException {
         System.out.println("stream " + windowManager.streamID + ":");
         System.out.println("\tuncached summary windows:");
-        RocksIterator iter = null;
-        try {
-            iter = rocksDB.newIterator();
+        try (RocksIterator iter = rocksDB.newIterator()) {
             iter.seek(getRocksDBKey(windowManager.streamID, 0L));
             while (iter.isValid() && parseRocksDBKeyStreamID(iter.key()) == windowManager.streamID) {
                 System.out.println("\t\t" + windowManager.deserializeSummaryWindow(iter.value()));
@@ -396,8 +392,6 @@ public class RocksDBBackingStore extends BackingStore {
                 }
             }
             // TODO: landmarks
-        } finally {
-            if (iter != null) iter.dispose();
         }
     }
 
@@ -406,7 +400,7 @@ public class RocksDBBackingStore extends BackingStore {
         if (rocksDB != null) {
             rocksDB.close();
         }
-        rocksDBOptions.dispose();
+        rocksDBOptions.close();
         logger.info("rocksDB closed");
     }
 }
