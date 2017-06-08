@@ -21,6 +21,7 @@ public class RocksDBBackingStore extends BackingStore {
 
     private final RocksDB rocksDB;
     private final Options rocksDBOptions;
+    private final WriteOptions rocksDBWriteOptions;
     private final long cacheSizePerStream;
     /**
      * Map streamID -> windowID -> window. Caching is exclusive and each stream's cache holds a suffix of the stream
@@ -41,7 +42,17 @@ public class RocksDBBackingStore extends BackingStore {
                 .createStatistics()
                 .setStatsDumpPeriodSec(300) // seconds
                 .setMaxBackgroundCompactions(10) // number of threads
+                .setAllowConcurrentMemtableWrite(true)
+                .setMaxBytesForLevelBase(512L * 1024 * 1024)
+                .setDbWriteBufferSize(4L * 1024 * 1024 * 1024)
+                //.setCompressionType(CompressionType.NO_COMPRESSION)
+                //.setMemTableConfig(new VectorMemTableConfig())
+                .setTableFormatConfig(new BlockBasedTableConfig()
+                        .setBlockCacheSize(8L * 1024 * 1024 * 1024)
+                        .setFilter(new BloomFilter()))
                 .setMaxOpenFiles(-1);
+        rocksDBWriteOptions = new WriteOptions()
+                .setDisableWAL(true);
         try {
             rocksDB = RocksDB.open(rocksDBOptions, rocksPath);
         } catch (RocksDBException e) {
@@ -90,7 +101,7 @@ public class RocksDBBackingStore extends BackingStore {
                 SummaryWindow evictedWindow = streamCache.remove(evictedSWID);
                 byte[] evictedKey = getRocksDBKey(windowManager.streamID, evictedSWID);
                 byte[] evictedValue = windowManager.serializeSummaryWindow(evictedWindow);
-                rocksDB.put(evictedKey, evictedValue);
+                rocksDB.put(rocksDBWriteOptions, evictedKey, evictedValue);
             }
             streamCache.put(swid, window);
             return true;
@@ -266,7 +277,7 @@ public class RocksDBBackingStore extends BackingStore {
             if (!insertedIntoCache) {
                 byte[] key = getRocksDBKey(windowManager.streamID, swid);
                 byte[] value = windowManager.serializeSummaryWindow(window);
-                rocksDB.put(key, value);
+                rocksDB.put(rocksDBWriteOptions, key, value);
             }
         } catch (RocksDBException e) {
             throw new BackingStoreException(e);
