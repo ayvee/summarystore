@@ -26,8 +26,8 @@ message SummaryMessage {
     }
 
     // useful to identify the source of a message
-    optional int64 srcAddress = 7;
-    optional int64 dstAddress = 8;
+    optional int32 srcAddressHash = 7;
+    optional int32 dstAddressHash = 8;
 }
 
 enum OpType {

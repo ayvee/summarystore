@@ -173,6 +173,7 @@ class StreamManager implements Serializable {
                     logger.error("Querying " + summaryWindowIndex.toString()
                             + " isEmpty:" + summaryWindowIndex.isEmpty());
                     e.printStackTrace();
+                    return null;
                 }
             }
             //logger.debug("Overapproximated time range = [{}, {})", l, r);
