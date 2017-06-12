@@ -3,6 +3,7 @@ package com.samsung.sra.DataStore.Storage;
 import com.samsung.sra.DataStore.LandmarkWindow;
 import com.samsung.sra.DataStore.SummaryWindow;
 import com.samsung.sra.DataStore.Utilities;
+import org.apache.commons.lang.NotImplementedException;
 import org.rocksdb.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -157,8 +158,7 @@ public class RocksDBBackingStore extends BackingStore {
     /** Iterate over and return all summary windows in RocksDB overlapping the time-range given in the constructor */
     private class OverlappingRocksIterator implements Iterator<SummaryWindow> {
         private final RocksIterator rocksIterator;
-        // comment in constructor explains logic
-        private SummaryWindow headWindow, nextWindow;
+        private SummaryWindow nextWindow;
 
         private final StreamWindowManager windowManager;
         private final long t0, t1;
@@ -168,18 +168,22 @@ public class RocksDBBackingStore extends BackingStore {
             this.t0 = t0;
             this.t1 = t1;
 
+            // Note that Stream.query() ensures stream (1) is non-empty, (2) time interval [T0, T1] fully covers [t0, t1]
             rocksIterator = rocksDB.newIterator();
             rocksIterator.seek(getRocksDBKey(windowManager.streamID, t0));
+            assert rocksIterator.isValid();
+            nextWindow = readFromRocksIterator();
+            if (nextWindow == null) { // only one window in stream and t0 > T0
+                throw new NotImplementedException("this case not yet implemented, needs code restructure"); // FIXME
+            }
+            assert nextWindow.ts >= t0;
             /* rocksIterator now points to the first window with start timestamp >= t0. If timestamp == t0, we only
              * need to return this window and its successors. If timestamp > t0, we also need to return the window just
-             * before this one (which is the last window with start timestamp < t0); we store that window in "headWindow"
-             */
-            nextWindow = readFromRocksIterator();
-            if (nextWindow != null && nextWindow.ts > t0 && nextWindow.prevTS != -1) {
-                headWindow = windowManager.deserializeSummaryWindow(
-                        rocksDB.get(getRocksDBKey(windowManager.streamID, nextWindow.prevTS)));
-            } else {
-                headWindow = null;
+             * before this one (which is the last window with start timestamp < t0), so we call iterator.prev() */
+            if (nextWindow.ts > t0) {
+                rocksIterator.prev();
+                nextWindow = readFromRocksIterator();
+                assert nextWindow != null;
             }
         }
 
@@ -188,11 +192,8 @@ public class RocksDBBackingStore extends BackingStore {
                 byte[] key = rocksIterator.key();
                 if (key.length == KEY_SIZE) {
                     long streamID = parseRocksDBKeyStreamID(key), ts = parseRocksDBKeyWindowID(key);
-                    if (streamID == windowManager.streamID) {
-                        assert ts >= t0;
-                        if (ts <= t1) {
-                            return windowManager.deserializeSummaryWindow(rocksIterator.value());
-                        }
+                    if (streamID == windowManager.streamID && ts <= t1) {
+                        return windowManager.deserializeSummaryWindow(rocksIterator.value());
                     }
                 }
             }
@@ -203,21 +204,15 @@ public class RocksDBBackingStore extends BackingStore {
 
         @Override
         public boolean hasNext() {
-            return headWindow != null || nextWindow != null;
+            return nextWindow != null;
         }
 
         @Override
         public SummaryWindow next() {
-            if (headWindow != null) {
-                SummaryWindow ret = headWindow;
-                headWindow = null;
-                return ret;
-            } else {
-                SummaryWindow ret = nextWindow;
-                rocksIterator.next();
-                nextWindow = readFromRocksIterator();
-                return ret;
-            }
+            SummaryWindow ret = nextWindow;
+            rocksIterator.next();
+            nextWindow = readFromRocksIterator();
+            return ret;
         }
     }
 
