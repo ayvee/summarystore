@@ -2,6 +2,8 @@ package com.samsung.sra.DataStore;
 
 import org.apache.commons.math3.distribution.NormalDistribution;
 
+import java.util.concurrent.BlockingQueue;
+
 public class Utilities {
     private Utilities() {}
 
@@ -34,5 +36,21 @@ public class Utilities {
 
     public static double getNormalQuantile(double P) {
         return normalDist.inverseCumulativeProbability(P);
+    }
+
+    /** Identical to BlockingQueue.take, but handles InterruptedException instead of throwing */
+    public static <T> T take(BlockingQueue<T> queue) {
+        while (true) {
+            try {
+                return queue.take();
+            } catch (InterruptedException ignored) {
+            }
+        }
+    }
+
+    /** Identical to BlockingQueue.offer, but throws unchecked exception on failure instead of returning boolean */
+    public static <T> void offerAndConfirm(BlockingQueue<T> queue, T value) {
+        boolean offered = queue.offer(value);
+        assert offered;
     }
 }

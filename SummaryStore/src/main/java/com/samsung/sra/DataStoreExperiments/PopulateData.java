@@ -1,6 +1,6 @@
 package com.samsung.sra.DataStoreExperiments;
 
-import com.samsung.sra.DataStore.CountBasedWBMH;
+import com.samsung.sra.DataStore.Ingest.CountBasedWBMH;
 import com.samsung.sra.DataStore.SummaryStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

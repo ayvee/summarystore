@@ -3,6 +3,7 @@ package com.samsung.sra.DataStore;
 import com.samsung.sra.DataStore.Aggregates.CMSOperator;
 import com.samsung.sra.DataStore.Aggregates.MaxOperator;
 import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
+import com.samsung.sra.DataStore.Ingest.CountBasedWBMH;
 import org.apache.commons.math3.util.Pair;
 import org.junit.Test;
 

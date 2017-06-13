@@ -2,7 +2,7 @@ package com.samsung.sra.DataStoreExperiments;
 
 import com.samsung.sra.DataStore.Aggregates.CMSOperator;
 import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
-import com.samsung.sra.DataStore.CountBasedWBMH;
+import com.samsung.sra.DataStore.Ingest.CountBasedWBMH;
 import com.samsung.sra.DataStore.RationalPowerWindowing;
 import com.samsung.sra.DataStore.SummaryStore;
 

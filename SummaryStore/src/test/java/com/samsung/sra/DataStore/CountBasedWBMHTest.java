@@ -1,6 +1,7 @@
 package com.samsung.sra.DataStore;
 
 import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
+import com.samsung.sra.DataStore.Ingest.CountBasedWBMH;
 import com.samsung.sra.DataStore.Storage.MainMemoryBackingStore;
 import com.samsung.sra.DataStore.Storage.StreamWindowManager;
 import org.junit.Test;

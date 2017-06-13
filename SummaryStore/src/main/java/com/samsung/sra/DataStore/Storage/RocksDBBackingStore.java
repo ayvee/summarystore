@@ -3,7 +3,6 @@ package com.samsung.sra.DataStore.Storage;
 import com.samsung.sra.DataStore.LandmarkWindow;
 import com.samsung.sra.DataStore.SummaryWindow;
 import com.samsung.sra.DataStore.Utilities;
-import org.apache.commons.lang.NotImplementedException;
 import org.rocksdb.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -176,7 +175,9 @@ public class RocksDBBackingStore extends BackingStore {
             assert rocksIterator.isValid();
             nextWindow = readFromRocksIterator();
             if (nextWindow == null) { // only one window in stream and t0 > T0
-                throw new NotImplementedException("this case not yet implemented, needs code restructure"); // FIXME
+                rocksIterator.seek(getRocksDBKey(windowManager.streamID, 0));
+                nextWindow = readFromRocksIterator();
+                assert nextWindow != null;
             }
             assert nextWindow.ts >= t0;
             /* rocksIterator now points to the first window with start timestamp >= t0. If timestamp == t0, we only
