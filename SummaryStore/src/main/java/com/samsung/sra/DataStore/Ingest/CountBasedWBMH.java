@@ -35,7 +35,7 @@ public class CountBasedWBMH implements WindowingMechanism {
     private final Ingester ingester;
     private final Summarizer summarizer;
     private final Writer writer;
-    private final HeapMerger merger;
+    private final Merger merger;
 
     private final BlockingQueue<Merger.WindowInfo> newWindowNotifications; // input queue for merger
     private final FlushHandler flushHandler;
@@ -43,12 +43,13 @@ public class CountBasedWBMH implements WindowingMechanism {
     private long N = 0;
 
     /**
-     * Buffers up to numValuesToBuffer elements in memory, deferring window merges
-     * until either the buffer fills up or flush() is called
+     * Buffers up to totalBufferSize elements in memory, split across numBuffers buffers of equal size, deferring value
+     * writes until either buffers fill up or flush is called.
      */
-    public CountBasedWBMH(Windowing windowing, int numValuesToBuffer) {
+    public CountBasedWBMH(Windowing windowing, int totalBufferSize, int numBuffers) {
+        assert numBuffers > 0;
         this.sizeOfNewestWindow = windowing.getSizeOfFirstWindow();
-        int[] bufferWindowLengths = windowing.getWindowsCoveringUpto(numValuesToBuffer)
+        int[] bufferWindowLengths = windowing.getWindowsCoveringUpto(totalBufferSize / numBuffers)
                 .stream().mapToInt(Long::intValue).toArray();
         bufferSize = IntStream.of(bufferWindowLengths).sum(); // actual buffer size, <= numValuesToBuffer
         logger.info("Ingest buffer covers {} windows and {} values", bufferWindowLengths.length, bufferSize);
@@ -76,6 +77,10 @@ public class CountBasedWBMH implements WindowingMechanism {
             writer = null;
         }
         merger = new HeapMerger(windowing, newWindowNotifications, flushHandler);
+    }
+
+    public CountBasedWBMH(Windowing windowing, int totalBufferSize) {
+        this(windowing, totalBufferSize, 2);
     }
 
     public CountBasedWBMH(Windowing windowing) {

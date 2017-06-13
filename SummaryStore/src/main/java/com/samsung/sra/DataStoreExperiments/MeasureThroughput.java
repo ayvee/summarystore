@@ -36,10 +36,6 @@ public class MeasureThroughput {
             }
             long we = System.currentTimeMillis();
             System.out.printf("Write throughput = %,.0f appends/s\n",  (nThreads * T * 1000d / (we - w0)));
-            for (int i = 0; i < nThreads; ++i) {
-                store.flush(i);
-            }
-            //store.printWindowState(streamID);
 
             long f0 = System.currentTimeMillis();
             store.query(0, 0, T - 1, 0);
@@ -59,7 +55,7 @@ public class MeasureThroughput {
             this.N = N;
             this.random = ThreadLocalRandom.current();
             store.registerStream(streamID, false,
-                    new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1), 2_000_000),
+                    new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1), 2_000_000, 10),
                     new SimpleCountOperator(),
                     new CMSOperator(5, 1000, 0));
         }
@@ -71,6 +67,7 @@ public class MeasureThroughput {
                     long v = random.nextLong(100);
                     store.append(streamID, t, v);
                 }
+                store.flush(streamID);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

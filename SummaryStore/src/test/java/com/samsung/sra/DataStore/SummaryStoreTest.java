@@ -25,7 +25,7 @@ public class SummaryStoreTest {
         // create and populate store
         SummaryStore store = new SummaryStore(storeLoc, 3);
         Windowing windowing = new GenericWindowing(new ExponentialWindowLengths(2));
-        store.registerStream(streamID, new CountBasedWBMH(windowing, 31),
+        store.registerStream(streamID, new CountBasedWBMH(windowing, 62, 2),
                 new SimpleCountOperator(),
                 new CMSOperator(5, 100, 0),
                 new MaxOperator());
