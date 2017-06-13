@@ -30,7 +30,7 @@ class HeapMerger implements Merger {
     private transient StreamWindowManager windowManager;
 
     private long N = 0;
-    /* Priority queue, mapping each summary window w_i to the time at which w_{i+1} will be merged into it. Using a
+    /* Priority queue, mapping each summary window w_i to the time at which w_{i+1} will be merged into it. Using
      * an alternative to the Java Collections PriorityQueue supporting efficient arbitrary-element delete.
      *
      * Why this particular pri-queue implementation?

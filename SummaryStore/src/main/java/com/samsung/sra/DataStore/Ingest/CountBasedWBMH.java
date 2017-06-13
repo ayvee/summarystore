@@ -37,6 +37,9 @@ public class CountBasedWBMH implements WindowingMechanism {
     private final Writer writer;
     private final Merger merger;
 
+    private final BlockingQueue<IngestBuffer> emptyBuffers;
+    private final BlockingQueue<IngestBuffer> buffersToSummarize;
+    private final BlockingQueue<SummaryWindow> windowsToWrite;
     private final BlockingQueue<Merger.WindowInfo> newWindowNotifications; // input queue for merger
     private final FlushHandler flushHandler;
 
@@ -61,10 +64,10 @@ public class CountBasedWBMH implements WindowingMechanism {
         flushHandler = new FlushHandler();
 
         if (bufferSize > 0) {
-            BlockingQueue<IngestBuffer> emptyBuffers = new LinkedBlockingQueue<>();
-            BlockingQueue<IngestBuffer> buffersToSummarize = new LinkedBlockingQueue<>();
-            BlockingQueue<SummaryWindow> windowsToWrite = new LinkedBlockingQueue<>();
-            for (int i = 0; i < 10; ++i) {
+            emptyBuffers = new LinkedBlockingQueue<>();
+            buffersToSummarize = new LinkedBlockingQueue<>();
+            windowsToWrite = new LinkedBlockingQueue<>();
+            for (int i = 0; i < numBuffers; ++i) {
                 emptyBuffers.add(new IngestBuffer((int) bufferSize));
             }
 
@@ -72,6 +75,9 @@ public class CountBasedWBMH implements WindowingMechanism {
             summarizer = new Summarizer(bufferWindowLengths, emptyBuffers, buffersToSummarize, windowsToWrite, flushHandler);
             writer = new Writer(windowsToWrite, newWindowNotifications, flushHandler);
         } else {
+            emptyBuffers = null;
+            buffersToSummarize = null;
+            windowsToWrite = null;
             ingester = null;
             summarizer = null;
             writer = null;
@@ -106,6 +112,11 @@ public class CountBasedWBMH implements WindowingMechanism {
     @Override
     public void append(long ts, Object value) throws BackingStoreException {
         if (bufferSize > 0) {
+            if (N % 1_000_000 == 0) {
+                logger.info("[N = {}] Buffer sizes: emptyBuffers = {}, buffersToSummarize = {}, windowsToWrite = {}," +
+                                " pendingMergeNotifications = {}", N, emptyBuffers.size(),
+                        buffersToSummarize.size(), windowsToWrite.size(), newWindowNotifications.size());
+            }
             ingester.append(ts, value);
         } else {
             appendUnbuffered(ts, value);
