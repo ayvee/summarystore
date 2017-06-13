@@ -1,5 +1,6 @@
 package com.samsung.sra.DataStoreExperiments;
 
+import com.samsung.sra.DataStore.Aggregates.CMSOperator;
 import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
 import com.samsung.sra.DataStore.CountBasedWBMH;
 import com.samsung.sra.DataStore.RationalPowerWindowing;
@@ -8,7 +9,7 @@ import com.samsung.sra.DataStore.SummaryStore;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class MeasureThroughput {
-    private static final String loc_prefix = "/tmp/tdstore_";
+    private static final String loc_prefix = "/mnt/md0/tdstore_";
 
     public static void main(String[] args) throws Exception {
         if (args.length != 2) {
@@ -19,7 +20,7 @@ public class MeasureThroughput {
         int nThreads = Integer.parseInt(args[1]);
         Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + loc_prefix + "*"}).waitFor();
 
-        try (SummaryStore store = new SummaryStore(null/*loc_prefix + "throughput"*/)) {
+        try (SummaryStore store = new SummaryStore(loc_prefix + "throughput", 1_000_000)) {
             StreamWriter[] writers = new StreamWriter[nThreads];
             Thread[] writerThreads = new Thread[nThreads];
             for (int i = 0; i < nThreads; ++i) {
@@ -59,7 +60,8 @@ public class MeasureThroughput {
             this.random = ThreadLocalRandom.current();
             store.registerStream(streamID, false,
                     new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1), 2_000_000),
-                    new SimpleCountOperator());
+                    new SimpleCountOperator(),
+                    new CMSOperator(5, 1000, 0));
         }
 
         @Override
