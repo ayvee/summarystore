@@ -31,15 +31,13 @@ message ProtoSummaryWindow {
     required int64 te = 2; // end timestamp
     required int64 cs = 3; // start count
     required int64 ce = 4; // end count
-    required int64 prevTS = 5; // pointer to previous window
-    required int64 nextTS = 6; // pointer to next window
-    repeated ProtoOperator operator = 7;
+    repeated ProtoOperator operator = 5;
 }
 
 // Primary key = (streamID, ts). ts is also referred to as "lwid" (landmark window ID) in parts of the code
 message ProtoLandmarkWindow {
     required int64 ts = 1; // start timestamp
     required int64 te = 2; // end timestamp
-    repeated int64 timestamp = 4;
-    repeated int64 value = 5; // TODO: arbitrary value types
+    repeated int64 timestamp = 3;
+    repeated int64 value = 4; // TODO: arbitrary value types
 }

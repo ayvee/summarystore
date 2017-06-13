@@ -15,6 +15,7 @@ public class CountBasedWBMHTest {
         StreamWindowManager swm = new StreamWindowManager(0L, new WindowOperator[]{new SimpleCountOperator()});
         swm.populateTransientFields(new MainMemoryBackingStore());
         CountBasedWBMH wbmh = new CountBasedWBMH(new GenericWindowing(new ExponentialWindowLengths(2)), 0);
+        wbmh.populateTransientFields(swm);
 
         Integer[][] expectedEvolution = {
                 {1},
@@ -35,7 +36,8 @@ public class CountBasedWBMHTest {
         };
 
         for (int t = 0; t < expectedEvolution.length; ++t) {
-            wbmh.append(swm, t, 0L);
+            wbmh.append(t, 0L);
+            wbmh.flush();
             assertArrayEquals(expectedEvolution[t], swm
                     .getSummaryWindowsOverlapping(0, t)
                     .map(w -> ((Number) w.aggregates[0]).intValue())

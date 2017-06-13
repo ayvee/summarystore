@@ -89,8 +89,8 @@ public class SummaryStoreTest {
                 tes = {495, 743, 867, 929, 960, 976, 992, 1000, 1008, 1012, 1016, 1018, 1020, 1021},
                 css = {0, 496, 744, 868, 930, 961, 977, 993, 1001, 1009, 1013, 1017, 1019, 1021},
                 ces = {495, 743, 867, 929, 960, 976, 992, 1000, 1008, 1012, 1016, 1018, 1020, 1021},
-                prevTSs = {-1, 0, 496, 744, 868, 930, 961, 977, 993, 1001, 1009, 1013, 1017, 1019},
-                nextTSs = {496, 744, 868, 930, 961, 977, 993, 1001, 1009, 1013, 1017, 1019, 1021, -1},
+                //prevTSs = {-1, 0, 496, 744, 868, 930, 961, 977, 993, 1001, 1009, 1013, 1017, 1019},
+                //nextTSs = {496, 744, 868, 930, 961, 977, 993, 1001, 1009, 1013, 1017, 1019, 1021, -1},
                 op0 = {491, 243, 124, 62, 31, 16, 16, 8, 8, 4, 4, 2, 2, 1}, // count
                 op2 = {9, 9, 9, 9, 9, 9, 9, 9, 8, 9, 6, 8, 9, 1}; // max
         List<SummaryWindow> summaryWindows = store.streams.get(streamID).windowManager
@@ -100,8 +100,8 @@ public class SummaryStoreTest {
         assertSummaryPropertyEquals(tes, summaryWindows, w -> w.te);
         assertSummaryPropertyEquals(css, summaryWindows, w -> w.cs);
         assertSummaryPropertyEquals(ces, summaryWindows, w -> w.ce);
-        assertSummaryPropertyEquals(prevTSs, summaryWindows, w -> w.prevTS);
-        assertSummaryPropertyEquals(nextTSs, summaryWindows, w -> w.nextTS);
+        //assertSummaryPropertyEquals(prevTSs, summaryWindows, w -> w.prevTS);
+        //assertSummaryPropertyEquals(nextTSs, summaryWindows, w -> w.nextTS);
         assertSummaryPropertyEquals(op0, summaryWindows, w -> (long) w.aggregates[0]);
         assertSummaryPropertyEquals(op2, summaryWindows, w -> (long) w.aggregates[2]);
 

@@ -10,9 +10,6 @@ import java.io.*;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Start here. Most external code will only construct and interact with an instance of this class.
@@ -27,7 +24,6 @@ public class SummaryStore implements AutoCloseable {
 
     private final BackingStore backingStore;
     private final String indexesFile;
-    private final ExecutorService executorService;
 
     final ConcurrentHashMap<Long, Stream> streams; // package-local rather than private to allow access from SummaryStoreTest
     private final boolean readonly;
@@ -46,7 +42,6 @@ public class SummaryStore implements AutoCloseable {
             this.indexesFile = null;
         }
         this.readonly = readonly;
-        executorService = Executors.newCachedThreadPool();
         streams = deserializeIndexes();
     }
 
@@ -78,7 +73,7 @@ public class SummaryStore implements AutoCloseable {
             try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
                 ConcurrentHashMap<Long, Stream> ret = (ConcurrentHashMap<Long, Stream>) ois.readObject();
                 for (Stream si: ret.values()) {
-                    si.populateTransientFields(backingStore, executorService);
+                    si.populateTransientFields(backingStore);
                 }
                 return ret;
             }
@@ -102,7 +97,7 @@ public class SummaryStore implements AutoCloseable {
                  throw new StreamException("attempting to register streamID " + streamID + " multiple times");
             } else {
                 Stream sm = new Stream(streamID, synchronizeWrites, windowingMechanism, operators);
-                sm.populateTransientFields(backingStore, executorService);
+                sm.populateTransientFields(backingStore);
                 streams.put(streamID, sm);
             }
         }
@@ -164,11 +159,6 @@ public class SummaryStore implements AutoCloseable {
                 serializeIndexes();
             }
             backingStore.close();
-            executorService.shutdown();
-            try {
-                executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-            } catch (InterruptedException ignored) {
-            }
         }
     }
 

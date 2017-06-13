@@ -38,8 +38,8 @@ public class StreamWindowManager implements Serializable {
         this.backingStore = backingStore;
     }
 
-    public SummaryWindow createEmptySummaryWindow(long ts, long te, long cs, long ce, long prevTS, long nextTS) {
-        return new SummaryWindow(operators, ts, te, cs, ce, prevTS, nextTS);
+    public SummaryWindow createEmptySummaryWindow(long ts, long te, long cs, long ce) {
+        return new SummaryWindow(operators, ts, te, cs, ce);
     }
 
     public void insertIntoSummaryWindow(SummaryWindow window, long ts, Object value) {
@@ -90,20 +90,11 @@ public class StreamWindowManager implements Serializable {
 
     byte[] serializeSummaryWindow(SummaryWindow window) {
         assert window != null;
-        ProtoSummaryWindow.Builder protoWindow;
-        try {
-            protoWindow = ProtoSummaryWindow.newBuilder()
+        ProtoSummaryWindow.Builder protoWindow = ProtoSummaryWindow.newBuilder()
                     .setTs(window.ts)
                     .setTe(window.te)
                     .setCs(window.cs)
-                    .setCe(window.ce)
-                    .setPrevTS(window.prevTS)
-                    .setNextTS(window.nextTS);
-        } catch (Exception e) {
-            logger.error("Exception in serializing window", e);
-            throw new RuntimeException(e);
-        }
-
+                    .setCe(window.ce);
         for (int op = 0; op < operators.length; ++op) {
             try {
                 assert window.aggregates[op] != null;
@@ -129,8 +120,6 @@ public class StreamWindowManager implements Serializable {
         window.te = protoSummaryWindow.getTe();
         window.cs = protoSummaryWindow.getCs();
         window.ce = protoSummaryWindow.getCe();
-        window.prevTS = protoSummaryWindow.getPrevTS();
-        window.nextTS = protoSummaryWindow.getNextTS();
 
         assert protoSummaryWindow.getOperatorCount() == operators.length;
         window.aggregates = new Object[operators.length];
