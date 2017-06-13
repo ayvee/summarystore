@@ -98,11 +98,13 @@ public class RocksDBBackingStore extends BackingStore {
             return false;
         } else {
             if (streamCache.size() >= cacheSizePerStream && !streamCache.containsKey(swid)) { // evict oldest
-                long evictedSWID = streamCache.firstKey();
-                SummaryWindow evictedWindow = streamCache.remove(evictedSWID);
-                byte[] evictedKey = getRocksDBKey(windowManager.streamID, evictedSWID);
-                byte[] evictedValue = windowManager.serializeSummaryWindow(evictedWindow);
+                Map.Entry<Long, SummaryWindow> evictedEntry = streamCache.firstEntry();
+                byte[] evictedKey = getRocksDBKey(windowManager.streamID, evictedEntry.getKey());
+                byte[] evictedValue = windowManager.serializeSummaryWindow(evictedEntry.getValue());
+                // FIXME: the window is present in both rocksDB and streamCache for the brief duration between the put
+                //        and remove, i.e. the cache is not exclusive during that time
                 rocksDB.put(rocksDBWriteOptions, evictedKey, evictedValue);
+                streamCache.remove(evictedEntry.getKey());
             }
             streamCache.put(swid, window);
             return true;
