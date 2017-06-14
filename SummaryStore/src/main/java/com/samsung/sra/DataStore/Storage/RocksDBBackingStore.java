@@ -32,11 +32,14 @@ public class RocksDBBackingStore extends BackingStore {
         rocksDBOptions = new Options()
                 .setCreateIfMissing(true)
                 .createStatistics()
-                .setStatsDumpPeriodSec(300) // seconds
-                .setMaxBackgroundCompactions(10) // number of threads
+                .setStatsDumpPeriodSec(300)
+                .setMaxBackgroundCompactions(10)
                 .setAllowConcurrentMemtableWrite(true)
-                .setMaxBytesForLevelBase(512L * 1024 * 1024)
-                .setDbWriteBufferSize(4L * 1024 * 1024 * 1024)
+                .setDbWriteBufferSize(512L * 1024 * 1024)
+                .setMaxWriteBufferNumber(10)
+                .setMinWriteBufferNumberToMerge(2)
+                .setMaxBytesForLevelBase(512L * 1024 * 1024 * 2 * 4)
+                //.setCompactionStyle(CompactionStyle.UNIVERSAL)
                 //.setCompressionType(CompressionType.NO_COMPRESSION)
                 //.setMemTableConfig(new VectorMemTableConfig())
                 .setTableFormatConfig(new BlockBasedTableConfig()
@@ -236,26 +239,6 @@ public class RocksDBBackingStore extends BackingStore {
             landmarkCache.put(windowManager.streamID, (stream = new ConcurrentHashMap<>()));
         }
         stream.put(lwid, window);
-    }
-
-    @Override
-    void printWindowState(StreamWindowManager windowManager) throws BackingStoreException {
-        System.out.println("stream " + windowManager.streamID + ":");
-        System.out.println("\tuncached summary windows:");
-        try (RocksIterator iter = rocksDB.newIterator()) {
-            iter.seek(getRocksDBKey(windowManager.streamID, 0L));
-            while (iter.isValid() && parseRocksDBKeyStreamID(iter.key()) == windowManager.streamID) {
-                System.out.println("\t\t" + windowManager.deserializeSummaryWindow(iter.value()));
-                iter.next();
-            }
-            if (cache != null && cache.containsKey(windowManager.streamID)) {
-                System.out.println("\tcached summary windows:");
-                for (SummaryWindow window: cache.get(windowManager.streamID).values()) {
-                    System.out.println("\t\t" + window);
-                }
-            }
-            // TODO: landmarks
-        }
     }
 
     @Override

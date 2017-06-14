@@ -32,6 +32,19 @@ class IngestBuffer implements Serializable {
         return size;
     }
 
+    /**
+     * Remove first s elements. After truncate
+     *    values[0], values[1], ..., values[size - s - 1] = old values[s], values[s + 1], ..., values[size - 1]*/
+    void truncateHead(int s) {
+        assert s >= 0;
+        if (s == 0) return;
+        for (int i = 0; i < size - s; ++i) {
+            timestamps[i] = timestamps[i + s];
+            values[i] = values[i + s];
+        }
+        size -= s;
+    }
+
     void clear() {
         size = 0;
     }

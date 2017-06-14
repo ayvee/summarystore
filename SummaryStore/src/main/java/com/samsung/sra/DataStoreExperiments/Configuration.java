@@ -4,7 +4,7 @@ import com.moandjiezana.toml.Toml;
 import com.samsung.sra.DataStore.*;
 import com.samsung.sra.DataStore.Aggregates.BloomFilterOperator;
 import com.samsung.sra.DataStore.Aggregates.CMSOperator;
-import org.apache.commons.lang.builder.HashCodeBuilder;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 import java.io.File;
 import java.io.IOException;

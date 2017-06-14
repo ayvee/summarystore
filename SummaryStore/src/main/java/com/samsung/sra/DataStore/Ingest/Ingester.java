@@ -9,14 +9,14 @@ import java.util.concurrent.BlockingQueue;
 /** Ingest values into initially empty buffers, and once buffers fill up move them to Summarizer's queue */
 class Ingester implements Serializable {
     private final BlockingQueue<IngestBuffer> emptyBuffers; // input queue
-    private final BlockingQueue<IngestBuffer> buffersToSummarize; // output queue
+    private final BlockingQueue<IngestBuffer> summarizerQueue; // output queue
 
     // WARNING: should be declared volatile if external user code appends to the same stream from more than one thread
     private IngestBuffer activeBuffer = null;
 
-    Ingester(BlockingQueue<IngestBuffer> emptyBuffers, BlockingQueue<IngestBuffer> buffersToSummarize) {
+    Ingester(BlockingQueue<IngestBuffer> emptyBuffers, BlockingQueue<IngestBuffer> summarizerQueue) {
         this.emptyBuffers = emptyBuffers;
-        this.buffersToSummarize = buffersToSummarize;
+        this.summarizerQueue = summarizerQueue;
     }
 
     /** NOTE: must externally serialize all append() and flush() */
@@ -30,27 +30,23 @@ class Ingester implements Serializable {
         assert !activeBuffer.isFull();
         activeBuffer.append(ts, value);
         if (activeBuffer.isFull()) {
-            Utilities.put(buffersToSummarize, activeBuffer);
+            Utilities.put(summarizerQueue, activeBuffer);
             activeBuffer = null;
         }
     }
 
     /**
-     * Initiate flush/shutdown of summarizer and parser, and if we have a partially filled buffer return it (as well
-     * as the list of empty buffers) so that the caller can process its contents using appendUnbuffered.
+     * Send any outstanding values to summarizer (whether buffer is full or not) and initiate summarizer flush.
      *
      * NOTE: must externally serialize all append() and flush() */
-    Pair<IngestBuffer, BlockingQueue<IngestBuffer>> flush(boolean shutdown) {
+    void flush(boolean shutdown) {
         Pair<IngestBuffer, BlockingQueue<IngestBuffer>> ret;
         if (activeBuffer != null && activeBuffer.size() > 0) {
             assert !activeBuffer.isFull();
-            ret = new Pair<>(activeBuffer, emptyBuffers);
+            Utilities.put(summarizerQueue, activeBuffer);
             activeBuffer = null;
-        } else {
-            ret = new Pair<>(null, null);
         }
         // initiate graceful summarizer shutdown
-        Utilities.put(buffersToSummarize, shutdown ? Summarizer.SHUTDOWN_SENTINEL : Summarizer.FLUSH_SENTINEL);
-        return ret;
+        Utilities.put(summarizerQueue, shutdown ? Summarizer.SHUTDOWN_SENTINEL : Summarizer.FLUSH_SENTINEL);
     }
 }

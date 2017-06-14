@@ -44,7 +44,7 @@ public class MainMemoryBackingStore extends BackingStore {
         stream.put(lwid, window);
     }
 
-    @Override
+    /*@Override
     void printWindowState(StreamWindowManager windowManager) {
         System.out.println("Stream " + windowManager.streamID);
         printWindowMap(summaryWindows.get(windowManager.streamID), "summary");
@@ -60,7 +60,7 @@ public class MainMemoryBackingStore extends BackingStore {
                 System.out.println("\t" + w);
             }
         }
-    }
+    }*/
 
     @Override
     public void close() {

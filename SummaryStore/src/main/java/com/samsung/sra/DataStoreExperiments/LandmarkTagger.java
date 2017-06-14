@@ -2,8 +2,8 @@ package com.samsung.sra.DataStoreExperiments;
 
 import com.moandjiezana.toml.Toml;
 import com.samsung.sra.DataStoreExperiments.StreamGenerator.Operation.Type;
-import org.apache.commons.lang.mutable.MutableBoolean;
-import org.apache.commons.lang.mutable.MutableLong;
+import org.apache.commons.lang3.mutable.MutableBoolean;
+import org.apache.commons.lang3.mutable.MutableLong;
 
 import java.io.IOException;
 import java.util.function.Consumer;

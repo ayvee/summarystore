@@ -164,7 +164,23 @@ public class StreamWindowManager implements Serializable {
     }
 
     public void printWindows() throws BackingStoreException {
-        backingStore.printWindowState(this);
+        //backingStore.printWindowState(this);
+        System.out.printf("Stream %d with %d summary windows and %d landmark windows\n", streamID
+                , getNumSummaryWindows(), getNumLandmarkWindows());
+        summaryIndex.getOverlappingWindowIDs(0, Long.MAX_VALUE - 10).forEach(swid -> {
+            try {
+                System.out.println("\t" + getSummaryWindow(swid));
+            } catch (BackingStoreException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        landmarkIndex.getOverlappingWindowIDs(0, Long.MAX_VALUE).forEach(lwid -> {
+            try {
+                System.out.println("\t" + getLandmarkWindow(lwid));
+            } catch (BackingStoreException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     public void flushToDisk() throws BackingStoreException {

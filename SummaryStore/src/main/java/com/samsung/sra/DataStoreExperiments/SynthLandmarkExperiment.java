@@ -4,7 +4,7 @@ package com.samsung.sra.DataStoreExperiments;
 import com.samsung.sra.DataStore.Aggregates.SumOperator;
 import com.samsung.sra.DataStore.*;
 import com.samsung.sra.DataStore.Ingest.CountBasedWBMH;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.Random;
 import java.util.TreeSet;

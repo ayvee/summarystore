@@ -255,7 +255,7 @@ public class RWCacheRocksDBBackingStore extends BackingStore {
         stream.put(lwid, window);
     }
 
-    @Override
+    /*@Override
     void printWindowState(StreamWindowManager windowManager) throws BackingStoreException {
         System.out.println("stream " + windowManager.streamID + ":");
         System.out.println("\tuncached summary windows:");
@@ -273,7 +273,7 @@ public class RWCacheRocksDBBackingStore extends BackingStore {
             }
             // TODO: landmarks
         }
-    }
+    }*/
 
     @Override
     public void close() throws BackingStoreException {

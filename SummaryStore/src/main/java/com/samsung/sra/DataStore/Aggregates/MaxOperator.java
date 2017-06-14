@@ -2,7 +2,7 @@ package com.samsung.sra.DataStore.Aggregates;
 
 import com.samsung.sra.DataStore.*;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
-import org.apache.commons.lang.mutable.MutableLong;
+import org.apache.commons.lang3.mutable.MutableLong;
 
 import java.util.Collections;
 import java.util.List;

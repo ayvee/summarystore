@@ -6,7 +6,6 @@ import com.samsung.sra.DataStore.SummaryWindow;
 import com.samsung.sra.DataStore.Utilities;
 import com.samsung.sra.DataStore.Windowing;
 import com.samsung.sra.DataStore.WindowingMechanism;
-import org.apache.commons.math3.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +39,7 @@ public class CountBasedWBMH implements WindowingMechanism {
     private final Merger merger;
 
     private final BlockingQueue<IngestBuffer> emptyBuffers;
+    private final BlockingQueue<IngestBuffer> partialBuffers;
     private final BlockingQueue<IngestBuffer> summarizerQueue;
     private final BlockingQueue<SummaryWindow> writerQueue;
     private final BlockingQueue<Merger.WindowInfo> mergerQueue; // input queue for merger
@@ -67,14 +67,17 @@ public class CountBasedWBMH implements WindowingMechanism {
         flushBarrier = new FlushBarrier();
         if (bufferSize > 0) {
             emptyBuffers = new LinkedBlockingQueue<>();
+            partialBuffers = new LinkedBlockingQueue<>();
             summarizerQueue = new LinkedBlockingQueue<>();
             for (int i = 0; i < numBuffers; ++i) {
                 emptyBuffers.add(new IngestBuffer((int) bufferSize));
             }
             ingester = new Ingester(emptyBuffers, summarizerQueue);
-            summarizer = new Summarizer(bufferWindowLengths, emptyBuffers, summarizerQueue, writerQueue, flushBarrier);
+            summarizer = new Summarizer(bufferWindowLengths, emptyBuffers, partialBuffers, summarizerQueue, writerQueue,
+                    flushBarrier);
         } else {
             emptyBuffers = null;
+            partialBuffers = null;
             summarizerQueue = null;
             ingester = null;
             summarizer = null;
@@ -146,19 +149,19 @@ public class CountBasedWBMH implements WindowingMechanism {
     private void flush(boolean shutdown) throws BackingStoreException {
         long threshold = flushBarrier.getNextFlushThreshold();
         if (bufferSize > 0) {
-            Pair<IngestBuffer, BlockingQueue<IngestBuffer>> toFlush = ingester.flush(shutdown);
+            ingester.flush(shutdown);
             flushBarrier.wait(FlushBarrier.SUMMARIZER, threshold);
-            IngestBuffer partlyFullBuffer = toFlush.getFirst();
-            BlockingQueue<IngestBuffer> emptyBuffers = toFlush.getSecond();
-            if (partlyFullBuffer != null) {
-                N -= partlyFullBuffer.size(); // need to undo since we pulled them out of the pipeline
-                for (int i = 0; i < partlyFullBuffer.size(); ++i) {
-                    appendUnbuffered(partlyFullBuffer.getTimestamp(i), partlyFullBuffer.getValue(i));
+            IngestBuffer partialBuffer = partialBuffers.poll();
+            if (partialBuffer != null) {
+                N -= partialBuffer.size(); // need to undo since we pulled them out of the pipeline
+                for (int i = 0; i < partialBuffer.size(); ++i) {
+                    appendUnbuffered(partialBuffer.getTimestamp(i), partialBuffer.getValue(i));
                     ++N;
                 }
-                partlyFullBuffer.clear();
-                Utilities.put(emptyBuffers, partlyFullBuffer);
+                partialBuffer.clear();
+                Utilities.put(emptyBuffers, partialBuffer);
             }
+            assert partialBuffers.isEmpty();
         }
         Utilities.put(writerQueue, shutdown ? Writer.SHUTDOWN_SENTINEL : Writer.FLUSH_SENTINEL);
         flushBarrier.wait(FlushBarrier.WRITER, threshold);
