@@ -25,7 +25,7 @@ public class MeasureThroughput {
             Thread[] writerThreads = new Thread[nThreads];
             for (int i = 0; i < nThreads; ++i) {
                 writers[i] = new StreamWriter(store, i, T);
-                writerThreads[i] = new Thread(writers[i]);
+                writerThreads[i] = new Thread(writers[i], i + "-appender");
             }
             long w0 = System.currentTimeMillis();
             for (int i = 0; i < nThreads; ++i) {

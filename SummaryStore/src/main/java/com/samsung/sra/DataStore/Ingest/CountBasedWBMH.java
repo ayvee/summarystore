@@ -26,6 +26,8 @@ import java.util.stream.IntStream;
  */
 public class CountBasedWBMH implements WindowingMechanism {
     private static Logger logger = LoggerFactory.getLogger(CountBasedWBMH.class);
+    /** Used to throttle Writer and Merger input queues */
+    private static final int MAX_QUEUE_SIZE = 10_000;
 
     private transient StreamWindowManager windowManager;
 
@@ -60,13 +62,13 @@ public class CountBasedWBMH implements WindowingMechanism {
             throw new UnsupportedOperationException("do not yet support unbuffered ingest when size of newest window > 1");
         }
 
-        newWindowNotifications = new LinkedBlockingQueue<>();
+        newWindowNotifications = new LinkedBlockingQueue<>(MAX_QUEUE_SIZE);
         flushHandler = new FlushHandler();
 
         if (bufferSize > 0) {
             emptyBuffers = new LinkedBlockingQueue<>();
             buffersToSummarize = new LinkedBlockingQueue<>();
-            windowsToWrite = new LinkedBlockingQueue<>();
+            windowsToWrite = new LinkedBlockingQueue<>(MAX_QUEUE_SIZE);
             for (int i = 0; i < numBuffers; ++i) {
                 emptyBuffers.add(new IngestBuffer((int) bufferSize));
             }
@@ -103,10 +105,10 @@ public class CountBasedWBMH implements WindowingMechanism {
         merger.populateTransientFields(windowManager);
 
         if (bufferSize > 0) {
-            new Thread(summarizer).start();
-            new Thread(writer).start();
+            new Thread(summarizer, windowManager.streamID + "-summarizer").start();
+            new Thread(writer, windowManager.streamID + "-writer").start();
         }
-        new Thread(merger).start();
+        new Thread(merger, windowManager.streamID + "-merger").start();
     }
 
     @Override
