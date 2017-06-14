@@ -19,7 +19,7 @@ class Ingester implements Serializable {
         this.buffersToSummarize = buffersToSummarize;
     }
 
-    /** NOTE: must externally serialize all append() and close() */
+    /** NOTE: must externally serialize all append() and flush() */
     void append(long ts, Object value) {
         while (activeBuffer == null) {
             try {
@@ -39,7 +39,7 @@ class Ingester implements Serializable {
      * Initiate flush/shutdown of summarizer and parser, and if we have a partially filled buffer return it (as well
      * as the list of empty buffers) so that the caller can process its contents using appendUnbuffered.
      *
-     * NOTE: must externally serialize all append() and close() */
+     * NOTE: must externally serialize all append() and flush() */
     Pair<IngestBuffer, BlockingQueue<IngestBuffer>> flush(boolean shutdown) {
         Pair<IngestBuffer, BlockingQueue<IngestBuffer>> ret;
         if (activeBuffer != null && activeBuffer.size() > 0) {
@@ -49,7 +49,7 @@ class Ingester implements Serializable {
         } else {
             ret = new Pair<>(null, null);
         }
-        // initiate graceful summarizer and writer shutdown
+        // initiate graceful summarizer shutdown
         Utilities.put(buffersToSummarize, shutdown ? Summarizer.SHUTDOWN_SENTINEL : Summarizer.FLUSH_SENTINEL);
         return ret;
     }

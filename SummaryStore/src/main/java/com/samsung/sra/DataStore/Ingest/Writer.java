@@ -15,15 +15,15 @@ class Writer implements Runnable, Serializable {
 
     private final BlockingQueue<SummaryWindow> windowsToWrite; // input queue
     private final BlockingQueue<Merger.WindowInfo> newWindowNotifications; // output queue, feeding into Merger
-    private final CountBasedWBMH.FlushHandler flushHandler;
+    private final CountBasedWBMH.FlushBarrier flushBarrier;
 
     private transient StreamWindowManager windowManager;
 
     Writer(BlockingQueue<SummaryWindow> windowsToWrite, BlockingQueue<Merger.WindowInfo> newWindowNotifications,
-           CountBasedWBMH.FlushHandler flushHandler) {
+           CountBasedWBMH.FlushBarrier flushBarrier) {
         this.windowsToWrite = windowsToWrite;
         this.newWindowNotifications = newWindowNotifications;
-        this.flushHandler = flushHandler;
+        this.flushBarrier = flushBarrier;
     }
 
     void populateTransientFields(StreamWindowManager windowManager) {
@@ -36,10 +36,10 @@ class Writer implements Runnable, Serializable {
             while (true) {
                 SummaryWindow window = Utilities.take(windowsToWrite);
                 if (window == SHUTDOWN_SENTINEL) {
-                    flushHandler.notifyWriterFlushed();
+                    flushBarrier.notify(CountBasedWBMH.FlushBarrier.WRITER);
                     break;
                 } else if (window == FLUSH_SENTINEL) {
-                    flushHandler.notifyWriterFlushed();
+                    flushBarrier.notify(CountBasedWBMH.FlushBarrier.WRITER);
                     continue;
                 }
                 windowManager.putSummaryWindow(window);

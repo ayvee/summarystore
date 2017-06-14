@@ -23,7 +23,7 @@ class HeapMerger implements Merger {
 
     // notifications of new window creates: a pair of (window ID, window size)
     private final BlockingQueue<WindowInfo> newWindowNotifications; // input queue
-    private final CountBasedWBMH.FlushHandler flushHandler;
+    private final CountBasedWBMH.FlushBarrier flushBarrier;
 
     private final Windowing windowing;
 
@@ -57,10 +57,10 @@ class HeapMerger implements Merger {
         }
     }
 
-    HeapMerger(Windowing windowing, BlockingQueue<WindowInfo> newWindowNotifications, CountBasedWBMH.FlushHandler flushHandler) {
+    HeapMerger(Windowing windowing, BlockingQueue<WindowInfo> newWindowNotifications, CountBasedWBMH.FlushBarrier flushBarrier) {
         this.windowing = windowing;
         this.newWindowNotifications = newWindowNotifications;
-        this.flushHandler = flushHandler;
+        this.flushBarrier = flushBarrier;
     }
 
     @Override
@@ -78,10 +78,10 @@ class HeapMerger implements Merger {
             while (true) {
                 WindowInfo newWindow = Utilities.take(newWindowNotifications);
                 if (newWindow == SHUTDOWN_SENTINEL) {
-                    flushHandler.notifyMergerFlushed();
+                    flushBarrier.notify(CountBasedWBMH.FlushBarrier.MERGER);
                     break;
                 } else if (newWindow == FLUSH_SENTINEL) {
-                    flushHandler.notifyMergerFlushed();
+                    flushBarrier.notify(CountBasedWBMH.FlushBarrier.MERGER);
                     continue;
                 }
                 long newWindowID = newWindow.id, newWindowSize = newWindow.size;

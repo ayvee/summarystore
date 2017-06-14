@@ -21,8 +21,8 @@ import java.util.stream.IntStream;
  * We manage three internal threads for Summarizer, Writer and Merger, and the Ingester code runs in the external
  * user thread(s) calling SummaryStore.append().
  *
- * Unbuffered mode setup: one internal thread, running a Merger; and external user thread(s) running appendUnbuffered()
- * code.
+ * Unbuffered mode setup: same except no Ingester or Summarizer. External user threads run appendUnbuffered() instead of
+ * Ingester
  */
 public class CountBasedWBMH implements WindowingMechanism {
     private static Logger logger = LoggerFactory.getLogger(CountBasedWBMH.class);
@@ -40,10 +40,10 @@ public class CountBasedWBMH implements WindowingMechanism {
     private final Merger merger;
 
     private final BlockingQueue<IngestBuffer> emptyBuffers;
-    private final BlockingQueue<IngestBuffer> buffersToSummarize;
-    private final BlockingQueue<SummaryWindow> windowsToWrite;
-    private final BlockingQueue<Merger.WindowInfo> newWindowNotifications; // input queue for merger
-    private final FlushHandler flushHandler;
+    private final BlockingQueue<IngestBuffer> summarizerQueue;
+    private final BlockingQueue<SummaryWindow> writerQueue;
+    private final BlockingQueue<Merger.WindowInfo> mergerQueue; // input queue for merger
+    private final FlushBarrier flushBarrier;
 
     private long N = 0;
 
@@ -62,29 +62,25 @@ public class CountBasedWBMH implements WindowingMechanism {
             throw new UnsupportedOperationException("do not yet support unbuffered ingest when size of newest window > 1");
         }
 
-        newWindowNotifications = new LinkedBlockingQueue<>(MAX_QUEUE_SIZE);
-        flushHandler = new FlushHandler();
-
+        writerQueue = new LinkedBlockingQueue<>(MAX_QUEUE_SIZE);
+        mergerQueue = new LinkedBlockingQueue<>(MAX_QUEUE_SIZE);
+        flushBarrier = new FlushBarrier();
         if (bufferSize > 0) {
             emptyBuffers = new LinkedBlockingQueue<>();
-            buffersToSummarize = new LinkedBlockingQueue<>();
-            windowsToWrite = new LinkedBlockingQueue<>(MAX_QUEUE_SIZE);
+            summarizerQueue = new LinkedBlockingQueue<>();
             for (int i = 0; i < numBuffers; ++i) {
                 emptyBuffers.add(new IngestBuffer((int) bufferSize));
             }
-
-            ingester = new Ingester(emptyBuffers, buffersToSummarize);
-            summarizer = new Summarizer(bufferWindowLengths, emptyBuffers, buffersToSummarize, windowsToWrite, flushHandler);
-            writer = new Writer(windowsToWrite, newWindowNotifications, flushHandler);
+            ingester = new Ingester(emptyBuffers, summarizerQueue);
+            summarizer = new Summarizer(bufferWindowLengths, emptyBuffers, summarizerQueue, writerQueue, flushBarrier);
         } else {
             emptyBuffers = null;
-            buffersToSummarize = null;
-            windowsToWrite = null;
+            summarizerQueue = null;
             ingester = null;
             summarizer = null;
-            writer = null;
         }
-        merger = new HeapMerger(windowing, newWindowNotifications, flushHandler);
+        writer = new Writer(writerQueue, mergerQueue, flushBarrier);
+        merger = new HeapMerger(windowing, mergerQueue, flushBarrier);
     }
 
     public CountBasedWBMH(Windowing windowing, int totalBufferSize) {
@@ -100,14 +96,14 @@ public class CountBasedWBMH implements WindowingMechanism {
         this.windowManager = windowManager;
         if (bufferSize > 0) {
             summarizer.populateTransientFields(windowManager);
-            writer.populateTransientFields(windowManager);
         }
+        writer.populateTransientFields(windowManager);
         merger.populateTransientFields(windowManager);
 
         if (bufferSize > 0) {
             new Thread(summarizer, windowManager.streamID + "-summarizer").start();
-            new Thread(writer, windowManager.streamID + "-writer").start();
         }
+        new Thread(writer, windowManager.streamID + "-writer").start();
         new Thread(merger, windowManager.streamID + "-merger").start();
     }
 
@@ -115,9 +111,9 @@ public class CountBasedWBMH implements WindowingMechanism {
     public void append(long ts, Object value) throws BackingStoreException {
         if (bufferSize > 0) {
             if (N % 1_000_000 == 0) {
-                logger.info("[N = {}] Buffer sizes: emptyBuffers = {}, buffersToSummarize = {}, windowsToWrite = {}," +
+                logger.info("[N = {}] Buffer sizes: emptyBuffers = {}, summarizerQueue = {}, writerQueue = {}," +
                                 " pendingMergeNotifications = {}", N, emptyBuffers.size(),
-                        buffersToSummarize.size(), windowsToWrite.size(), newWindowNotifications.size());
+                        summarizerQueue.size(), writerQueue.size(), mergerQueue.size());
             }
             ingester.append(ts, value);
         } else {
@@ -143,18 +139,19 @@ public class CountBasedWBMH implements WindowingMechanism {
         SummaryWindow newWindow = windowManager.createEmptySummaryWindow(timestamp, timestamp, N, N);
         windowManager.insertIntoSummaryWindow(newWindow, timestamp, value);
         windowManager.putSummaryWindow(newWindow);
-        Utilities.put(newWindowNotifications, new Merger.WindowInfo(timestamp, 1L));
+        Utilities.put(writerQueue, newWindow);
+        //Utilities.put(mergerQueue, new Merger.WindowInfo(timestamp, 1L));
     }
 
     private void flush(boolean shutdown) throws BackingStoreException {
-        long threshold = flushHandler.getNextFlushThreshold();
+        long threshold = flushBarrier.getNextFlushThreshold();
         if (bufferSize > 0) {
             Pair<IngestBuffer, BlockingQueue<IngestBuffer>> toFlush = ingester.flush(shutdown);
+            flushBarrier.wait(FlushBarrier.SUMMARIZER, threshold);
             IngestBuffer partlyFullBuffer = toFlush.getFirst();
             BlockingQueue<IngestBuffer> emptyBuffers = toFlush.getSecond();
-            flushHandler.waitForIngestCompletion(threshold);
             if (partlyFullBuffer != null) {
-                N -= partlyFullBuffer.size(); // undo the pretend-insert
+                N -= partlyFullBuffer.size(); // need to undo since we pulled them out of the pipeline
                 for (int i = 0; i < partlyFullBuffer.size(); ++i) {
                     appendUnbuffered(partlyFullBuffer.getTimestamp(i), partlyFullBuffer.getValue(i));
                     ++N;
@@ -163,8 +160,10 @@ public class CountBasedWBMH implements WindowingMechanism {
                 Utilities.put(emptyBuffers, partlyFullBuffer);
             }
         }
-        Utilities.put(newWindowNotifications, shutdown ? HeapMerger.SHUTDOWN_SENTINEL : HeapMerger.FLUSH_SENTINEL);
-        flushHandler.waitForMergeCompletion(threshold);
+        Utilities.put(writerQueue, shutdown ? Writer.SHUTDOWN_SENTINEL : Writer.FLUSH_SENTINEL);
+        flushBarrier.wait(FlushBarrier.WRITER, threshold);
+        Utilities.put(mergerQueue, shutdown ? HeapMerger.SHUTDOWN_SENTINEL : HeapMerger.FLUSH_SENTINEL);
+        flushBarrier.wait(FlushBarrier.MERGER, threshold);
     }
 
     @Override
@@ -177,18 +176,20 @@ public class CountBasedWBMH implements WindowingMechanism {
         flush(true);
     }
 
-    static class FlushHandler implements Serializable {
+    static class FlushBarrier implements Serializable {
+        static final int SUMMARIZER = 0, WRITER = 1, MERGER = 2;
+
         private final AtomicLong flushCount = new AtomicLong(0);
         private final Serializable monitor = new Object[0]; // any serializable object would do
-        private long numSummarizerFlushes = 0, numWriterFlushes = 0, numMergerFlushes = 0;
+        private long[] counters = new long[MERGER + 1];
 
         private long getNextFlushThreshold() {
             return flushCount.incrementAndGet();
         }
 
-        private void waitForIngestCompletion(long threshold) {
+        private void wait(int type, long threshold) {
             synchronized (monitor) {
-                while (numSummarizerFlushes < threshold || numWriterFlushes < threshold) {
+                while (counters[type] < threshold) {
                     try {
                         monitor.wait();
                     } catch (InterruptedException ignored) {
@@ -197,37 +198,11 @@ public class CountBasedWBMH implements WindowingMechanism {
             }
         }
 
-        private void waitForMergeCompletion(long threshold) {
+        void notify(int type) {
             synchronized (monitor) {
-                while (numMergerFlushes < threshold) {
-                    try {
-                        monitor.wait();
-                    } catch (InterruptedException ignored) {
-                    }
-                }
-            }
-        }
-
-        void notifySummarizerFlushed() {
-            synchronized (monitor) {
-                ++numSummarizerFlushes;
-                monitor.notifyAll();
-            }
-        }
-
-        void notifyWriterFlushed() {
-            synchronized (monitor) {
-                ++numWriterFlushes;
-                monitor.notifyAll();
-            }
-        }
-
-        void notifyMergerFlushed() {
-            synchronized (monitor) {
-                ++numMergerFlushes;
+                ++counters[type];
                 monitor.notifyAll();
             }
         }
     }
-
 }
