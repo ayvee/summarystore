@@ -22,12 +22,11 @@ public class StreamWindowManager implements Serializable {
     public static final Object LANDMARK_SENTINEL = new Object(); // sentinel used when handling append
 
     private transient BackingStore backingStore;
-    final long streamID;
+    public final long streamID;
     private final WindowOperator[] operators;
 
-    // FIXME: remove
-    /* Read index, maps window.tStart -> window.ID. Used when answering queries */
-    private final TreeSet<Long> landmarkWindowStarts = new TreeSet<>();
+    private final SummaryWindowIndex swIndex = new SummaryWindowIndex();
+    private final TreeSet<Long> landmarkWindowStarts = new TreeSet<>(); // TODO: create thought out LandmarkWindowIndex
 
     public StreamWindowManager(long streamID, WindowOperator[] operators) {
         this.streamID = streamID;
@@ -73,19 +72,27 @@ public class StreamWindowManager implements Serializable {
 
     /** Get all summary windows overlapping [t0, t1] */
     public Stream<SummaryWindow> getSummaryWindowsOverlapping(long t0, long t1) throws BackingStoreException {
-        return backingStore.getSummaryWindowsOverlapping(this, t0, t1);
+        return swIndex.getOverlappingSWIDs(t0, t1).map(swid -> {
+            try {
+                return backingStore.getSummaryWindow(this, swid);
+            } catch (BackingStoreException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     public SummaryWindow deleteSummaryWindow(long swid) throws BackingStoreException {
+        swIndex.remove(swid);
         return backingStore.deleteSummaryWindow(this, swid);
     }
 
     public void putSummaryWindow(SummaryWindow window) throws BackingStoreException {
+        swIndex.put(window);
         backingStore.putSummaryWindow(this, window.ts, window);
     }
 
     public long getNumSummaryWindows() throws BackingStoreException {
-        return backingStore.getNumSummaryWindows(this);
+        return swIndex.getNumWindows();
     }
 
     byte[] serializeSummaryWindow(SummaryWindow window) {

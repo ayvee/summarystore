@@ -6,7 +6,6 @@ import com.samsung.sra.DataStore.SummaryWindow;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.stream.Stream;
 
 public class MainMemoryBackingStore extends BackingStore {
     private Map<Long, ConcurrentSkipListMap<Long, SummaryWindow>> summaryWindows = new ConcurrentHashMap<>();
@@ -15,31 +14,6 @@ public class MainMemoryBackingStore extends BackingStore {
     @Override
     SummaryWindow getSummaryWindow(StreamWindowManager windowManager, long swid) {
         return summaryWindows.get(windowManager.streamID).get(swid);
-    }
-
-    /**
-     * Return all windows with swid (= window start timestamp) overlapping [t0, t1].  Specifically, if window start
-     * times are the wi in
-     *    ===== w5 ======== w6 ======== w7 ======== w8 =====
-     *                |                        |
-     *               t0                       t1
-     * return [w5, w6, w7]
-     */
-    @Override
-    Stream<SummaryWindow> getSummaryWindowsOverlapping(StreamWindowManager windowManager, long t0, long t1) {
-        ConcurrentSkipListMap<Long, SummaryWindow> windows = summaryWindows.get(windowManager.streamID);
-        if (windows == null || windows.isEmpty()) {
-            return Stream.empty();
-        }
-        Long l = windows.floorKey(t0);
-        Long r = windows.higherKey(t1);
-        if (l == null) {
-            l = windows.firstKey();
-        }
-        if (r == null) {
-            r = windows.lastKey() + 1;
-        }
-        return windows.subMap(l, true, r, false).values().stream();
     }
 
     @Override
@@ -54,11 +28,6 @@ public class MainMemoryBackingStore extends BackingStore {
             summaryWindows.put(windowManager.streamID, (stream = new ConcurrentSkipListMap<>()));
         }
         stream.put(swid, window);
-    }
-
-    @Override
-    long getNumSummaryWindows(StreamWindowManager windowManager) {
-        return summaryWindows.get(windowManager.streamID).size();
     }
 
     @Override
