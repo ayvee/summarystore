@@ -143,7 +143,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         SummaryWindow newWindow = windowManager.createEmptySummaryWindow(timestamp, timestamp, N, N);
         windowManager.insertIntoSummaryWindow(newWindow, timestamp, value);
         windowManager.putSummaryWindow(newWindow);
-        Utilities.offerAndConfirm(newWindowNotifications, new Merger.WindowInfo(timestamp, 1L));
+        Utilities.put(newWindowNotifications, new Merger.WindowInfo(timestamp, 1L));
     }
 
     private void flush(boolean shutdown) throws BackingStoreException {
@@ -160,10 +160,10 @@ public class CountBasedWBMH implements WindowingMechanism {
                     ++N;
                 }
                 partlyFullBuffer.clear();
-                Utilities.offerAndConfirm(emptyBuffers, partlyFullBuffer);
+                Utilities.put(emptyBuffers, partlyFullBuffer);
             }
         }
-        Utilities.offerAndConfirm(newWindowNotifications, shutdown ? HeapMerger.SHUTDOWN_SENTINEL : HeapMerger.FLUSH_SENTINEL);
+        Utilities.put(newWindowNotifications, shutdown ? HeapMerger.SHUTDOWN_SENTINEL : HeapMerger.FLUSH_SENTINEL);
         flushHandler.waitForMergeCompletion(threshold);
     }
 

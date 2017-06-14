@@ -30,7 +30,7 @@ class Ingester implements Serializable {
         assert !activeBuffer.isFull();
         activeBuffer.append(ts, value);
         if (activeBuffer.isFull()) {
-            Utilities.offerAndConfirm(buffersToSummarize, activeBuffer);
+            Utilities.put(buffersToSummarize, activeBuffer);
             activeBuffer = null;
         }
     }
@@ -50,7 +50,7 @@ class Ingester implements Serializable {
             ret = new Pair<>(null, null);
         }
         // initiate graceful summarizer and writer shutdown
-        Utilities.offerAndConfirm(buffersToSummarize, shutdown ? Summarizer.SHUTDOWN_SENTINEL : Summarizer.FLUSH_SENTINEL);
+        Utilities.put(buffersToSummarize, shutdown ? Summarizer.SHUTDOWN_SENTINEL : Summarizer.FLUSH_SENTINEL);
         return ret;
     }
 }

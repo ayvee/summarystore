@@ -43,11 +43,11 @@ class Summarizer implements Runnable, Serializable {
             while (true) {
                 IngestBuffer buffer = Utilities.take(buffersToSummarize);
                 if (buffer == SHUTDOWN_SENTINEL) {
-                    Utilities.offerAndConfirm(windowsToWrite, Writer.SHUTDOWN_SENTINEL);
+                    Utilities.put(windowsToWrite, Writer.SHUTDOWN_SENTINEL);
                     flushHandler.notifySummarizerFlushed();
                     break;
                 } else if (buffer == FLUSH_SENTINEL) {
-                    Utilities.offerAndConfirm(windowsToWrite, Writer.FLUSH_SENTINEL);
+                    Utilities.put(windowsToWrite, Writer.FLUSH_SENTINEL);
                     flushHandler.notifySummarizerFlushed();
                     continue;
                 }
@@ -59,14 +59,14 @@ class Summarizer implements Runnable, Serializable {
                     for (int c = bs; c <= be; ++c) {
                         windowManager.insertIntoSummaryWindow(window, buffer.getTimestamp(c), buffer.getValue(c));
                     }
-                    Utilities.offerAndConfirm(windowsToWrite, window);
+                    Utilities.put(windowsToWrite, window);
                     bs = be + 1;
                 }
                 assert bs == buffer.size();
                 N += bs;
 
                 buffer.clear();
-                Utilities.offerAndConfirm(emptyBuffers, buffer);
+                Utilities.put(emptyBuffers, buffer);
             }
 
     }

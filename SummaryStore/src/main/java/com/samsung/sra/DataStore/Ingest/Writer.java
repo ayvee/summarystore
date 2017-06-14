@@ -43,7 +43,7 @@ class Writer implements Runnable, Serializable {
                     continue;
                 }
                 windowManager.putSummaryWindow(window);
-                Utilities.offerAndConfirm(newWindowNotifications, new Merger.WindowInfo(window.ts, window.ce - window.cs + 1));
+                Utilities.put(newWindowNotifications, new Merger.WindowInfo(window.ts, window.ce - window.cs + 1));
             }
         } catch (BackingStoreException e) {
             throw new RuntimeException(e);

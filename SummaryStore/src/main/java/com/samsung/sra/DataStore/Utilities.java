@@ -38,7 +38,7 @@ public class Utilities {
         return normalDist.inverseCumulativeProbability(P);
     }
 
-    /** Identical to BlockingQueue.take, but handles InterruptedException instead of throwing */
+    /** Blocking get ignoring InterruptedExceptions */
     public static <T> T take(BlockingQueue<T> queue) {
         while (true) {
             try {
@@ -48,9 +48,14 @@ public class Utilities {
         }
     }
 
-    /** Identical to BlockingQueue.offer, but throws unchecked exception on failure instead of returning boolean */
-    public static <T> void offerAndConfirm(BlockingQueue<T> queue, T value) {
-        boolean offered = queue.offer(value);
-        assert offered;
+    /** Blocking put ignoring InterruptedExceptions */
+    public static <T> void put(BlockingQueue<T> queue, T value) {
+        while (true) {
+            try {
+                queue.put(value);
+                return;
+            } catch (InterruptedException ignored) {
+            }
+        }
     }
 }
