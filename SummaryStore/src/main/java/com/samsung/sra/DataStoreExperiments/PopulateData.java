@@ -27,7 +27,7 @@ public class PopulateData {
                 logger.warn("Decay function {} already populated at {}.backingStore, skipping", decay, outprefix);
                 return;
             }
-            try (SummaryStore store = new SummaryStore(outprefix, config.getWindowCacheSize());
+            try (SummaryStore store = new SummaryStore(outprefix/*, config.getWindowCacheSize()*/);
                  StreamGenerator streamgen = config.getStreamGenerator()) {
                 store.registerStream(streamID,
                         new CountBasedWBMH(config.parseDecayFunction(decay), config.getIngestBufferSize()),
