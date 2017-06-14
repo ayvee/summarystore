@@ -1,13 +1,14 @@
 package com.samsung.sra.DataStore.Storage;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Stream;
 
 /** In-memory index over window time-starts, used to support query() */
 class QueryIndex implements Serializable {
-    private final SortedSet<Long> tStarts = new TreeSet<>();
+    private final SortedSet<Long> tStarts = Collections.synchronizedSortedSet(new TreeSet<>());
 
     void add(long tStart) {
         tStarts.add(tStart);
