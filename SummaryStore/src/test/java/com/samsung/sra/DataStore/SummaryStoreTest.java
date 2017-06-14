@@ -23,9 +23,9 @@ public class SummaryStoreTest {
         Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + storeLoc + "*"}).waitFor();
 
         // create and populate store
-        SummaryStore store = new SummaryStore(storeLoc, 3);
+        SummaryStore store = new SummaryStore(storeLoc, 0);
         Windowing windowing = new GenericWindowing(new ExponentialWindowLengths(2));
-        store.registerStream(streamID, new CountBasedWBMH(windowing, 62, 2),
+        store.registerStream(streamID, new CountBasedWBMH(windowing, 62),
                 new SimpleCountOperator(),
                 new CMSOperator(5, 100, 0),
                 new MaxOperator());

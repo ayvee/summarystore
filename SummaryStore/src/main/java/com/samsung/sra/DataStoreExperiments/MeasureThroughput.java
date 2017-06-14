@@ -55,7 +55,7 @@ public class MeasureThroughput {
             this.N = N;
             this.random = ThreadLocalRandom.current();
             store.registerStream(streamID, false,
-                    new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1), 2_000_000, 10),
+                    new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1), 2_000_000),
                     new SimpleCountOperator(),
                     new CMSOperator(5, 1000, 0));
         }

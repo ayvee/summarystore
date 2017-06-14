@@ -34,6 +34,10 @@ public class SummaryStore implements AutoCloseable {
      */
     public SummaryStore(String filePrefix, long cacheSizePerStream, boolean readonly)
             throws BackingStoreException, IOException, ClassNotFoundException {
+        if (cacheSizePerStream > 0 && !readonly) {
+            throw new IllegalArgumentException("Backing store cache not allowed in read/write mode (use the memory for" +
+                    " ingest buffer instead)");
+        }
         if (filePrefix != null) {
             this.backingStore = new RocksDBBackingStore(filePrefix + ".backingStore", cacheSizePerStream);
             this.indexesFile = filePrefix + ".indexes";

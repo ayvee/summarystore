@@ -22,7 +22,8 @@ public class RocksDBBackingStore extends BackingStore {
 
     /**
      * @param rocksPath  on-disk path
-     * @param cacheSizePerStream  number of elements per stream to cache in main memory. Set to 0 to disable caching
+     * @param cacheSizePerStream  number of elements per stream to cache in main memory. Set to 0 to disable caching.
+     *                            Should only be used in readonly mode
      * @throws BackingStoreException  wrapping RocksDBException
      */
     public RocksDBBackingStore(String rocksPath, long cacheSizePerStream) throws BackingStoreException {
@@ -79,18 +80,15 @@ public class RocksDBBackingStore extends BackingStore {
     private void insertIntoCache(ConcurrentHashMap<Long, SummaryWindow> streamCache, StreamWindowManager windowManager,
                                  long swid, SummaryWindow window) throws RocksDBException {
         assert streamCache != null;
-        if (streamCache.size() >= cacheSizePerStream) { // evict oldest
+        if (streamCache.size() >= cacheSizePerStream) { // evict random
             Map.Entry<Long, SummaryWindow> evictedEntry = streamCache.entrySet().iterator().next(); // basically a random evict
-            byte[] evictedKey = getRocksDBKey(windowManager.streamID, evictedEntry.getKey());
-            byte[] evictedValue = windowManager.serializeSummaryWindow(evictedEntry.getValue());
-            rocksDB.put(rocksDBWriteOptions, evictedKey, evictedValue);
             streamCache.remove(evictedEntry.getKey());
         }
         streamCache.put(swid, window);
     }
 
-    private SummaryWindow getAndOrDeleteSummaryWindow(StreamWindowManager windowManager, long swid, boolean delete)
-            throws BackingStoreException {
+    @Override
+    SummaryWindow getSummaryWindow(StreamWindowManager windowManager, long swid) throws BackingStoreException {
         ConcurrentHashMap<Long, SummaryWindow> streamCache;
         if (cache == null) {
             streamCache = null;
@@ -101,19 +99,14 @@ public class RocksDBBackingStore extends BackingStore {
 
         SummaryWindow window = streamCache != null ? streamCache.get(swid) : null;
         if (window != null) { // cache hit
-            if (delete) streamCache.remove(swid);
             return window;
         } else { // either no cache or cache miss; read-through from RocksDB
             byte[] rocksKey = getRocksDBKey(windowManager.streamID, swid);
             try {
                 byte[] rocksValue = rocksDB.get(rocksKey);
                 window = windowManager.deserializeSummaryWindow(rocksValue);
-                if (delete) {
-                    rocksDB.delete(rocksKey);
-                } else {
-                    if (streamCache != null) {
-                        insertIntoCache(streamCache, windowManager, swid, window);
-                    }
+                if (streamCache != null) {
+                    insertIntoCache(streamCache, windowManager, swid, window);
                 }
                 return window;
             } catch (RocksDBException e) {
@@ -123,27 +116,25 @@ public class RocksDBBackingStore extends BackingStore {
     }
 
     @Override
-    SummaryWindow getSummaryWindow(StreamWindowManager windowManager, long swid) throws BackingStoreException {
-        return getAndOrDeleteSummaryWindow(windowManager, swid, false);
-    }
-
-    @Override
     SummaryWindow deleteSummaryWindow(StreamWindowManager windowManager, long swid) throws BackingStoreException {
-        return getAndOrDeleteSummaryWindow(windowManager, swid, true);
+        assert cache == null;
+        try {
+            byte[] key = getRocksDBKey(windowManager.streamID, swid);
+            SummaryWindow val = windowManager.deserializeSummaryWindow(rocksDB.get(key));
+            rocksDB.delete(key);
+            return val;
+        } catch (RocksDBException e) {
+            throw new BackingStoreException(e);
+        }
     }
 
     @Override
     void putSummaryWindow(StreamWindowManager windowManager, long swid, SummaryWindow window) throws BackingStoreException {
+        assert cache == null;
         try {
-            if (cache != null) {
-                ConcurrentHashMap<Long, SummaryWindow> streamCache = cache.get(windowManager.streamID);
-                if (streamCache == null) cache.put(windowManager.streamID, streamCache = new ConcurrentHashMap<>());
-                insertIntoCache(streamCache, windowManager, swid, window);
-            } else {
-                byte[] key = getRocksDBKey(windowManager.streamID, swid);
-                byte[] value = windowManager.serializeSummaryWindow(window);
-                rocksDB.put(rocksDBWriteOptions, key, value);
-            }
+            byte[] key = getRocksDBKey(windowManager.streamID, swid);
+            byte[] value = windowManager.serializeSummaryWindow(window);
+            rocksDB.put(rocksDBWriteOptions, key, value);
         } catch (RocksDBException e) {
             throw new BackingStoreException(e);
         }
