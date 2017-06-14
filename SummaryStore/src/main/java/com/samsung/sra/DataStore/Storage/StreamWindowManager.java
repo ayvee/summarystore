@@ -1,8 +1,10 @@
 package com.samsung.sra.DataStore.Storage;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.samsung.sra.DataStore.LandmarkWindow;
 import com.samsung.sra.DataStore.SummaryWindow;
 import com.samsung.sra.DataStore.WindowOperator;
+import com.samsung.sra.protocol.SummaryStore.ProtoSummaryWindow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,7 +24,6 @@ public class StreamWindowManager implements Serializable {
     private transient BackingStore backingStore;
     public final long streamID;
     private final WindowOperator[] operators;
-    private final SerDe serDe;
 
     private final SummaryWindowIndex swIndex = new SummaryWindowIndex();
     private final TreeSet<Long> landmarkWindowStarts = new TreeSet<>(); // TODO: create thought out LandmarkWindowIndex
@@ -30,12 +31,10 @@ public class StreamWindowManager implements Serializable {
     public StreamWindowManager(long streamID, WindowOperator[] operators) {
         this.streamID = streamID;
         this.operators = operators;
-        this.serDe = new SerDe(operators);
     }
 
     public void populateTransientFields(BackingStore backingStore) {
         this.backingStore = backingStore;
-        backingStore.setSerDe(streamID, serDe);
     }
 
     public SummaryWindow createEmptySummaryWindow(long ts, long te, long cs, long ce) {
@@ -96,6 +95,48 @@ public class StreamWindowManager implements Serializable {
         return swIndex.getNumWindows();
     }
 
+    byte[] serializeSummaryWindow(SummaryWindow window) {
+        assert window != null;
+        ProtoSummaryWindow.Builder protoWindow = ProtoSummaryWindow.newBuilder()
+                    .setTs(window.ts)
+                    .setTe(window.te)
+                    .setCs(window.cs)
+                    .setCe(window.ce);
+        for (int op = 0; op < operators.length; ++op) {
+            try {
+                assert window.aggregates[op] != null;
+                protoWindow.addOperator(operators[op].protofy(window.aggregates[op]));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+        }
+
+        return protoWindow.build().toByteArray();
+    }
+
+    SummaryWindow deserializeSummaryWindow(byte[] bytes) {
+        ProtoSummaryWindow protoSummaryWindow;
+        try {
+            protoSummaryWindow = ProtoSummaryWindow.parseFrom(bytes);
+        } catch (InvalidProtocolBufferException e) {
+            throw new RuntimeException(e);
+        }
+        SummaryWindow window = new SummaryWindow();
+        window.ts = protoSummaryWindow.getTs();
+        window.te = protoSummaryWindow.getTe();
+        window.cs = protoSummaryWindow.getCs();
+        window.ce = protoSummaryWindow.getCe();
+
+        assert protoSummaryWindow.getOperatorCount() == operators.length;
+        window.aggregates = new Object[operators.length];
+        for (int op = 0; op < operators.length; ++op) {
+            window.aggregates[op] = operators[op].deprotofy(protoSummaryWindow.getOperator(op));
+        }
+
+        return window;
+    }
+
     public LandmarkWindow getLandmarkWindow(long lwid) throws BackingStoreException {
         return backingStore.getLandmarkWindow(this, lwid);
     }
@@ -137,14 +178,7 @@ public class StreamWindowManager implements Serializable {
     }
 
     public void printWindows() throws BackingStoreException {
-        swIndex.getOverlappingSWIDs(0, Long.MAX_VALUE).forEach(swid -> {
-            try {
-                System.out.println("\t" + backingStore.getSummaryWindow(this, swid));
-            } catch (BackingStoreException e) {
-                throw new RuntimeException(e);
-            }
-        });
-        //backingStore.printWindowState(this);
+        backingStore.printWindowState(this);
     }
 
     public void flushToDisk() throws BackingStoreException {

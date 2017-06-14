@@ -14,8 +14,6 @@ public abstract class BackingStore implements AutoCloseable {
 
     abstract void putSummaryWindow(StreamWindowManager windowManager, long swid, SummaryWindow window) throws BackingStoreException;
 
-    void setSerDe(long streamID, SerDe serDe) {}
-
     abstract LandmarkWindow getLandmarkWindow(StreamWindowManager windowManager, long lwid) throws BackingStoreException;
 
     abstract void putLandmarkWindow(StreamWindowManager windowManager, long lwid, LandmarkWindow window) throws BackingStoreException;
