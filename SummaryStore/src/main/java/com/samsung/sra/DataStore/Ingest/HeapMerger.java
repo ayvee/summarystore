@@ -10,19 +10,19 @@ import org.slf4j.LoggerFactory;
 import org.teneighty.heap.FibonacciHeap;
 import org.teneighty.heap.Heap;
 
-import java.util.HashMap;
+import java.io.Serializable;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.BlockingQueue;
 
 /** Implement WBMH using a heap data structure to track pending merges */
 class HeapMerger implements Merger {
-    static final WindowInfo SHUTDOWN_SENTINEL = new WindowInfo(-1L, -1L);
-    static final WindowInfo FLUSH_SENTINEL = new WindowInfo(-1L, -1L);
+    static final Merger.WindowInfo SHUTDOWN_SENTINEL = new Merger.WindowInfo(-1L, -1L);
+    static final Merger.WindowInfo FLUSH_SENTINEL = new Merger.WindowInfo(-1L, -1L);
     private static final Logger logger = LoggerFactory.getLogger(Merger.class);
 
     // notifications of new window creates: a pair of (window ID, window size)
-    private final BlockingQueue<WindowInfo> newWindowNotifications; // input queue
+    private final BlockingQueue<Merger.WindowInfo> newWindowNotifications; // input queue
     private final CountBasedWBMH.FlushBarrier flushBarrier;
 
     private final Windowing windowing;
@@ -37,27 +37,9 @@ class HeapMerger implements Merger {
      * https://gabormakrai.wordpress.com/2015/02/11/experimenting-with-dijkstras-algorithm/
      */
     private final FibonacciHeap<Long, Long> mergeCounts = new FibonacciHeap<>();
-    private transient HashMap<Long, Heap.Entry<Long, Long>> heapEntries = new HashMap<>();
+    private final WindowInfo windowInfo = new WindowInfo();
 
-    private final TreeMap<Long, Long> windowCEnds = new TreeMap<>(); // end timestamp of each window
-
-    private Long getCEnd(Long windowID) {
-        if (windowID == null || !windowCEnds.containsKey(windowID)) return null;
-        return windowCEnds.get(windowID);
-    }
-
-    private Long getCStart(Long windowID) {
-        if (windowID == null || !windowCEnds.containsKey(windowID)) return null;
-        Map.Entry<Long, Long> prevEntry = windowCEnds.lowerEntry(windowID);
-        if (prevEntry != null) {
-            return prevEntry.getValue() + 1;
-        } else {
-            assert windowID.equals(windowCEnds.firstKey());
-            return 0L;
-        }
-    }
-
-    HeapMerger(Windowing windowing, BlockingQueue<WindowInfo> newWindowNotifications, CountBasedWBMH.FlushBarrier flushBarrier) {
+    HeapMerger(Windowing windowing, BlockingQueue<Merger.WindowInfo> newWindowNotifications, CountBasedWBMH.FlushBarrier flushBarrier) {
         this.windowing = windowing;
         this.newWindowNotifications = newWindowNotifications;
         this.flushBarrier = flushBarrier;
@@ -66,17 +48,13 @@ class HeapMerger implements Merger {
     @Override
     public void populateTransientFields(StreamWindowManager windowManager) {
         this.windowManager = windowManager;
-        heapEntries = new HashMap<>();
-        for (Heap.Entry<Long, Long> entry: mergeCounts) {
-            heapEntries.put(entry.getValue(), entry);
-        }
     }
 
     @Override
     public void run() {
         try {
             while (true) {
-                WindowInfo newWindow = Utilities.take(newWindowNotifications);
+                Merger.WindowInfo newWindow = Utilities.take(newWindowNotifications);
                 if (newWindow == SHUTDOWN_SENTINEL) {
                     flushBarrier.notify(CountBasedWBMH.FlushBarrier.MERGER);
                     break;
@@ -86,11 +64,11 @@ class HeapMerger implements Merger {
                 }
                 long newWindowID = newWindow.id, newWindowSize = newWindow.size;
                 N += newWindowSize;
-                if (!windowCEnds.isEmpty()) {
-                    long lastWindowID = windowCEnds.lastKey();
-                    updateMergeCountFor(lastWindowID, newWindowID, getCStart(lastWindowID), N - 1, N);
+                Long lastWindowID = windowInfo.getLastSWID();
+                if (lastWindowID != null) {
+                    updateMergeCountFor(lastWindowID, newWindowID, windowInfo.getCStart(lastWindowID), N - 1, N);
                 }
-                windowCEnds.put(newWindowID, N - 1);
+                windowInfo.put(newWindowID, N - 1);
                 processPendingMerges();
             }
         } catch (BackingStoreException e) {
@@ -98,31 +76,33 @@ class HeapMerger implements Merger {
         }
     }
 
-
     private void processPendingMerges() throws BackingStoreException {
         while (!mergeCounts.isEmpty() && mergeCounts.getMinimum().getKey() <= N) {
             Heap.Entry<Long, Long> entry = mergeCounts.extractMinimum();
-            Heap.Entry<Long, Long> removed = heapEntries.remove(entry.getValue());
-            assert removed == entry;
+            Heap.Entry<Long, Long> removed = windowInfo.unsetHeapPtr(entry.getValue());
+            assert entry == removed;
             // We will now merge w0's successor w1 into w0, and update the heap entries for w{-1} and w0
             Long w0ID = entry.getValue();
-            Long w1ID = windowCEnds.higherKey(w0ID);
-            assert w0ID != null && windowCEnds.containsKey(w0ID) && w1ID != null && windowCEnds.containsKey(w1ID);
-            Long wm1ID = windowCEnds.lowerKey(w0ID);
-            Long w2ID = windowCEnds.higherKey(w1ID);
+            Long w1ID = windowInfo.getSuccessor(w0ID);
+            assert windowInfo.containsSWID(w0ID) && windowInfo.containsSWID(w1ID);
+            Long wm1ID = windowInfo.getPredecessor(w0ID);
+            Long w2ID = windowInfo.getSuccessor(w1ID);
+            long newW0cs = windowInfo.getCStart(w0ID);
+            long newW0ce = windowInfo.getCEnd(w1ID);
 
-            SummaryWindow w0 = windowManager.getSummaryWindow(w0ID);
-            SummaryWindow w1 = windowManager.deleteSummaryWindow(w1ID);
-            windowManager.mergeSummaryWindows(w0, w1);
-            windowManager.putSummaryWindow(w0);
+            {
+                SummaryWindow w0 = windowManager.getSummaryWindow(w0ID);
+                SummaryWindow w1 = windowManager.deleteSummaryWindow(w1ID);
+                windowManager.mergeSummaryWindows(w0, w1);
+                windowManager.putSummaryWindow(w0);
+            }
 
-            windowCEnds.remove(w1ID);
-            windowCEnds.put(w0ID, w0.ce);
+            WindowInfo.Info oldW1info = windowInfo.remove(w1ID);
+            windowInfo.put(w0ID, newW0ce);
 
-            Heap.Entry<Long, Long> w1entry = heapEntries.remove(w1ID);
-            if (w1entry != null) mergeCounts.delete(w1entry);
-            updateMergeCountFor(wm1ID, w0ID, getCStart(wm1ID), w0.ce, N);
-            updateMergeCountFor(w0ID, w2ID, w0.cs, getCEnd(w2ID), N);
+            if (oldW1info.heapPtr != null) mergeCounts.delete(oldW1info.heapPtr);
+            updateMergeCountFor(wm1ID, w0ID, windowInfo.getCStart(wm1ID), newW0ce, N);
+            updateMergeCountFor(w0ID, w2ID, newW0cs, windowInfo.getCEnd(w2ID), N);
         }
     }
 
@@ -133,12 +113,87 @@ class HeapMerger implements Merger {
      */
     private void updateMergeCountFor(Long w0ID, Long w1ID, Long c0, Long c1, long N) {
         if (w0ID == null || w1ID == null || c0 == null || c1 == null) return;
-        Heap.Entry<Long, Long> existingEntry = heapEntries.remove(w0ID);
+        Heap.Entry<Long, Long> existingEntry = windowInfo.unsetHeapPtr(w0ID);
         if (existingEntry != null) mergeCounts.delete(existingEntry);
 
         long newMergeCount = windowing.getFirstContainingTime(c0, c1, N);
         if (newMergeCount != -1) {
-            heapEntries.put(w0ID, mergeCounts.insert(newMergeCount, w0ID));
+            windowInfo.setHeapPtr(w0ID, mergeCounts.insert(newMergeCount, w0ID));
+        }
+    }
+
+    /** In-memory index allowing looking up various info given SWID */
+    private static class WindowInfo implements Serializable {
+        private static class Info implements Serializable {
+            long cEnd;
+            transient Heap.Entry<Long, Long> heapPtr;
+
+            Info(long cEnd, Heap.Entry<Long, Long> heapPtr) {
+                this.cEnd = cEnd;
+                this.heapPtr = heapPtr;
+            }
+        }
+
+        private final TreeMap<Long, Info> info = new TreeMap<>(); // end timestamp of each window
+
+        private void populateTransientFields(Heap<Long, Long> heap) {
+            for (Heap.Entry<Long, Long> entry: heap) {
+                info.get(entry.getValue()).heapPtr = entry;
+            }
+        }
+
+        private void put(long swid, long cEnd){
+            info.put(swid, new Info(cEnd, null));
+        }
+
+        private Info remove(long swid) {
+            return info.remove(swid);
+        }
+
+        private boolean containsSWID(Long swid) {
+            return swid != null && info.containsKey(swid);
+        }
+
+        private Long getCStart(Long swid) {
+            if (swid == null || !info.containsKey(swid)) return null;
+            Map.Entry<Long, Info> prevEntry = info.lowerEntry(swid);
+            if (prevEntry != null) {
+                return prevEntry.getValue().cEnd + 1;
+            } else {
+                assert swid.equals(info.firstKey());
+                return 0L;
+            }
+        }
+
+        private Long getCEnd(Long swid) {
+            if (swid == null) return null;
+            Info w = info.get(swid);
+            return w != null ? w.cEnd : null;
+        }
+
+        private Long getPredecessor(Long swid) {
+            if (swid == null || !info.containsKey(swid)) return null;
+            return info.lowerKey(swid);
+        }
+
+        private Long getSuccessor(Long swid) {
+            if (swid == null || !info.containsKey(swid)) return null;
+            return info.higherKey(swid);
+        }
+
+        private Long getLastSWID() {
+            return !info.isEmpty() ? info.lastKey() : null;
+        }
+
+        private Heap.Entry<Long, Long> unsetHeapPtr(long swid) {
+            Info i = info.get(swid);
+            Heap.Entry<Long, Long> ptr = i.heapPtr;
+            i.heapPtr = null;
+            return ptr;
+        }
+
+        private void setHeapPtr(long swid, Heap.Entry<Long, Long> ptr) {
+            info.get(swid).heapPtr = ptr;
         }
     }
 }
