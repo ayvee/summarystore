@@ -57,7 +57,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         int[] bufferWindowLengths = windowing.getWindowsCoveringUpto(totalBufferSize / numBuffers)
                 .stream().mapToInt(Long::intValue).toArray();
         bufferSize = IntStream.of(bufferWindowLengths).sum(); // actual buffer size, <= numValuesToBuffer
-        logger.info("Ingest buffer covers {} windows and {} values", bufferWindowLengths.length, bufferSize);
+        logger.info("{} ingest buffers each covering {} windows and {} values", numBuffers, bufferWindowLengths.length, bufferSize);
         if (bufferSize == 0 && sizeOfNewestWindow > 1) {
             throw new UnsupportedOperationException("do not yet support unbuffered ingest when size of newest window > 1");
         }
@@ -114,9 +114,8 @@ public class CountBasedWBMH implements WindowingMechanism {
     public void append(long ts, Object value) throws BackingStoreException {
         if (bufferSize > 0) {
             if (N % 1_000_000 == 0) {
-                logger.info("[N = {}] Buffer sizes: emptyBuffers = {}, summarizerQueue = {}, writerQueue = {}," +
-                                " pendingMergeNotifications = {}", N, emptyBuffers.size(),
-                        summarizerQueue.size(), writerQueue.size(), mergerQueue.size());
+                logger.info("N = {}M, queue lengths: emptyBuffers = {}, summarizer = {}, writer = {}, merger = {}",
+                        N / 1_000_000, emptyBuffers.size(), summarizerQueue.size(), writerQueue.size(), mergerQueue.size());
             }
             ingester.append(ts, value);
         } else {
