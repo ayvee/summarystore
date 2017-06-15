@@ -1,14 +1,15 @@
 package com.samsung.sra.DataStore.Storage;
 
+import it.unimi.dsi.fastutil.longs.LongAVLTreeSet;
+
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.stream.Stream;
 
 /** In-memory index over window time-starts, used to support query() */
 class QueryIndex implements Serializable {
-    private final SortedSet<Long> tStarts = Collections.synchronizedSortedSet(new TreeSet<>());
+    private final SortedSet<Long> tStarts = Collections.synchronizedSortedSet(new LongAVLTreeSet());
 
     void add(long tStart) {
         tStarts.add(tStart);
@@ -24,7 +25,6 @@ class QueryIndex implements Serializable {
      * Very first window may not overlap [t0, t1], depending on its tEnd; should probably use this function as
      *    getOverlappingWindowIDs(t0, t1).map(windowGetter).filter(w -> w.te >= t0)
      */
-
     Stream<Long> getOverlappingWindowIDs(long t0, long t1) {
         if (tStarts.isEmpty()) return Stream.empty();
         // respectively, all windows with tStart < t0 and > t1

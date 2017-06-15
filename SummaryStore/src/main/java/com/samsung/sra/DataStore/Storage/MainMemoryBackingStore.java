@@ -12,35 +12,33 @@ public class MainMemoryBackingStore extends BackingStore {
     private Map<Long, ConcurrentSkipListMap<Long, LandmarkWindow>> landmarkWindows = new ConcurrentHashMap<>();
 
     @Override
-    SummaryWindow getSummaryWindow(StreamWindowManager windowManager, long swid) {
-        return summaryWindows.get(windowManager.streamID).get(swid);
+    SummaryWindow getSummaryWindow(long streamID, long swid, SerDe serDe) {
+        return summaryWindows.get(streamID).get(swid);
     }
 
     @Override
-    SummaryWindow deleteSummaryWindow(StreamWindowManager windowManager, long swid) {
-        return summaryWindows.get(windowManager.streamID).remove(swid);
+    SummaryWindow deleteSummaryWindow(long streamID, long swid, SerDe serDe) {
+        return summaryWindows.get(streamID).remove(swid);
     }
 
     @Override
-    void putSummaryWindow(StreamWindowManager windowManager, long swid, SummaryWindow window) {
-        ConcurrentSkipListMap<Long, SummaryWindow> stream = summaryWindows.get(windowManager.streamID);
+    void putSummaryWindow(long streamID, long swid, SerDe serDe, SummaryWindow window) {
+        ConcurrentSkipListMap<Long, SummaryWindow> stream = summaryWindows.get(streamID);
         if (stream == null) {
-            summaryWindows.put(windowManager.streamID, (stream = new ConcurrentSkipListMap<>()));
+            summaryWindows.put(streamID, (stream = new ConcurrentSkipListMap<>()));
         }
         stream.put(swid, window);
     }
 
     @Override
-    LandmarkWindow getLandmarkWindow(StreamWindowManager windowManager, long lwid) {
-        return landmarkWindows.get(windowManager.streamID).get(lwid);
+    LandmarkWindow getLandmarkWindow(long streamID, long lwid, SerDe serDe) {
+        return landmarkWindows.get(streamID).get(lwid);
     }
 
     @Override
-    void putLandmarkWindow(StreamWindowManager windowManager, long lwid, LandmarkWindow window) {
-        ConcurrentSkipListMap<Long, LandmarkWindow> stream = landmarkWindows.get(windowManager.streamID);
-        if (stream == null) {
-            landmarkWindows.put(windowManager.streamID, (stream = new ConcurrentSkipListMap<>()));
-        }
+    void putLandmarkWindow(long streamID, long lwid, SerDe serDe, LandmarkWindow window) {
+        ConcurrentSkipListMap<Long, LandmarkWindow> stream = landmarkWindows.get(streamID);
+        if (stream == null) landmarkWindows.put(streamID, (stream = new ConcurrentSkipListMap<>()));
         stream.put(lwid, window);
     }
 
