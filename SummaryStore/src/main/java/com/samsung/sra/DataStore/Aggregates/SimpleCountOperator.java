@@ -58,6 +58,9 @@ public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Doub
             confidenceLevel = ((Number) params[0]).doubleValue();
         }
         //double sd = streamStats.getCVInterarrival() * Math.sqrt(var.toDouble());
+
+
+
         double sdMultiplier = streamStats.getCVInterarrival();
         return new SumEstimator(t0, t1, summaryWindows, countRetriever, landmarkWindows, o -> 1L)
                 .estimate(sdMultiplier, confidenceLevel);
