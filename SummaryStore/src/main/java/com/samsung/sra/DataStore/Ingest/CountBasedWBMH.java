@@ -30,13 +30,15 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     private transient StreamWindowManager windowManager;
 
+    private final Windowing windowing;
     private final long sizeOfNewestWindow;
-    private final long bufferSize;
+
+    private long bufferSize;
 
     private final Ingester ingester;
     private final Summarizer summarizer;
     private final Writer writer;
-    private final Merger merger;
+    private final BatchingHeapMerger merger;
     private final FlushBarrier flushBarrier;
 
     private final BlockingQueue<IngestBuffer> emptyBuffers = new LinkedBlockingQueue<>();
@@ -51,36 +53,48 @@ public class CountBasedWBMH implements WindowingMechanism {
      * Buffers up to totalBufferSize elements in memory, split across numBuffers buffers of equal size, deferring value
      * writes until either buffers fill up or flush is called.
      */
-    public CountBasedWBMH(Windowing windowing, int totalBufferSize, int numBuffers, int windowsPerMergeBatch) {
-        assert numBuffers > 0;
+    public CountBasedWBMH(Windowing windowing) {
+        this.windowing = windowing;
         this.sizeOfNewestWindow = windowing.getSizeOfFirstWindow();
+
+        bufferSize = 0;
+        flushBarrier = new FlushBarrier();
+        ingester = new Ingester(emptyBuffers, summarizerQueue);
+        summarizer = new Summarizer(new int[0], emptyBuffers, partialBuffers, summarizerQueue, writerQueue, flushBarrier);
+        writer = new Writer(writerQueue, mergerQueue, flushBarrier);
+        //merger = new HeapMerger(windowing, mergerQueue, flushBarrier);
+        merger = new BatchingHeapMerger(windowing, mergerQueue, flushBarrier, 1);
+    }
+
+    /** WARNING: please ensure stream has been flushed before calling */
+    public CountBasedWBMH setBufferSize(int totalBufferSize, int numBuffers) {
+        emptyBuffers.clear();
+        assert numBuffers > 0;
         int[] bufferWindowLengths = windowing.getWindowsCoveringUpto(totalBufferSize / numBuffers)
                 .stream().mapToInt(Long::intValue).toArray();
+        summarizer.setWindowLengths(bufferWindowLengths);
         bufferSize = IntStream.of(bufferWindowLengths).sum(); // actual buffer size, <= numValuesToBuffer
         logger.info("{} ingest buffers each covering {} windows and {} values", numBuffers, bufferWindowLengths.length, bufferSize);
         if (bufferSize == 0 && sizeOfNewestWindow > 1) {
             throw new UnsupportedOperationException("do not yet support unbuffered ingest when size of newest window > 1");
         }
-
-        flushBarrier = new FlushBarrier();
         if (bufferSize > 0) {
             for (int i = 0; i < numBuffers; ++i) {
                 emptyBuffers.add(new IngestBuffer((int) bufferSize));
             }
         }
-        ingester = new Ingester(emptyBuffers, summarizerQueue);
-        summarizer = new Summarizer(bufferWindowLengths, emptyBuffers, partialBuffers, summarizerQueue, writerQueue, flushBarrier);
-        writer = new Writer(writerQueue, mergerQueue, flushBarrier);
-        //merger = new HeapMerger(windowing, mergerQueue, flushBarrier);
-        merger = new BatchingHeapMerger(windowing, mergerQueue, flushBarrier, windowsPerMergeBatch);
+        return this;
     }
 
-    public CountBasedWBMH(Windowing windowing, int totalBufferSize) {
-        this(windowing, totalBufferSize, 2, 1);
+    /** WARNING: please ensure stream has been flushed before calling */
+    public CountBasedWBMH setBufferSize(int totalBufferSize) {
+        return this.setBufferSize(totalBufferSize, 2);
     }
 
-    public CountBasedWBMH(Windowing windowing) {
-        this(windowing, 0);
+    /** WARNING: please ensure stream has been flushed before calling */
+    public CountBasedWBMH setWindowsPerMergeBatch(long W) {
+        merger.setWindowsPerMergeBatch(W);
+        return this;
     }
 
     @Override

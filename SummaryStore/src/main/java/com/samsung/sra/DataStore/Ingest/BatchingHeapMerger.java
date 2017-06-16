@@ -29,7 +29,7 @@ class BatchingHeapMerger extends Merger {
 
     private transient StreamWindowManager windowManager;
 
-    private final long windowsPerBatch;
+    private long windowsPerBatch;
 
     private long N = 0, W = 0; // number of elements in stream, number of raw windows ingested (without merging)
     /* Priority queue, mapping each summary window w_i to the time at which w_{i+1} will be merged into it. Using
@@ -160,6 +160,10 @@ class BatchingHeapMerger extends Merger {
         if (newMergeCount != -1) {
             windowInfo.setHeapPtr(w0ID, mergeCounts.insert(newMergeCount, w0ID));
         }
+    }
+
+    void setWindowsPerMergeBatch(long windowsPerMergeBatch) {
+        this.windowsPerBatch = windowsPerMergeBatch;
     }
 
     /** In-memory index allowing looking up various info given SWID */

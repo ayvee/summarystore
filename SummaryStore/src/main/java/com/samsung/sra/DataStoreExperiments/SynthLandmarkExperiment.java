@@ -90,7 +90,7 @@ public class SynthLandmarkExperiment {
         long nextModeChange = 0;
         double[] trueSums = new double[queryNBins], estSums = new double[queryNBins];
         try (SummaryStore store = new SummaryStore(null)) {
-            store.registerStream(streamID, new CountBasedWBMH(windowing, 1_000_000), new SumOperator());
+            store.registerStream(streamID, new CountBasedWBMH(windowing).setBufferSize(1_000_000), new SumOperator());
             for (long t = 0; t < T; t += interarrival) {
                 if (t >= nextModeChange) {
                     Mode oldMode = mode;

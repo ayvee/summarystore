@@ -15,7 +15,7 @@ public class CountBasedWBMHTest {
     public void exponential() throws Exception {
         StreamWindowManager swm = new StreamWindowManager(0L, new WindowOperator[]{new SimpleCountOperator()});
         swm.populateTransientFields(new MainMemoryBackingStore());
-        CountBasedWBMH wbmh = new CountBasedWBMH(new GenericWindowing(new ExponentialWindowLengths(2)), 0);
+        CountBasedWBMH wbmh = new CountBasedWBMH(new GenericWindowing(new ExponentialWindowLengths(2)));
         wbmh.populateTransientFields(swm);
 
         Integer[][] expectedEvolution = {

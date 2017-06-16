@@ -25,7 +25,8 @@ public class SummaryStoreTest {
         // create and populate store
         SummaryStore store = new SummaryStore(storeLoc, 0);
         Windowing windowing = new GenericWindowing(new ExponentialWindowLengths(2));
-        store.registerStream(streamID, new CountBasedWBMH(windowing, 62),
+        CountBasedWBMH wbmh = new CountBasedWBMH(windowing).setBufferSize(62);
+        store.registerStream(streamID, wbmh,
                 new SimpleCountOperator(),
                 new CMSOperator(5, 100, 0),
                 new MaxOperator());
@@ -39,8 +40,9 @@ public class SummaryStoreTest {
             }
         }
         store.flush(streamID);
+        wbmh.setBufferSize(0);
 
-        assertStateIsCorrect(store);
+        assertStateIsCorrect(store);;
 
         // close and reopen store (in read-only mode), then check everything still OK
         store.close();

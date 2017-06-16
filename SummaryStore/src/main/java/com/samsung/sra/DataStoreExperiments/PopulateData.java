@@ -30,7 +30,7 @@ public class PopulateData {
             try (SummaryStore store = new SummaryStore(outprefix/*, config.getWindowCacheSize()*/);
                  StreamGenerator streamgen = config.getStreamGenerator()) {
                 store.registerStream(streamID,
-                        new CountBasedWBMH(config.parseDecayFunction(decay), config.getIngestBufferSize()),
+                        new CountBasedWBMH(config.parseDecayFunction(decay)).setBufferSize(config.getIngestBufferSize()),
                         config.getOperators());
                 streamgen.reset();
                 long[] N = {0};

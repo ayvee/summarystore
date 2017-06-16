@@ -22,7 +22,7 @@ class Summarizer implements Runnable, Serializable {
                                                               // buffers here)
     private final CountBasedWBMH.FlushBarrier flushBarrier;
 
-    private final int[] windowLengths;
+    private int[] windowLengths;
 
     private long N = 0;
 
@@ -95,5 +95,9 @@ class Summarizer implements Runnable, Serializable {
             }
         }
         throw new IllegalStateException("hit unreachable code");
+    }
+
+    void setWindowLengths(int[] windowLengths) {
+        this.windowLengths = windowLengths;
     }
 }

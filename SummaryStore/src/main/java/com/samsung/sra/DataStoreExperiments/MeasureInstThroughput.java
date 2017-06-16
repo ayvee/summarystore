@@ -99,7 +99,7 @@ public class MeasureInstThroughput {
         long T = 1_000_000_000;
         long printInterval = 10_000_000;
         Supplier<CountBasedWBMH> windowing = () ->
-                new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1), 2_000_000);
+                new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1)).setBufferSize(2_000_000);
         Supplier<WindowOperator[]> operators = () -> new WindowOperator[]{
                 new SimpleCountOperator()};
 

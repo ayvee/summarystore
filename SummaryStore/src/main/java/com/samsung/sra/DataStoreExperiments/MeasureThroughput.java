@@ -47,6 +47,7 @@ public class MeasureThroughput {
     private static class StreamWriter implements Runnable {
         private final long streamID, N;
         private final SummaryStore store;
+        private final CountBasedWBMH wbmh;
         private final ThreadLocalRandom random;
 
         private StreamWriter(SummaryStore store, long streamID, long N) throws Exception {
@@ -54,10 +55,9 @@ public class MeasureThroughput {
             this.streamID = streamID;
             this.N = N;
             this.random = ThreadLocalRandom.current();
-            store.registerStream(streamID, false,
-                    new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1), 2_000_000),
-                    new SimpleCountOperator(),
-                    new CMSOperator(5, 1000, 0));
+            this.wbmh = new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1)).setBufferSize(2_000_000);
+            store.registerStream(streamID, false, wbmh,
+                    new SimpleCountOperator(), new CMSOperator(5, 1000, 0));
         }
 
         @Override
@@ -68,6 +68,7 @@ public class MeasureThroughput {
                     store.append(streamID, t, v);
                 }
                 store.flush(streamID);
+                wbmh.setBufferSize(0);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
