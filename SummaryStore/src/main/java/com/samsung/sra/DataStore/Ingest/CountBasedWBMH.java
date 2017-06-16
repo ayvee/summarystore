@@ -49,10 +49,6 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     private long N = 0;
 
-    /**
-     * Buffers up to totalBufferSize elements in memory, split across numBuffers buffers of equal size, deferring value
-     * writes until either buffers fill up or flush is called.
-     */
     public CountBasedWBMH(Windowing windowing) {
         this.windowing = windowing;
         this.sizeOfNewestWindow = windowing.getSizeOfFirstWindow();
@@ -60,16 +56,19 @@ public class CountBasedWBMH implements WindowingMechanism {
         bufferSize = 0;
         flushBarrier = new FlushBarrier();
         ingester = new Ingester(emptyBuffers, summarizerQueue);
-        summarizer = new Summarizer(new int[0], emptyBuffers, partialBuffers, summarizerQueue, writerQueue, flushBarrier);
+        summarizer = new Summarizer(null, emptyBuffers, partialBuffers, summarizerQueue, writerQueue, flushBarrier);
         writer = new Writer(writerQueue, mergerQueue, flushBarrier);
         //merger = new HeapMerger(windowing, mergerQueue, flushBarrier);
         merger = new BatchingHeapMerger(windowing, mergerQueue, flushBarrier, 1);
     }
 
-    /** WARNING: please ensure stream has been flushed before calling */
+    /**
+     * Use numBuffers buffers of size up to totalBufferSize / numBuffers each. Actual buffer size may be smaller since
+     * buffers need to be aligned to window boundaries.
+     *
+     * WARNING: please ensure stream has been flushed before calling */
     public CountBasedWBMH setBufferSize(int totalBufferSize, int numBuffers) {
         emptyBuffers.clear();
-        assert numBuffers > 0;
         int[] bufferWindowLengths = windowing.getWindowsCoveringUpto(totalBufferSize / numBuffers)
                 .stream().mapToInt(Long::intValue).toArray();
         summarizer.setWindowLengths(bufferWindowLengths);
@@ -79,6 +78,7 @@ public class CountBasedWBMH implements WindowingMechanism {
             throw new UnsupportedOperationException("do not yet support unbuffered ingest when size of newest window > 1");
         }
         if (bufferSize > 0) {
+            assert numBuffers > 0;
             for (int i = 0; i < numBuffers; ++i) {
                 emptyBuffers.add(new IngestBuffer((int) bufferSize));
             }
@@ -86,12 +86,20 @@ public class CountBasedWBMH implements WindowingMechanism {
         return this;
     }
 
-    /** WARNING: please ensure stream has been flushed before calling */
+    /**
+     * Use 2 buffers of size up to totalBufferSize / 2 each. Actual buffer size may be smaller since buffers need to be
+     * aligned to window boundaries.
+     *
+     * WARNING: please ensure stream has been flushed before calling */
     public CountBasedWBMH setBufferSize(int totalBufferSize) {
         return this.setBufferSize(totalBufferSize, 2);
     }
 
-    /** WARNING: please ensure stream has been flushed before calling */
+    /**
+     * Only call WBMH merge once every W window appends. Batches merges, merging chains of windows at a time instead of
+     * pairwise.
+     *
+     * WARNING: please ensure stream has been flushed before calling */
     public CountBasedWBMH setWindowsPerMergeBatch(long W) {
         merger.setWindowsPerMergeBatch(W);
         return this;
@@ -148,7 +156,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         //Utilities.put(mergerQueue, new Merger.WindowInfo(timestamp, 1L));
     }
 
-    private void flush(boolean shutdown) throws BackingStoreException {
+    private void flush(boolean shutdown, boolean setUnbuffered) throws BackingStoreException {
         long threshold = flushBarrier.getNextFlushThreshold();
         if (bufferSize > 0) {
             ingester.flush(shutdown);
@@ -165,6 +173,10 @@ public class CountBasedWBMH implements WindowingMechanism {
             }
             assert partialBuffers.isEmpty();
         }
+        if (setUnbuffered) {
+            bufferSize = 0;
+            emptyBuffers.clear();
+        }
         Utilities.put(writerQueue, shutdown ? Writer.SHUTDOWN_SENTINEL : Writer.FLUSH_SENTINEL);
         flushBarrier.wait(FlushBarrier.WRITER, threshold);
         Utilities.put(mergerQueue, shutdown ? Merger.SHUTDOWN_SENTINEL : Merger.FLUSH_SENTINEL);
@@ -173,12 +185,17 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     @Override
     public void flush() throws BackingStoreException {
-        flush(false);
+        flush(false, false);
+    }
+
+    /** flush and set buffer size to zero. TODO: document better and integrate into SummaryStore.flush() */
+    public void flushAndSetUnbuffered() throws BackingStoreException {
+        flush(false, true);
     }
 
     @Override
     public void close() throws BackingStoreException {
-        flush(true);
+        flush(true, false);
     }
 
     static class FlushBarrier implements Serializable {

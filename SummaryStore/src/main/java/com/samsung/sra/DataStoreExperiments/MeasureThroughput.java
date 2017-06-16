@@ -55,7 +55,9 @@ public class MeasureThroughput {
             this.streamID = streamID;
             this.N = N;
             this.random = ThreadLocalRandom.current();
-            this.wbmh = new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1)).setBufferSize(2_000_000);
+            this.wbmh = new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1))
+                    .setBufferSize(2_000_000)
+                    .setWindowsPerMergeBatch(1_000_000_000);
             store.registerStream(streamID, false, wbmh,
                     new SimpleCountOperator(), new CMSOperator(5, 1000, 0));
         }
@@ -67,8 +69,9 @@ public class MeasureThroughput {
                     long v = random.nextLong(100);
                     store.append(streamID, t, v);
                 }
-                store.flush(streamID);
-                wbmh.setBufferSize(0);
+                /*store.flush(streamID);
+                wbmh.setBufferSize(0);*/
+                wbmh.flushAndSetUnbuffered();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
