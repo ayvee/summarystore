@@ -4,7 +4,7 @@ import com.moandjiezana.toml.Toml;
 import com.samsung.sra.DataStore.*;
 import com.samsung.sra.DataStore.Aggregates.BloomFilterOperator;
 import com.samsung.sra.DataStore.Aggregates.CMSOperator;
-import org.apache.commons.lang.builder.HashCodeBuilder;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,11 +30,12 @@ public class Configuration {
         return toml.getString("prefix", "");
     }
 
-    /** Size of SummaryStore window cache */
+    /** Size of SummaryStore window cache per stream (in readonly mode) */
     public long getWindowCacheSize() {
         return toml.getLong("window-cache-size", 0L);
     }
 
+    /** Size of ingest buffer size per stream (in read/write mode) */
     public int getIngestBufferSize() {
         return toml.getLong("ingest-buffer-size", 0L).intValue();
     }

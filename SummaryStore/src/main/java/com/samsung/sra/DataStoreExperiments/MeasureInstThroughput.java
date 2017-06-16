@@ -2,7 +2,7 @@ package com.samsung.sra.DataStoreExperiments;
 
 import com.moandjiezana.toml.Toml;
 import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
-import com.samsung.sra.DataStore.CountBasedWBMH;
+import com.samsung.sra.DataStore.Ingest.CountBasedWBMH;
 import com.samsung.sra.DataStore.RationalPowerWindowing;
 import com.samsung.sra.DataStore.SummaryStore;
 import com.samsung.sra.DataStore.WindowOperator;
@@ -99,7 +99,7 @@ public class MeasureInstThroughput {
         long T = 1_000_000_000;
         long printInterval = 10_000_000;
         Supplier<CountBasedWBMH> windowing = () ->
-                new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1), 2_000_000);
+                new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1)).setBufferSize(2_000_000);
         Supplier<WindowOperator[]> operators = () -> new WindowOperator[]{
                 new SimpleCountOperator()};
 

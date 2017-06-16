@@ -2,6 +2,8 @@ package com.samsung.sra.DataStore;
 
 import org.apache.commons.math3.distribution.NormalDistribution;
 
+import java.util.concurrent.BlockingQueue;
+
 public class Utilities {
     private Utilities() {}
 
@@ -34,5 +36,26 @@ public class Utilities {
 
     public static double getNormalQuantile(double P) {
         return normalDist.inverseCumulativeProbability(P);
+    }
+
+    /** Blocking get ignoring InterruptedExceptions */
+    public static <T> T take(BlockingQueue<T> queue) {
+        while (true) {
+            try {
+                return queue.take();
+            } catch (InterruptedException ignored) {
+            }
+        }
+    }
+
+    /** Blocking put ignoring InterruptedExceptions */
+    public static <T> void put(BlockingQueue<T> queue, T value) {
+        while (true) {
+            try {
+                queue.put(value);
+                return;
+            } catch (InterruptedException ignored) {
+            }
+        }
     }
 }

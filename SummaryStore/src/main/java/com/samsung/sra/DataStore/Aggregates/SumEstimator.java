@@ -4,7 +4,7 @@ import com.samsung.sra.DataStore.LandmarkWindow;
 import com.samsung.sra.DataStore.ResultError;
 import com.samsung.sra.DataStore.SummaryWindow;
 import com.samsung.sra.DataStore.Utilities;
-import org.apache.commons.lang.mutable.MutableLong;
+import org.apache.commons.lang3.mutable.MutableLong;
 import org.apache.commons.math3.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

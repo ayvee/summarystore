@@ -7,7 +7,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
@@ -42,9 +41,9 @@ class Stream implements Serializable {
      */
     private final WindowingMechanism windowingMechanism;
 
-    void populateTransientFields(BackingStore backingStore, ExecutorService executorService) {
+    void populateTransientFields(BackingStore backingStore) {
         windowManager.populateTransientFields(backingStore);
-        windowingMechanism.populateTransientFields(executorService);
+        windowingMechanism.populateTransientFields(windowManager);
     }
 
     Stream(long streamID, boolean synchronizeWrites, WindowingMechanism windowingMechanism, WindowOperator[] operators) {
@@ -67,11 +66,11 @@ class Stream implements Serializable {
             stats.append(ts, value);
             if (!isLandmarkActive) {
                 // insert into decayed window sequence
-                windowingMechanism.append(windowManager, ts, value);
+                windowingMechanism.append(ts, value);
             } else {
                 // update decayed windowing, aging it by one position, but don't actually insert value into decayed window;
                 // see how LANDMARK_SENTINEL is handled in StreamWindowManager.insertIntoSummaryWindow
-                windowingMechanism.append(windowManager, ts, StreamWindowManager.LANDMARK_SENTINEL);
+                windowingMechanism.append(ts, StreamWindowManager.LANDMARK_SENTINEL);
                 LandmarkWindow window = windowManager.getLandmarkWindow(tLastLandmarkStart);
                 window.append(ts, value);
                 windowManager.putLandmarkWindow(window);
@@ -155,7 +154,7 @@ class Stream implements Serializable {
     void flush() throws BackingStoreException {
         if (synchronizeWrites) extLock.lock();
         try {
-            windowingMechanism.flush(windowManager);
+            windowingMechanism.flush();
         } finally {
             if (synchronizeWrites) extLock.unlock();
         }
@@ -163,7 +162,7 @@ class Stream implements Serializable {
 
     void close() throws BackingStoreException {
         if (synchronizeWrites) extLock.lock(); // block all new writes
-        windowingMechanism.close(windowManager);
+        windowingMechanism.close();
         windowManager.flushToDisk();
     }
 }

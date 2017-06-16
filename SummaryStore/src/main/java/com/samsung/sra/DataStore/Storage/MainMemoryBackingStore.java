@@ -6,76 +6,43 @@ import com.samsung.sra.DataStore.SummaryWindow;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.stream.Stream;
 
 public class MainMemoryBackingStore extends BackingStore {
     private Map<Long, ConcurrentSkipListMap<Long, SummaryWindow>> summaryWindows = new ConcurrentHashMap<>();
     private Map<Long, ConcurrentSkipListMap<Long, LandmarkWindow>> landmarkWindows = new ConcurrentHashMap<>();
 
     @Override
-    SummaryWindow getSummaryWindow(StreamWindowManager windowManager, long swid) {
-        return summaryWindows.get(windowManager.streamID).get(swid);
-    }
-
-    /**
-     * Return all windows with swid (= window start timestamp) overlapping [t0, t1].  Specifically, if window start
-     * times are the wi in
-     *    ===== w5 ======== w6 ======== w7 ======== w8 =====
-     *                |                        |
-     *               t0                       t1
-     * return [w5, w6, w7]
-     */
-    @Override
-    Stream<SummaryWindow> getSummaryWindowsOverlapping(StreamWindowManager windowManager, long t0, long t1) {
-        ConcurrentSkipListMap<Long, SummaryWindow> windows = summaryWindows.get(windowManager.streamID);
-        if (windows == null || windows.isEmpty()) {
-            return Stream.empty();
-        }
-        Long l = windows.floorKey(t0);
-        Long r = windows.higherKey(t1);
-        if (l == null) {
-            l = windows.firstKey();
-        }
-        if (r == null) {
-            r = windows.lastKey() + 1;
-        }
-        return windows.subMap(l, true, r, false).values().stream();
+    SummaryWindow getSummaryWindow(long streamID, long swid, SerDe serDe) {
+        return summaryWindows.get(streamID).get(swid);
     }
 
     @Override
-    SummaryWindow deleteSummaryWindow(StreamWindowManager windowManager, long swid) {
-        return summaryWindows.get(windowManager.streamID).remove(swid);
+    SummaryWindow deleteSummaryWindow(long streamID, long swid, SerDe serDe) {
+        return summaryWindows.get(streamID).remove(swid);
     }
 
     @Override
-    void putSummaryWindow(StreamWindowManager windowManager, long swid, SummaryWindow window) {
-        ConcurrentSkipListMap<Long, SummaryWindow> stream = summaryWindows.get(windowManager.streamID);
+    void putSummaryWindow(long streamID, long swid, SerDe serDe, SummaryWindow window) {
+        ConcurrentSkipListMap<Long, SummaryWindow> stream = summaryWindows.get(streamID);
         if (stream == null) {
-            summaryWindows.put(windowManager.streamID, (stream = new ConcurrentSkipListMap<>()));
+            summaryWindows.put(streamID, (stream = new ConcurrentSkipListMap<>()));
         }
         stream.put(swid, window);
     }
 
     @Override
-    long getNumSummaryWindows(StreamWindowManager windowManager) {
-        return summaryWindows.get(windowManager.streamID).size();
+    LandmarkWindow getLandmarkWindow(long streamID, long lwid, SerDe serDe) {
+        return landmarkWindows.get(streamID).get(lwid);
     }
 
     @Override
-    LandmarkWindow getLandmarkWindow(StreamWindowManager windowManager, long lwid) {
-        return landmarkWindows.get(windowManager.streamID).get(lwid);
-    }
-
-    @Override
-    void putLandmarkWindow(StreamWindowManager windowManager, long lwid, LandmarkWindow window) {
-        ConcurrentSkipListMap<Long, LandmarkWindow> stream = landmarkWindows.get(windowManager.streamID);
-        if (stream == null) {
-            landmarkWindows.put(windowManager.streamID, (stream = new ConcurrentSkipListMap<>()));
-        }
+    void putLandmarkWindow(long streamID, long lwid, SerDe serDe, LandmarkWindow window) {
+        ConcurrentSkipListMap<Long, LandmarkWindow> stream = landmarkWindows.get(streamID);
+        if (stream == null) landmarkWindows.put(streamID, (stream = new ConcurrentSkipListMap<>()));
         stream.put(lwid, window);
     }
 
-    @Override
+    /*@Override
     void printWindowState(StreamWindowManager windowManager) {
         System.out.println("Stream " + windowManager.streamID);
         printWindowMap(summaryWindows.get(windowManager.streamID), "summary");
@@ -91,7 +58,7 @@ public class MainMemoryBackingStore extends BackingStore {
                 System.out.println("\t" + w);
             }
         }
-    }
+    }*/
 
     @Override
     public void close() {

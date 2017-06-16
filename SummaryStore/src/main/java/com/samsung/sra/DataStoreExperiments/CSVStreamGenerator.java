@@ -2,7 +2,7 @@ package com.samsung.sra.DataStoreExperiments;
 
 import com.moandjiezana.toml.Toml;
 import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
-import com.samsung.sra.DataStore.CountBasedWBMH;
+import com.samsung.sra.DataStore.Ingest.CountBasedWBMH;
 import com.samsung.sra.DataStore.RationalPowerWindowing;
 import com.samsung.sra.DataStore.SummaryStore;
 import org.slf4j.Logger;
@@ -89,7 +89,7 @@ public class CSVStreamGenerator implements StreamGenerator {
         Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + prefix + "*"}).waitFor();
         SummaryStore store = new SummaryStore("/tmp/googletrace_test_");
         store.registerStream(streamID,
-                new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1), 2_000_000),
+                new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1)).setBufferSize(2_000_000),
                 new SimpleCountOperator());
         StreamGenerator generator = new CSVStreamGenerator(
                 "/Users/a.vulimiri/samsung/summarystore/code/workloads/google-cluster-data/task_event_count");

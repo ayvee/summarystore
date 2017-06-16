@@ -11,20 +11,17 @@ public class SummaryWindow implements Serializable {
     /* We use longs for window IDs, timestamps, and count markers. Valid values should be
        non-negative (all three are 0-indexed); use "-1" to indicate null values. */
     public long ts, te, cs, ce;
-    public long prevTS, nextTS;
 
     // data
     public Object[] aggregates;
 
     public SummaryWindow() {}
 
-    public SummaryWindow(WindowOperator[] operators, long ts, long te, long cs, long ce, long prevTS, long nextTS) {
+    public SummaryWindow(WindowOperator[] operators, long ts, long te, long cs, long ce) {
         this.ts = ts;
         this.te = te;
         this.cs = cs;
         this.ce = ce;
-        this.prevTS = prevTS;
-        this.nextTS = nextTS;
         aggregates = new Object[operators.length];
         for (int i = 0; i < aggregates.length; ++i) {
             aggregates[i] = operators[i].createEmpty(); // empty aggr
@@ -34,18 +31,19 @@ public class SummaryWindow implements Serializable {
 
     @Override
     public String toString() {
-        String ret = String.format("<summary-window: time range [%d:%d], count range [%d:%d], aggrs [", ts, te, cs, ce);
+        StringBuilder ret = new StringBuilder(String.format(
+                "<summary-window: time range [%d:%d], count range [%d:%d], aggrs [", ts, te, cs, ce));
         boolean first = true;
         for (Object aggregate : aggregates) {
             if (first) {
                 first = false;
             } else {
-                ret += ", ";
+                ret.append(", ");
             }
-            ret += aggregate;
+            ret.append(aggregate);
         }
-        ret += "]>";
-        return ret;
+        ret.append("]>");
+        return ret.toString();
     }
 
 }

@@ -3,7 +3,8 @@ package com.samsung.sra.DataStoreExperiments;
 
 import com.samsung.sra.DataStore.Aggregates.SumOperator;
 import com.samsung.sra.DataStore.*;
-import org.apache.commons.lang.StringUtils;
+import com.samsung.sra.DataStore.Ingest.CountBasedWBMH;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.Random;
 import java.util.TreeSet;
@@ -89,7 +90,7 @@ public class SynthLandmarkExperiment {
         long nextModeChange = 0;
         double[] trueSums = new double[queryNBins], estSums = new double[queryNBins];
         try (SummaryStore store = new SummaryStore(null)) {
-            store.registerStream(streamID, new CountBasedWBMH(windowing, 1_000_000), new SumOperator());
+            store.registerStream(streamID, new CountBasedWBMH(windowing).setBufferSize(1_000_000), new SumOperator());
             for (long t = 0; t < T; t += interarrival) {
                 if (t >= nextModeChange) {
                     Mode oldMode = mode;

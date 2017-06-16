@@ -4,7 +4,6 @@ import com.samsung.sra.DataStore.Storage.BackingStoreException;
 import com.samsung.sra.DataStore.Storage.StreamWindowManager;
 
 import java.io.Serializable;
-import java.util.concurrent.ExecutorService;
 
 /**
  * Encapsulates code for EH/WBMH/similar mechanisms
@@ -19,13 +18,13 @@ public interface WindowingMechanism extends Serializable {
      * not need to worry about concurrency, all writes will be serialized before this function is
      * invoked.
      */
-    void append(StreamWindowManager windows, long ts, Object value) throws BackingStoreException;
+    void append(long ts, Object value) throws BackingStoreException;
 
     // deserialization hook
-    default void populateTransientFields(ExecutorService executorService) {}
+    default void populateTransientFields(StreamWindowManager windowManager) {}
 
     /** Block until all values appended so far have been flushed to the BackingStore */
-    void flush(StreamWindowManager windows) throws BackingStoreException;
+    void flush() throws BackingStoreException;
 
-    void close(StreamWindowManager windowManager) throws BackingStoreException;
+    void close() throws BackingStoreException;
 }

@@ -4,8 +4,8 @@ import com.changingbits.Builder;
 import com.changingbits.LongRange;
 import com.changingbits.LongRangeMultiSet;
 import com.samsung.sra.DataStoreExperiments.Workload.Query;
-import org.apache.commons.lang.SerializationUtils;
-import org.apache.commons.lang.mutable.MutableLong;
+import org.apache.commons.lang3.SerializationUtils;
+import org.apache.commons.lang3.mutable.MutableLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

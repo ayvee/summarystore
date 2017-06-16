@@ -1,6 +1,6 @@
 package com.samsung.sra.DataStoreExperiments;
 
-import com.samsung.sra.DataStore.CountBasedWBMH;
+import com.samsung.sra.DataStore.Ingest.CountBasedWBMH;
 import com.samsung.sra.DataStore.SummaryStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,10 +27,10 @@ public class PopulateData {
                 logger.warn("Decay function {} already populated at {}.backingStore, skipping", decay, outprefix);
                 return;
             }
-            try (SummaryStore store = new SummaryStore(outprefix, config.getWindowCacheSize());
+            try (SummaryStore store = new SummaryStore(outprefix/*, config.getWindowCacheSize()*/);
                  StreamGenerator streamgen = config.getStreamGenerator()) {
                 store.registerStream(streamID,
-                        new CountBasedWBMH(config.parseDecayFunction(decay), config.getIngestBufferSize()),
+                        new CountBasedWBMH(config.parseDecayFunction(decay)).setBufferSize(config.getIngestBufferSize()),
                         config.getOperators());
                 streamgen.reset();
                 long[] N = {0};
