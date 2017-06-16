@@ -5,18 +5,20 @@ import com.samsung.sra.DataStore.Storage.StreamWindowManager;
 import com.samsung.sra.DataStore.SummaryWindow;
 import com.samsung.sra.DataStore.Utilities;
 import com.samsung.sra.DataStore.Windowing;
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.teneighty.heap.FibonacciHeap;
 import org.teneighty.heap.Heap;
 
 import java.io.Serializable;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 
-/** Implement WBMH using a heap data structure to track pending merges */
-class HeapMerger extends Merger {
+/**
+ * Implements WBMH using a heap data structure to track pending merges. Batches merges and initiates merge ops in backing
+ * store once every windowsPerBatch window inserts */
+class BatchingHeapMerger extends Merger {
     private static final Logger logger = LoggerFactory.getLogger(Merger.class);
 
     // notifications of new window creates: a pair of (window ID, window size)
@@ -27,7 +29,9 @@ class HeapMerger extends Merger {
 
     private transient StreamWindowManager windowManager;
 
-    private long N = 0;
+    private final long windowsPerBatch;
+
+    private long N = 0, W = 0; // number of elements in stream, number of raw windows ingested (without merging)
     /* Priority queue, mapping each summary window w_i to the time at which w_{i+1} will be merged into it. Using
      * an alternative to the Java Collections PriorityQueue supporting efficient arbitrary-element delete.
      *
@@ -37,10 +41,13 @@ class HeapMerger extends Merger {
     private final FibonacciHeap<Long, Long> mergeCounts = new FibonacciHeap<>();
     private final WindowInfo windowInfo = new WindowInfo();
 
-    HeapMerger(Windowing windowing, BlockingQueue<Merger.WindowInfo> newWindowNotifications, CountBasedWBMH.FlushBarrier flushBarrier) {
+    BatchingHeapMerger(Windowing windowing, BlockingQueue<Merger.WindowInfo> newWindowNotifications,
+                       CountBasedWBMH.FlushBarrier flushBarrier,
+                       long windowsPerBatch) {
         this.windowing = windowing;
         this.newWindowNotifications = newWindowNotifications;
         this.flushBarrier = flushBarrier;
+        this.windowsPerBatch = windowsPerBatch;
     }
 
     @Override
@@ -54,9 +61,13 @@ class HeapMerger extends Merger {
             while (true) {
                 Merger.WindowInfo newWindow = Utilities.take(newWindowNotifications);
                 if (newWindow == SHUTDOWN_SENTINEL) {
+                    issueAllPendingMerges();
+                    logger.info("Merge chain length: avg = {}, range = [{}, {}]",
+                            String.format("%.1f", mergeLengthStats.getMean()), mergeLengthStats.getMin(), mergeLengthStats.getMax());
                     flushBarrier.notify(CountBasedWBMH.FlushBarrier.MERGER);
                     break;
                 } else if (newWindow == FLUSH_SENTINEL) {
+                    issueAllPendingMerges();
                     flushBarrier.notify(CountBasedWBMH.FlushBarrier.MERGER);
                     continue;
                 }
@@ -67,14 +78,17 @@ class HeapMerger extends Merger {
                     updateMergeCountFor(lastWindowID, newWindowID, windowInfo.getCStart(lastWindowID), N - 1, N);
                 }
                 windowInfo.put(newWindowID, N - 1);
-                processPendingMerges();
+                updatePendingMerges();
+                if (++W % windowsPerBatch == 0) {
+                    issueAllPendingMerges();
+                }
             }
         } catch (BackingStoreException e) {
             throw new RuntimeException(e);
         }
     }
 
-    private void processPendingMerges() throws BackingStoreException {
+    private void updatePendingMerges() {
         while (!mergeCounts.isEmpty() && mergeCounts.getMinimum().getKey() <= N) {
             Heap.Entry<Long, Long> entry = mergeCounts.extractMinimum();
             Heap.Entry<Long, Long> removed = windowInfo.unsetHeapPtr(entry.getValue());
@@ -88,12 +102,7 @@ class HeapMerger extends Merger {
             long newW0cs = windowInfo.getCStart(w0ID);
             long newW0ce = windowInfo.getCEnd(w1ID);
 
-            {
-                SummaryWindow w0 = windowManager.getSummaryWindow(w0ID);
-                SummaryWindow w1 = windowManager.deleteSummaryWindow(w1ID);
-                windowManager.mergeSummaryWindows(w0, w1);
-                windowManager.putSummaryWindow(w0);
-            }
+            addPendingMerge(w0ID, w1ID);
 
             WindowInfo.Info oldW1info = windowInfo.remove(w1ID);
             windowInfo.put(w0ID, newW0ce);
@@ -102,6 +111,39 @@ class HeapMerger extends Merger {
             updateMergeCountFor(wm1ID, w0ID, windowInfo.getCStart(wm1ID), newW0ce, N);
             updateMergeCountFor(w0ID, w2ID, newW0cs, windowInfo.getCEnd(w2ID), N);
         }
+    }
+
+    private final Map<Long, List<Long>> pendingMerges = new HashMap<>();
+
+    /* add entry merge(swid0, [any windows already merged into swid0], swid1, [any windows alread merged into swid1]) */
+    private void addPendingMerge(long swid0, long swid1) {
+        List<Long> tail = pendingMerges.get(swid0);
+        if (tail == null) tail = new ArrayList<>();
+        tail.add(swid1);
+        List<Long> transitiveTail = pendingMerges.remove(swid1);
+        if (transitiveTail != null) tail.addAll(transitiveTail);
+        pendingMerges.put(swid0, tail);
+    }
+
+    private final DescriptiveStatistics mergeLengthStats = new DescriptiveStatistics();
+
+    private void issueAllPendingMerges() throws BackingStoreException {
+        for (Map.Entry<Long, List<Long>> entry : pendingMerges.entrySet()) {
+            long head = entry.getKey();
+            List<Long> tail = entry.getValue();
+            assert !tail.isEmpty();
+            mergeLengthStats.addValue(1 + tail.size());
+            SummaryWindow[] windows = new SummaryWindow[1 + tail.size()];
+            int w = 0;
+            windows[w++] = windowManager.getSummaryWindow(head);
+            for (long swid : tail) {
+                windows[w++] = windowManager.deleteSummaryWindow(swid);
+            }
+            assert w == windows.length;
+            windowManager.mergeSummaryWindows(windows);
+            windowManager.putSummaryWindow(windows[0]);
+        }
+        pendingMerges.clear();
     }
 
     /**

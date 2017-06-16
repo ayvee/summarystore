@@ -7,8 +7,11 @@ import java.io.Serializable;
 /**
  * Implements WBMH. Will be given a BlockingQueue<WindowInfo> in constructor which it is expected to process in run()
  */
-interface Merger extends Runnable, Serializable {
-    class WindowInfo implements Serializable {
+abstract class Merger implements Runnable, Serializable {
+    static final Merger.WindowInfo SHUTDOWN_SENTINEL = new Merger.WindowInfo(-1L, -1L);
+    static final Merger.WindowInfo FLUSH_SENTINEL = new Merger.WindowInfo(-1L, -1L);
+
+    static class WindowInfo implements Serializable {
         public final long id, size;
 
         WindowInfo(long id, long size) {
@@ -17,5 +20,5 @@ interface Merger extends Runnable, Serializable {
         }
     }
 
-    void populateTransientFields(StreamWindowManager windowManager);
+    abstract void populateTransientFields(StreamWindowManager windowManager);
 }

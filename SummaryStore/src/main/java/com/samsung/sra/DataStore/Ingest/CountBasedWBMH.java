@@ -37,13 +37,13 @@ public class CountBasedWBMH implements WindowingMechanism {
     private final Summarizer summarizer;
     private final Writer writer;
     private final Merger merger;
-
-    private final BlockingQueue<IngestBuffer> emptyBuffers;
-    private final BlockingQueue<IngestBuffer> partialBuffers;
-    private final BlockingQueue<IngestBuffer> summarizerQueue;
-    private final BlockingQueue<SummaryWindow> writerQueue;
-    private final BlockingQueue<Merger.WindowInfo> mergerQueue; // input queue for merger
     private final FlushBarrier flushBarrier;
+
+    private final BlockingQueue<IngestBuffer> emptyBuffers = new LinkedBlockingQueue<>();
+    private final BlockingQueue<IngestBuffer> partialBuffers = new LinkedBlockingQueue<>();
+    private final BlockingQueue<IngestBuffer> summarizerQueue = new LinkedBlockingQueue<>();
+    private final BlockingQueue<SummaryWindow> writerQueue = new LinkedBlockingQueue<>(MAX_QUEUE_SIZE);
+    private final BlockingQueue<Merger.WindowInfo> mergerQueue = new LinkedBlockingQueue<>(MAX_QUEUE_SIZE);
 
     private long N = 0;
 
@@ -51,7 +51,7 @@ public class CountBasedWBMH implements WindowingMechanism {
      * Buffers up to totalBufferSize elements in memory, split across numBuffers buffers of equal size, deferring value
      * writes until either buffers fill up or flush is called.
      */
-    public CountBasedWBMH(Windowing windowing, int totalBufferSize, int numBuffers) {
+    public CountBasedWBMH(Windowing windowing, int totalBufferSize, int numBuffers, int windowsPerMergeBatch) {
         assert numBuffers > 0;
         this.sizeOfNewestWindow = windowing.getSizeOfFirstWindow();
         int[] bufferWindowLengths = windowing.getWindowsCoveringUpto(totalBufferSize / numBuffers)
@@ -62,32 +62,21 @@ public class CountBasedWBMH implements WindowingMechanism {
             throw new UnsupportedOperationException("do not yet support unbuffered ingest when size of newest window > 1");
         }
 
-        writerQueue = new LinkedBlockingQueue<>(MAX_QUEUE_SIZE);
-        mergerQueue = new LinkedBlockingQueue<>(MAX_QUEUE_SIZE);
         flushBarrier = new FlushBarrier();
         if (bufferSize > 0) {
-            emptyBuffers = new LinkedBlockingQueue<>();
-            partialBuffers = new LinkedBlockingQueue<>();
-            summarizerQueue = new LinkedBlockingQueue<>();
             for (int i = 0; i < numBuffers; ++i) {
                 emptyBuffers.add(new IngestBuffer((int) bufferSize));
             }
-            ingester = new Ingester(emptyBuffers, summarizerQueue);
-            summarizer = new Summarizer(bufferWindowLengths, emptyBuffers, partialBuffers, summarizerQueue, writerQueue,
-                    flushBarrier);
-        } else {
-            emptyBuffers = null;
-            partialBuffers = null;
-            summarizerQueue = null;
-            ingester = null;
-            summarizer = null;
         }
+        ingester = new Ingester(emptyBuffers, summarizerQueue);
+        summarizer = new Summarizer(bufferWindowLengths, emptyBuffers, partialBuffers, summarizerQueue, writerQueue, flushBarrier);
         writer = new Writer(writerQueue, mergerQueue, flushBarrier);
-        merger = new HeapMerger(windowing, mergerQueue, flushBarrier);
+        //merger = new HeapMerger(windowing, mergerQueue, flushBarrier);
+        merger = new BatchingHeapMerger(windowing, mergerQueue, flushBarrier, windowsPerMergeBatch);
     }
 
     public CountBasedWBMH(Windowing windowing, int totalBufferSize) {
-        this(windowing, totalBufferSize, 2);
+        this(windowing, totalBufferSize, 2, 1);
     }
 
     public CountBasedWBMH(Windowing windowing) {
@@ -164,7 +153,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         }
         Utilities.put(writerQueue, shutdown ? Writer.SHUTDOWN_SENTINEL : Writer.FLUSH_SENTINEL);
         flushBarrier.wait(FlushBarrier.WRITER, threshold);
-        Utilities.put(mergerQueue, shutdown ? HeapMerger.SHUTDOWN_SENTINEL : HeapMerger.FLUSH_SENTINEL);
+        Utilities.put(mergerQueue, shutdown ? Merger.SHUTDOWN_SENTINEL : Merger.FLUSH_SENTINEL);
         flushBarrier.wait(FlushBarrier.MERGER, threshold);
     }
 
