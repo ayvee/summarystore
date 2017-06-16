@@ -3,7 +3,6 @@ package com.samsung.sra.DataStore.Storage;
 import com.samsung.sra.DataStore.LandmarkWindow;
 import com.samsung.sra.DataStore.SummaryWindow;
 import com.samsung.sra.DataStore.Utilities;
-import org.apache.commons.lang.NotImplementedException;
 import org.rocksdb.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
