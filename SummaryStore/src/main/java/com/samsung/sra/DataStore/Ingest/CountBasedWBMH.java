@@ -33,6 +33,7 @@ public class CountBasedWBMH implements Serializable {
     private final long sizeOfNewestWindow;
 
     private long bufferSize;
+    private boolean valuesAreLongs;
 
     private final Ingester ingester;
     private final Summarizer summarizer;
@@ -53,6 +54,7 @@ public class CountBasedWBMH implements Serializable {
         this.sizeOfNewestWindow = windowing.getSizeOfFirstWindow();
 
         bufferSize = 0;
+        valuesAreLongs = false;
         flushBarrier = new FlushBarrier();
         ingester = new Ingester(emptyBuffers, summarizerQueue);
         summarizer = new Summarizer(null, emptyBuffers, partialBuffers, summarizerQueue, writerQueue, flushBarrier);
@@ -79,18 +81,23 @@ public class CountBasedWBMH implements Serializable {
         if (bufferSize > 0) {
             assert numBuffers > 0;
             for (int i = 0; i < numBuffers; ++i) {
-                //emptyBuffers.add(new ObjectIngestBuffer((int) bufferSize));
-                emptyBuffers.add(new LongIngestBuffer((int) bufferSize));
+                emptyBuffers.add(valuesAreLongs
+                ? new LongIngestBuffer((int) bufferSize)
+                : new ObjectIngestBuffer((int) bufferSize));
             }
         }
         return this;
     }
 
-    private void destroyEmptyBuffers() {
-        for (IngestBuffer buffer : emptyBuffers) {
-            buffer.close();
-        }
-        emptyBuffers.clear();
+    /**
+     * If all values are longs and this flag is set, enables a special code path using off-heap long[] value arrays in
+     * the ingest buffer.
+     *
+     * Only takes effect on the next setBufferSize() call (be careful about method call order, esp. when constructing).
+     */
+    public CountBasedWBMH setValuesAreLongs(boolean valuesAreLongs) {
+        this.valuesAreLongs = valuesAreLongs;
+        return this;
     }
 
     /**
@@ -110,6 +117,18 @@ public class CountBasedWBMH implements Serializable {
     public CountBasedWBMH setWindowsPerMergeBatch(long W) {
         merger.setWindowsPerMergeBatch(W);
         return this;
+    }
+
+    public CountBasedWBMH setParallelizeMerge(int nThreads) {
+        merger.setParallelizeMerge(nThreads);
+        return this;
+    }
+
+    private void destroyEmptyBuffers() {
+        for (IngestBuffer buffer : emptyBuffers) {
+            buffer.close();
+        }
+        emptyBuffers.clear();
     }
 
     public void populateTransientFields(StreamWindowManager windowManager) {

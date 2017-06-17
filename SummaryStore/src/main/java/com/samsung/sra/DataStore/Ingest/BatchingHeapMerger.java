@@ -14,6 +14,9 @@ import org.teneighty.heap.Heap;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
 
 /**
  * Implements WBMH using a heap data structure to track pending merges. Batches merges and initiates merge ops in backing
@@ -27,7 +30,10 @@ class BatchingHeapMerger extends Merger {
 
     private final Windowing windowing;
 
+    private Integer nThreads = null;
+
     private transient StreamWindowManager windowManager;
+    private transient ExecutorService executorService = null;
 
     private long windowsPerBatch;
 
@@ -50,9 +56,21 @@ class BatchingHeapMerger extends Merger {
         this.windowsPerBatch = windowsPerBatch;
     }
 
+    void setWindowsPerMergeBatch(long windowsPerMergeBatch) {
+        this.windowsPerBatch = windowsPerMergeBatch;
+    }
+
+    void setParallelizeMerge(int nThreads) {
+        this.nThreads = nThreads;
+        executorService = new ForkJoinPool(nThreads);
+    }
+
     @Override
     public void populateTransientFields(StreamWindowManager windowManager) {
         this.windowManager = windowManager;
+        if (nThreads != null) {
+            executorService = new ForkJoinPool(nThreads);
+        }
     }
 
     @Override
@@ -127,21 +145,39 @@ class BatchingHeapMerger extends Merger {
 
     private final DescriptiveStatistics mergeLengthStats = new DescriptiveStatistics();
 
+    private void issuePendingMerge(Map.Entry<Long, List<Long>> entry) throws BackingStoreException {
+        long head = entry.getKey();
+        List<Long> tail = entry.getValue();
+        assert !tail.isEmpty();
+        mergeLengthStats.addValue(1 + tail.size());
+        SummaryWindow[] windows = new SummaryWindow[1 + tail.size()];
+        int w = 0;
+        windows[w++] = windowManager.getSummaryWindow(head);
+        for (long swid : tail) {
+            windows[w++] = windowManager.deleteSummaryWindow(swid);
+        }
+        assert w == windows.length;
+        windowManager.mergeSummaryWindows(windows);
+        windowManager.putSummaryWindow(windows[0]);
+    }
+
     private void issueAllPendingMerges() throws BackingStoreException {
-        for (Map.Entry<Long, List<Long>> entry : pendingMerges.entrySet()) {
-            long head = entry.getKey();
-            List<Long> tail = entry.getValue();
-            assert !tail.isEmpty();
-            mergeLengthStats.addValue(1 + tail.size());
-            SummaryWindow[] windows = new SummaryWindow[1 + tail.size()];
-            int w = 0;
-            windows[w++] = windowManager.getSummaryWindow(head);
-            for (long swid : tail) {
-                windows[w++] = windowManager.deleteSummaryWindow(swid);
+        if (executorService == null) {
+            for (Map.Entry<Long, List<Long>> entry : pendingMerges.entrySet()) {
+                issuePendingMerge(entry);
             }
-            assert w == windows.length;
-            windowManager.mergeSummaryWindows(windows);
-            windowManager.putSummaryWindow(windows[0]);
+        } else {
+            try {
+                executorService.submit(() -> pendingMerges.entrySet().stream().forEach(entry -> {
+                    try {
+                        issuePendingMerge(entry);
+                    } catch (BackingStoreException e) {
+                        throw new RuntimeException(e);
+                    }
+                })).get();
+            } catch (InterruptedException | ExecutionException e) {
+                throw new BackingStoreException(e);
+            }
         }
         pendingMerges.clear();
     }
@@ -160,10 +196,6 @@ class BatchingHeapMerger extends Merger {
         if (newMergeCount != -1) {
             windowInfo.setHeapPtr(w0ID, mergeCounts.insert(newMergeCount, w0ID));
         }
-    }
-
-    void setWindowsPerMergeBatch(long windowsPerMergeBatch) {
-        this.windowsPerBatch = windowsPerMergeBatch;
     }
 
     /** In-memory index allowing looking up various info given SWID */

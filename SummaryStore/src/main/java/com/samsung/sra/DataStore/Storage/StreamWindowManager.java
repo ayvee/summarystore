@@ -16,8 +16,8 @@ import java.util.stream.Stream;
  */
 public class StreamWindowManager implements Serializable {
     private static final Logger logger = LoggerFactory.getLogger(StreamWindowManager.class);
-    //public static final Object LANDMARK_SENTINEL = new Object(); // sentinel used when handling append
-    public static final long LANDMARK_SENTINEL = Long.MIN_VALUE; // sentinel used when handling append // FIXME
+    // FIXME: what if user actually wants to insert Long.MIN_VALUE?
+    public static final Object LANDMARK_SENTINEL = Long.MIN_VALUE; // sentinel used when handling append
 
     private transient BackingStore backingStore;
     public final long streamID;
@@ -43,9 +43,10 @@ public class StreamWindowManager implements Serializable {
     public void insertIntoSummaryWindow(SummaryWindow window, long ts, Object value) {
         assert window.ts <= ts && (window.te == -1 || ts <= window.te)
                 && operators.length == window.aggregates.length;
-        // if (value == LANDMARK_SENTINEL) {
-        if (((Number) value).longValue() == LANDMARK_SENTINEL) { // FIXME
-            // value is actually going into landmark bucket, do nothing here. We only processed it this far so that the
+        // FIXME: if condition works for both long and Object WBMH buffers, but at the cost that it fails when user
+        // tries to insert Long.MIN_VALUE even in the Object case
+        if (LANDMARK_SENTINEL == value || LANDMARK_SENTINEL.equals(value)) {
+            // value is actually going into landmark window, do nothing here. We only processed it this far so that the
             // decayed windowing would be updated by one position
             return;
         }
