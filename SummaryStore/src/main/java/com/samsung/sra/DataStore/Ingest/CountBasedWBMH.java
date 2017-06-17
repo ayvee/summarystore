@@ -158,9 +158,9 @@ public class CountBasedWBMH implements WindowingMechanism {
 
     private void flush(boolean shutdown, boolean setUnbuffered) throws BackingStoreException {
         long threshold = flushBarrier.getNextFlushThreshold();
-        ingester.flush(shutdown);
-        flushBarrier.wait(FlushBarrier.SUMMARIZER, threshold);
         if (bufferSize > 0) {
+            ingester.flush(shutdown);
+            flushBarrier.wait(FlushBarrier.SUMMARIZER, threshold);
             IngestBuffer partialBuffer = partialBuffers.poll();
             if (partialBuffer != null) {
                 N -= partialBuffer.size(); // need to undo since we pulled them out of the pipeline
