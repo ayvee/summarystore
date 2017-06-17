@@ -108,10 +108,10 @@ public class SimpleTester {
         store.close();
     }
 
-    private static void registerStore(Map<String, SummaryStore> stores, String storeName, WindowingMechanism windowingMechanism) throws Exception {
+    private static void registerStore(Map<String, SummaryStore> stores, String storeName, CountBasedWBMH wbmh) throws Exception {
         SummaryStore store = new SummaryStore(loc_prefix + storeName);
         //SummaryStore store = new SummaryStore(new MainMemoryBackingStore());
-        store.registerStream(streamID, windowingMechanism);
+        store.registerStream(streamID, wbmh);
         stores.put(storeName, store);
     }
 }

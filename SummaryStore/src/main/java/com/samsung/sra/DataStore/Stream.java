@@ -1,5 +1,6 @@
 package com.samsung.sra.DataStore;
 
+import com.samsung.sra.DataStore.Ingest.CountBasedWBMH;
 import com.samsung.sra.DataStore.Storage.BackingStore;
 import com.samsung.sra.DataStore.Storage.BackingStoreException;
 import com.samsung.sra.DataStore.Storage.StreamWindowManager;
@@ -12,10 +13,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 
-/**
- * One Summary Store stream. This class has the outermost level of the logic for all major API calls. SummaryStore
- * serializes all modifying calls (append, start/end landmark, flush, close) before passing them on to us.
- */
+/** One Summary Store stream. This class has the outermost level of the logic for all major API calls. */
 class Stream implements Serializable {
     private static Logger logger = LoggerFactory.getLogger(Stream.class);
 
@@ -29,29 +27,25 @@ class Stream implements Serializable {
     private boolean isLandmarkActive = false;
 
     /**
-     * Lock used to serialize external write actions (append, start/end landmark, flush, close).
-     * FIXME: also need an additional internal read/write lock. Likely goes inside StreamWindowManager
-     */
+     * Lock used to serialize external write actions (append, start/end landmark, flush, close). May be turned on/off
+     * via a boolean flag to SummaryStore.registerStream */
     private final Lock extLock;
     private final boolean synchronizeWrites;
 
-    /**
-     * WindowingMechanism object. Maintains write indexes internally, which SummaryStore
-     * will persist to disk along with the rest of Stream
-     */
-    private final WindowingMechanism windowingMechanism;
+    /** Maintains write indexes internally, which SummaryStore will persist to disk along with the rest of Stream */
+    private final CountBasedWBMH wbmh;
 
     void populateTransientFields(BackingStore backingStore) {
         windowManager.populateTransientFields(backingStore);
-        windowingMechanism.populateTransientFields(windowManager);
+        wbmh.populateTransientFields(windowManager);
     }
 
-    Stream(long streamID, boolean synchronizeWrites, WindowingMechanism windowingMechanism, WindowOperator[] operators) {
+    Stream(long streamID, boolean synchronizeWrites, CountBasedWBMH wbmh, WindowOperator[] operators) {
         this.streamID = streamID;
         this.synchronizeWrites = synchronizeWrites;
         this.extLock = synchronizeWrites ? new ReentrantLock() : null;
         this.operators = operators;
-        this.windowingMechanism = windowingMechanism;
+        this.wbmh = wbmh;
         windowManager = new StreamWindowManager(streamID, operators);
         stats = new StreamStatistics();
     }
@@ -66,11 +60,11 @@ class Stream implements Serializable {
             stats.append(ts, value);
             if (!isLandmarkActive) {
                 // insert into decayed window sequence
-                windowingMechanism.append(ts, value);
+                wbmh.append(ts, value);
             } else {
                 // update decayed windowing, aging it by one position, but don't actually insert value into decayed window;
                 // see how LANDMARK_SENTINEL is handled in StreamWindowManager.insertIntoSummaryWindow
-                windowingMechanism.append(ts, StreamWindowManager.LANDMARK_SENTINEL);
+                wbmh.append(ts, StreamWindowManager.LANDMARK_SENTINEL);
                 LandmarkWindow window = windowManager.getLandmarkWindow(tLastLandmarkStart);
                 window.append(ts, value);
                 windowManager.putLandmarkWindow(window);
@@ -154,7 +148,7 @@ class Stream implements Serializable {
     void flush() throws BackingStoreException {
         if (synchronizeWrites) extLock.lock();
         try {
-            windowingMechanism.flush();
+            wbmh.flush();
         } finally {
             if (synchronizeWrites) extLock.unlock();
         }
@@ -162,7 +156,7 @@ class Stream implements Serializable {
 
     void close() throws BackingStoreException {
         if (synchronizeWrites) extLock.lock(); // block all new writes
-        windowingMechanism.close();
+        wbmh.close();
         windowManager.flushToDisk();
     }
 }

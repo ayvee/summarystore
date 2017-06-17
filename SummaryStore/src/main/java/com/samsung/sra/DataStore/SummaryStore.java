@@ -1,5 +1,6 @@
 package com.samsung.sra.DataStore;
 
+import com.samsung.sra.DataStore.Ingest.CountBasedWBMH;
 import com.samsung.sra.DataStore.Storage.BackingStore;
 import com.samsung.sra.DataStore.Storage.BackingStoreException;
 import com.samsung.sra.DataStore.Storage.MainMemoryBackingStore;
@@ -84,9 +85,9 @@ public class SummaryStore implements AutoCloseable {
         }
     }
 
-    public void registerStream(final long streamID, WindowingMechanism windowingMechanism, WindowOperator... operators)
+    public void registerStream(final long streamID, CountBasedWBMH wbmh, WindowOperator... operators)
             throws BackingStoreException, StreamException {
-        registerStream(streamID, false, windowingMechanism, operators);
+        registerStream(streamID, false, wbmh, operators);
     }
 
     /**
@@ -94,13 +95,13 @@ public class SummaryStore implements AutoCloseable {
      * make Stream use a lock to serialize all append/landmark/flush/close calls
      */
     public void registerStream(final long streamID, boolean synchronizeWrites,
-                               WindowingMechanism windowingMechanism, WindowOperator... operators)
+                               CountBasedWBMH wbmh, WindowOperator... operators)
             throws StreamException, BackingStoreException {
         synchronized (streams) {
             if (streams.containsKey(streamID)) {
                  throw new StreamException("attempting to register streamID " + streamID + " multiple times");
             } else {
-                Stream sm = new Stream(streamID, synchronizeWrites, windowingMechanism, operators);
+                Stream sm = new Stream(streamID, synchronizeWrites, wbmh, operators);
                 sm.populateTransientFields(backingStore);
                 streams.put(streamID, sm);
             }

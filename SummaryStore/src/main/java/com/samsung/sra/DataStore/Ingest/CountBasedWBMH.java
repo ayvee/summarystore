@@ -5,7 +5,6 @@ import com.samsung.sra.DataStore.Storage.StreamWindowManager;
 import com.samsung.sra.DataStore.SummaryWindow;
 import com.samsung.sra.DataStore.Utilities;
 import com.samsung.sra.DataStore.Windowing;
-import com.samsung.sra.DataStore.WindowingMechanism;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,7 +22,7 @@ import java.util.stream.IntStream;
  * Unbuffered mode setup: same except no Ingester or Summarizer. External user threads run appendUnbuffered() instead of
  * Ingester
  */
-public class CountBasedWBMH implements WindowingMechanism {
+public class CountBasedWBMH implements Serializable {
     private static Logger logger = LoggerFactory.getLogger(CountBasedWBMH.class);
     /** Used to throttle Writer and Merger input queues */
     private static final int MAX_QUEUE_SIZE = 10_000;
@@ -113,7 +112,6 @@ public class CountBasedWBMH implements WindowingMechanism {
         return this;
     }
 
-    @Override
     public void populateTransientFields(StreamWindowManager windowManager) {
         this.windowManager = windowManager;
         if (bufferSize > 0) {
@@ -129,7 +127,6 @@ public class CountBasedWBMH implements WindowingMechanism {
         new Thread(merger, windowManager.streamID + "-merger").start();
     }
 
-    @Override
     public void append(long ts, Object value) throws BackingStoreException {
         if (bufferSize > 0) {
             if (N % 1_000_000 == 0) {
@@ -191,7 +188,6 @@ public class CountBasedWBMH implements WindowingMechanism {
         flushBarrier.wait(FlushBarrier.MERGER, threshold);
     }
 
-    @Override
     public void flush() throws BackingStoreException {
         flush(false, false);
     }
@@ -201,7 +197,6 @@ public class CountBasedWBMH implements WindowingMechanism {
         flush(false, true);
     }
 
-    @Override
     public void close() throws BackingStoreException {
         flush(true, false);
     }
