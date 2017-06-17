@@ -14,9 +14,7 @@ import org.teneighty.heap.Heap;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
+import java.util.stream.Stream;
 
 /**
  * Implements WBMH using a heap data structure to track pending merges. Batches merges and initiates merge ops in backing
@@ -30,12 +28,10 @@ class BatchingHeapMerger extends Merger {
 
     private final Windowing windowing;
 
-    private Integer nThreads = null;
-
     private transient StreamWindowManager windowManager;
-    private transient ExecutorService executorService = null;
 
     private long windowsPerBatch;
+    private boolean parallelizeMerge;
 
     private long N = 0, W = 0; // number of elements in stream, number of raw windows ingested (without merging)
     /* Priority queue, mapping each summary window w_i to the time at which w_{i+1} will be merged into it. Using
@@ -60,17 +56,13 @@ class BatchingHeapMerger extends Merger {
         this.windowsPerBatch = windowsPerMergeBatch;
     }
 
-    void setParallelizeMerge(int nThreads) {
-        this.nThreads = nThreads;
-        executorService = new ForkJoinPool(nThreads);
+    void setParallelizeMerge(boolean parallelizeMerge) {
+        this.parallelizeMerge = parallelizeMerge;
     }
 
     @Override
     public void populateTransientFields(StreamWindowManager windowManager) {
         this.windowManager = windowManager;
-        if (nThreads != null) {
-            executorService = new ForkJoinPool(nThreads);
-        }
     }
 
     @Override
@@ -162,23 +154,17 @@ class BatchingHeapMerger extends Merger {
     }
 
     private void issueAllPendingMerges() throws BackingStoreException {
-        if (executorService == null) {
-            for (Map.Entry<Long, List<Long>> entry : pendingMerges.entrySet()) {
-                issuePendingMerge(entry);
-            }
-        } else {
-            try {
-                executorService.submit(() -> pendingMerges.entrySet().stream().parallel().forEach(entry -> {
-                    try {
-                        issuePendingMerge(entry);
-                    } catch (BackingStoreException e) {
-                        throw new RuntimeException(e);
-                    }
-                })).get();
-            } catch (InterruptedException | ExecutionException e) {
-                throw new BackingStoreException(e);
-            }
+        Stream<Map.Entry<Long, List<Long>>> stream = pendingMerges.entrySet().stream();
+        if (parallelizeMerge) {
+            stream = stream.parallel();
         }
+        stream.forEach(entry -> {
+            try {
+                issuePendingMerge(entry);
+            } catch (BackingStoreException e) {
+                throw new RuntimeException(e);
+            }
+        });
         pendingMerges.clear();
     }
 

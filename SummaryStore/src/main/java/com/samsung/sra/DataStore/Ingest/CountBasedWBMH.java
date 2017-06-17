@@ -120,7 +120,8 @@ public class CountBasedWBMH implements Serializable {
     }
 
     public CountBasedWBMH setParallelizeMerge(int nThreads) {
-        merger.setParallelizeMerge(nThreads);
+        System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", Integer.toString(nThreads));
+        merger.setParallelizeMerge(true);
         return this;
     }
 
