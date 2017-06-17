@@ -168,7 +168,7 @@ class BatchingHeapMerger extends Merger {
             }
         } else {
             try {
-                executorService.submit(() -> pendingMerges.entrySet().stream().forEach(entry -> {
+                executorService.submit(() -> pendingMerges.entrySet().stream().parallel().forEach(entry -> {
                     try {
                         issuePendingMerge(entry);
                     } catch (BackingStoreException e) {
