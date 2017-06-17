@@ -72,14 +72,6 @@ public class RocksDBBackingStore extends BackingStore {
         return keyArray;
     }
 
-    private static long parseRocksDBKeyStreamID(byte[] keyArray) {
-        return Utilities.byteArrayToLong(keyArray, 0);
-    }
-
-    private static long parseRocksDBKeyWindowID(byte[] keyArray) {
-        return Utilities.byteArrayToLong(keyArray, 8);
-    }
-
     private void insertIntoCache(ConcurrentHashMap<Long, SummaryWindow> streamCache, long swid, SummaryWindow window) {
         if (streamCache.size() >= cacheSizePerStream) { // evict random
             Map.Entry<Long, SummaryWindow> evictedEntry = streamCache.entrySet().iterator().next(); // basically a random evict

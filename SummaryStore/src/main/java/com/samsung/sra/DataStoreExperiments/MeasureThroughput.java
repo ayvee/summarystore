@@ -5,11 +5,14 @@ import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
 import com.samsung.sra.DataStore.Ingest.CountBasedWBMH;
 import com.samsung.sra.DataStore.RationalPowerWindowing;
 import com.samsung.sra.DataStore.SummaryStore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.ThreadLocalRandom;
 
 public class MeasureThroughput {
     private static final String loc_prefix = "/mnt/md0/tdstore_";
+    private static final Logger logger = LoggerFactory.getLogger(MeasureThroughput.class);
 
     public static void main(String[] args) throws Exception {
         if (args.length != 2) {
@@ -35,12 +38,12 @@ public class MeasureThroughput {
                 writerThreads[i].join();
             }
             long we = System.currentTimeMillis();
-            System.out.printf("Write throughput = %,.0f appends/s\n",  (nThreads * T * 1000d / (we - w0)));
+            logger.info("Write throughput = {} appends/s",  String.format("%,.0f", (nThreads * T * 1000d / (we - w0))));
 
             long f0 = System.currentTimeMillis();
             store.query(0, 0, T - 1, 0);
             long fe = System.currentTimeMillis();
-            System.out.println("Time to run longest query, spanning [0, T) = " + ((fe - f0) / 1000d) + " sec");
+            logger.info("Time to run longest query, spanning [0, T) = {} sec", (fe - f0) / 1000d);
         }
     }
 
@@ -56,7 +59,7 @@ public class MeasureThroughput {
             this.N = N;
             this.random = ThreadLocalRandom.current();
             this.wbmh = new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1))
-                    .setBufferSize(2_000_000)
+                    .setBufferSize(500_000_000)
                     .setWindowsPerMergeBatch(1_000_000_000);
             store.registerStream(streamID, false, wbmh,
                     new SimpleCountOperator(), new CMSOperator(5, 1000, 0));
@@ -72,6 +75,8 @@ public class MeasureThroughput {
                 /*store.flush(streamID);
                 wbmh.setBufferSize(0);*/
                 wbmh.flushAndSetUnbuffered();
+                logger.info("Populated stream {} of size {} with {} summary windows", streamID, N,
+                        store.getNumSummaryWindows(streamID));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
