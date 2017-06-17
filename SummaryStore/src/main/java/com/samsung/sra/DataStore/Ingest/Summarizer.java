@@ -11,8 +11,8 @@ import java.util.concurrent.BlockingQueue;
 
 /** Summarize values in full IngestBuffers into a sequence of SummaryWindows, and pass them on to Writer's queue */
 class Summarizer implements Runnable, Serializable {
-    static final IngestBuffer SHUTDOWN_SENTINEL = new IngestBuffer(0);
-    static final IngestBuffer FLUSH_SENTINEL = new IngestBuffer(0);
+    static final IngestBuffer SHUTDOWN_SENTINEL = new ObjectIngestBuffer(0);
+    static final IngestBuffer FLUSH_SENTINEL = new ObjectIngestBuffer(0);
     private static final Logger logger = LoggerFactory.getLogger(Summarizer.class);
 
     private final BlockingQueue<IngestBuffer> summarizerQueue; // input queue

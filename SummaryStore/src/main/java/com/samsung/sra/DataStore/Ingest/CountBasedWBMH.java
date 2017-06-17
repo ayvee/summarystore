@@ -68,7 +68,7 @@ public class CountBasedWBMH implements WindowingMechanism {
      *
      * WARNING: please ensure stream has been flushed before calling */
     public CountBasedWBMH setBufferSize(int totalBufferSize, int numBuffers) {
-        emptyBuffers.clear();
+        destroyEmptyBuffers();
         int[] bufferWindowLengths = windowing.getWindowsCoveringUpto(totalBufferSize / numBuffers)
                 .stream().mapToInt(Long::intValue).toArray();
         summarizer.setWindowLengths(bufferWindowLengths);
@@ -80,10 +80,18 @@ public class CountBasedWBMH implements WindowingMechanism {
         if (bufferSize > 0) {
             assert numBuffers > 0;
             for (int i = 0; i < numBuffers; ++i) {
-                emptyBuffers.add(new IngestBuffer((int) bufferSize));
+                //emptyBuffers.add(new ObjectIngestBuffer((int) bufferSize));
+                emptyBuffers.add(new LongIngestBuffer((int) bufferSize));
             }
         }
         return this;
+    }
+
+    private void destroyEmptyBuffers() {
+        for (IngestBuffer buffer : emptyBuffers) {
+            buffer.close();
+        }
+        emptyBuffers.clear();
     }
 
     /**
@@ -175,7 +183,7 @@ public class CountBasedWBMH implements WindowingMechanism {
         }
         if (setUnbuffered) {
             bufferSize = 0;
-            emptyBuffers.clear();
+            destroyEmptyBuffers();
         }
         Utilities.put(writerQueue, shutdown ? Writer.SHUTDOWN_SENTINEL : Writer.FLUSH_SENTINEL);
         flushBarrier.wait(FlushBarrier.WRITER, threshold);
