@@ -43,7 +43,8 @@ public class RocksDBBackingStore extends BackingStore {
                 //.setCompressionType(CompressionType.NO_COMPRESSION)
                 //.setMemTableConfig(new VectorMemTableConfig())
                 .setTableFormatConfig(new BlockBasedTableConfig()
-                        .setBlockCacheSize(8L * 1024 * 1024 * 1024)
+                        .setBlockSize(32L * 1024)
+                        .setBlockCacheSize(32L * 1024 * 1024 * 1024)
                         .setFilter(new BloomFilter()))
                 .setMaxOpenFiles(-1);
         rocksDBWriteOptions = new WriteOptions()

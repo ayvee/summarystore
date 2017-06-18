@@ -58,7 +58,7 @@ public class MeasureThroughput {
             this.streamID = streamID;
             this.N = N;
             this.random = ThreadLocalRandom.current();
-            this.wbmh = new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1))
+            this.wbmh = new CountBasedWBMH(new RationalPowerWindowing(1, 1, 1, 1))
                     .setValuesAreLongs(true)
                     .setBufferSize(500_000_000)
                     .setWindowsPerMergeBatch(1_000_000_000)

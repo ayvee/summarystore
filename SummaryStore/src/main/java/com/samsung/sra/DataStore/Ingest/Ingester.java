@@ -1,7 +1,6 @@
 package com.samsung.sra.DataStore.Ingest;
 
 import com.samsung.sra.DataStore.Utilities;
-import org.apache.commons.math3.util.Pair;
 
 import java.io.Serializable;
 import java.util.concurrent.BlockingQueue;
@@ -40,7 +39,6 @@ class Ingester implements Serializable {
      *
      * NOTE: must externally serialize all append() and flush() */
     void flush(boolean shutdown) {
-        Pair<IngestBuffer, BlockingQueue<IngestBuffer>> ret;
         if (activeBuffer != null && activeBuffer.size() > 0) {
             assert !activeBuffer.isFull();
             Utilities.put(summarizerQueue, activeBuffer);
