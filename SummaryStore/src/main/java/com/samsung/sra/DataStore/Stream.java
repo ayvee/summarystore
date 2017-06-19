@@ -109,13 +109,11 @@ class Stream implements Serializable {
 
     Object query(int operatorNum, long t0, long t1, Object[] queryParams) throws BackingStoreException {
         long T0 = stats.getTimeRangeStart(), T1 = stats.getTimeRangeEnd();
-        if (t0 > T1) {
+        if (t0 > T1 || t1 < T0) { // [T0, T1] does not overlap [t0, t1]
             return operators[operatorNum].getEmptyQueryResult();
-        } else if (t0 < T0) {
-            t0 = T0;
-        }
-        if (t1 > T1) {
-            t1 = T1;
+        } else {
+            t0 = Math.max(t0, T0);
+            t1 = Math.min(t1, T1);
         }
 
         java.util.stream.Stream summaryWindows = windowManager.getSummaryWindowsOverlapping(t0, t1);
