@@ -87,12 +87,12 @@ public class SummaryStore implements AutoCloseable {
 
     public void registerStream(final long streamID, CountBasedWBMH wbmh, WindowOperator... operators)
             throws BackingStoreException, StreamException {
-        registerStream(streamID, false, wbmh, operators);
+        registerStream(streamID, true, wbmh, operators);
     }
 
     /**
-     * Register a stream with specified windowing and operators. Set the optional synchronizeWrites flag to true to
-     * make Stream use a lock to serialize all append/landmark/flush/close calls
+     * Register a stream with specified windowing and operators. Set the optional synchronizeWrites flag to false to
+     * disable the internal lock we otherwise use to serialize all append/landmark/flush/close calls
      */
     public void registerStream(final long streamID, boolean synchronizeWrites,
                                CountBasedWBMH wbmh, WindowOperator... operators)
