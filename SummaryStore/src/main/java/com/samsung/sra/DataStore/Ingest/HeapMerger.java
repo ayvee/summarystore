@@ -90,7 +90,8 @@ class HeapMerger extends Merger {
 
             {
                 SummaryWindow w0 = windowManager.getSummaryWindow(w0ID);
-                SummaryWindow w1 = windowManager.deleteSummaryWindow(w1ID);
+                SummaryWindow w1 = windowManager.getSummaryWindow(w1ID);
+                windowManager.deleteSummaryWindow(w1ID);
                 windowManager.mergeSummaryWindows(w0, w1);
                 windowManager.putSummaryWindow(w0);
             }

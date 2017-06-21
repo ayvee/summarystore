@@ -10,7 +10,7 @@ import com.samsung.sra.DataStore.SummaryWindow;
 public abstract class BackingStore implements AutoCloseable {
     abstract SummaryWindow getSummaryWindow(long streamID, long swid, SerDe serDe) throws BackingStoreException;
 
-    abstract SummaryWindow deleteSummaryWindow(long streamID, long swid, SerDe serDe) throws BackingStoreException;
+    abstract void deleteSummaryWindow(long streamID, long swid, SerDe serDe) throws BackingStoreException;
 
     abstract void putSummaryWindow(long streamID, long swid, SerDe serDe, SummaryWindow window) throws BackingStoreException;
 

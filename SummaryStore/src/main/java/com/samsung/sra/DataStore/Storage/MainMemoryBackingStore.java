@@ -17,8 +17,8 @@ public class MainMemoryBackingStore extends BackingStore {
     }
 
     @Override
-    SummaryWindow deleteSummaryWindow(long streamID, long swid, SerDe serDe) {
-        return summaryWindows.get(streamID).remove(swid);
+    void deleteSummaryWindow(long streamID, long swid, SerDe serDe) {
+        summaryWindows.get(streamID).remove(swid);
     }
 
     @Override

@@ -63,6 +63,7 @@ class BatchingHeapMerger extends Merger {
     @Override
     public void populateTransientFields(StreamWindowManager windowManager) {
         this.windowManager = windowManager;
+        windowInfo.populateTransientFields(mergeCounts);
     }
 
     @Override
@@ -146,7 +147,8 @@ class BatchingHeapMerger extends Merger {
         int w = 0;
         windows[w++] = windowManager.getSummaryWindow(head);
         for (long swid : tail) {
-            windows[w++] = windowManager.deleteSummaryWindow(swid);
+            windows[w++] = windowManager.getSummaryWindow(swid);
+            windowManager.deleteSummaryWindow(swid);
         }
         assert w == windows.length;
         windowManager.mergeSummaryWindows(windows);

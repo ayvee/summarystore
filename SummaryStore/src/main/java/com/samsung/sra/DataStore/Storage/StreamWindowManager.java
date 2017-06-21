@@ -84,9 +84,9 @@ public class StreamWindowManager implements Serializable {
                 .filter(w -> w.te >= t0); // filter needed because very first window may not overlap [t0, t1]
     }
 
-    public SummaryWindow deleteSummaryWindow(long swid) throws BackingStoreException {
+    public void deleteSummaryWindow(long swid) throws BackingStoreException {
         summaryIndex.remove(swid);
-        return backingStore.deleteSummaryWindow(streamID, swid, serde);
+        backingStore.deleteSummaryWindow(streamID, swid, serde);
     }
 
     public void putSummaryWindow(SummaryWindow window) throws BackingStoreException {

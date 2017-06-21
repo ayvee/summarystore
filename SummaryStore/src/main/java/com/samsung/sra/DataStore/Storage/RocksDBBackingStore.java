@@ -117,13 +117,11 @@ public class RocksDBBackingStore extends BackingStore {
     }
 
     @Override
-    SummaryWindow deleteSummaryWindow(long streamID, long swid, SerDe serDe) throws BackingStoreException {
+    void deleteSummaryWindow(long streamID, long swid, SerDe serDe) throws BackingStoreException {
         assert cache == null;
         try {
             byte[] key = getRocksDBKey(streamID, swid);
-            SummaryWindow val = serDe.deserializeSummaryWindow(rocksDB.get(key));
             rocksDB.delete(key);
-            return val;
         } catch (RocksDBException e) {
             throw new BackingStoreException(e);
         }
