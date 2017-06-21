@@ -148,7 +148,7 @@ public class CountBasedWBMH implements Serializable {
 
     public void append(long ts, Object value) throws BackingStoreException {
         if (bufferSize > 0) {
-            if (N % 1_000_000 == 0) {
+            if (N % 100_000_000 == 0) {
                 logger.info("N = {}M, queue lengths: emptyBuffers = {}, summarizer = {}, writer = {}, merger = {}",
                         N / 1_000_000, emptyBuffers.size(), summarizerQueue.size(), writerQueue.size(), mergerQueue.size());
             }
