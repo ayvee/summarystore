@@ -41,6 +41,8 @@ public class RocksDBBackingStore extends BackingStore {
                 .setMaxWriteBufferNumber(24)
                 .setMinWriteBufferNumberToMerge(4)
                 .setLevel0FileNumCompactionTrigger(4)
+                .setSoftPendingCompactionBytesLimit(1_000_000_000_000_000L)
+                .setHardPendingCompactionBytesLimit(1_000_000_000_000_000L)
                 .setMaxBytesForLevelBase(512L * 1024 * 1024 * 4 * 4)
                 .setTargetFileSizeBase(512L * 1024 * 1024)
                 .setLevelCompactionDynamicLevelBytes(true)
