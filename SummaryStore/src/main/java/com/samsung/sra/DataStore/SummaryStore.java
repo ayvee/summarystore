@@ -30,18 +30,22 @@ public class SummaryStore implements AutoCloseable {
     private final boolean readonly;
 
     /**
-     * Create a SummaryStore that stores data and indexes in files/directories that
-     * start with filePrefix. To store everything in-memory use a null filePrefix
+     * Create a SummaryStore that stores data and indexes in directory. Use a null directory to store everything in-mem
      */
-    public SummaryStore(String filePrefix, long cacheSizePerStream, boolean readonly)
+    public SummaryStore(String directory, long cacheSizePerStream, boolean readonly)
             throws BackingStoreException, IOException, ClassNotFoundException {
         if (cacheSizePerStream > 0 && !readonly) {
             throw new IllegalArgumentException("Backing store cache not allowed in read/write mode (use the memory for" +
                     " ingest buffer instead)");
         }
-        if (filePrefix != null) {
-            this.backingStore = new RocksDBBackingStore(filePrefix + ".backingStore", cacheSizePerStream);
-            this.indexesFile = filePrefix + ".indexes";
+        if (directory != null) {
+            File dir = new File(directory);
+            if (!dir.exists()) {
+                boolean created = dir.mkdirs();
+                assert created;
+            }
+            this.backingStore = new RocksDBBackingStore(directory + "/rocksdb", cacheSizePerStream);
+            this.indexesFile = directory + "/indexes";
         } else {
             this.backingStore = new MainMemoryBackingStore();
             this.indexesFile = null;

@@ -84,10 +84,10 @@ public class CSVStreamGenerator implements StreamGenerator {
     }
 
     public static void main(String[] args) throws Exception {
-        String prefix = "/tmp/tdstore/googletrace_test_";
+        String directory = "/tmp/tdstore/googletrace_test";
         long streamID = 0;
-        Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + prefix + "*"}).waitFor();
-        SummaryStore store = new SummaryStore("/tmp/googletrace_test_");
+        Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + directory}).waitFor();
+        SummaryStore store = new SummaryStore("/tmp/googletrace_test");
         store.registerStream(streamID,
                 new CountBasedWBMH(new RationalPowerWindowing(1, 1, 6, 1)).setBufferSize(2_000_000),
                 new SimpleCountOperator());

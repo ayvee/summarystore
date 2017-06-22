@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class MeasureThroughput {
-    private static final String loc_prefix = "/mnt/md0/tdstore_";
+    private static final String directory = "/mnt/md0/tdstore_throughput";
     private static final Logger logger = LoggerFactory.getLogger(MeasureThroughput.class);
 
     public static void main(String[] args) throws Exception {
@@ -21,9 +21,9 @@ public class MeasureThroughput {
         }
         long T = Long.parseLong(args[0].replace("_", ""));
         int nThreads = Integer.parseInt(args[1]);
-        Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + loc_prefix + "*"}).waitFor();
+        Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + directory}).waitFor();
 
-        try (SummaryStore store = new SummaryStore(loc_prefix + "throughput")) {
+        try (SummaryStore store = new SummaryStore(directory)) {
             StreamWriter[] writers = new StreamWriter[nThreads];
             Thread[] writerThreads = new Thread[nThreads];
             for (int i = 0; i < nThreads; ++i) {

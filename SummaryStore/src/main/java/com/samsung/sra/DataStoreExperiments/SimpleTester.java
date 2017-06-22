@@ -16,14 +16,14 @@ import java.util.Map;
  */
 public class SimpleTester {
 
-    private static String loc_prefix = "/tmp/tdstore_";
+    private static String directory = "/tmp/tdstore";
     private static long streamID = 0;
     public static Logger logger = LoggerFactory.getLogger(SimpleTester.class);
 
 
     public static void main(String[] args) throws Exception {
 
-        Runtime.getRuntime().exec(new String[]{"sh", "-c",  "rm -rf " + loc_prefix + "*"}).waitFor();
+        Runtime.getRuntime().exec(new String[]{"sh", "-c",  "rm -rf " + directory}).waitFor();
 
         SummaryStore store = null;
         long T =100; //  entries
@@ -40,7 +40,7 @@ public class SimpleTester {
 
 
         try {
-            store = new SummaryStore(loc_prefix);
+            store = new SummaryStore(directory);
             store.registerStream(streamID, new CountBasedWBMH(windowing),
                     new SimpleCountOperator()
                     // new SimpleCountOperator(SimpleCountOperator.Estimator.PROPORTIONAL),
@@ -109,7 +109,7 @@ public class SimpleTester {
     }
 
     private static void registerStore(Map<String, SummaryStore> stores, String storeName, CountBasedWBMH wbmh) throws Exception {
-        SummaryStore store = new SummaryStore(loc_prefix + storeName);
+        SummaryStore store = new SummaryStore(directory + storeName);
         //SummaryStore store = new SummaryStore(new MainMemoryBackingStore());
         store.registerStream(streamID, wbmh);
         stores.put(storeName, store);

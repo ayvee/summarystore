@@ -20,7 +20,7 @@ public class SummaryStoreTest {
     @Test
     public void exponential() throws Exception {
         String storeLoc = "/tmp/tdstore";
-        Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + storeLoc + "*"}).waitFor();
+        Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + storeLoc}).waitFor();
 
         // create and populate store
         SummaryStore store = new SummaryStore(storeLoc, 0);

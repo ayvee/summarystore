@@ -14,7 +14,7 @@ import java.util.function.Supplier;
 public class MeasureInstThroughput {
     private static final Logger logger = LoggerFactory.getLogger(MeasureInstThroughput.class);
 
-    private static final String loc_prefix = "/tmp/tdstore_";
+    private static final String directory = "/tmp/tdstore_throughput";
     private static final String streamConf =
               "interarrivals = {distribution = \"FixedDistribution\", value = 1}\n"
             + "values = {distribution = \"UniformDistribution\", min = 0, max = 100}\n"
@@ -94,7 +94,7 @@ public class MeasureInstThroughput {
     }
 
     public static void main(String[] args) throws Exception {
-        Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + loc_prefix + "*"}).waitFor();
+        Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + directory}).waitFor();
         int nStreams = 4;
         long T = 1_000_000_000;
         long printInterval = 10_000_000;
@@ -104,7 +104,7 @@ public class MeasureInstThroughput {
                 new SimpleCountOperator()};
 
         PrintThroughput throughputPrinter = new PrintThroughput(printInterval);
-        try (SummaryStore store = new SummaryStore(loc_prefix + "throughput")) {
+        try (SummaryStore store = new SummaryStore(directory)) {
             if (nStreams == 1) {
                 new PopulateStream(store, 0, T, windowing, operators, throughputPrinter).run();
             } else {
