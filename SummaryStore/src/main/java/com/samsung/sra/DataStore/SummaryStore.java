@@ -24,9 +24,9 @@ public class SummaryStore implements AutoCloseable {
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(SummaryStore.class);
 
     private final BackingStore backingStore;
-    private final String indexesFile;
+    private final String directory;
 
-    final ConcurrentHashMap<Long, Stream> streams; // package-local rather than private to allow access from SummaryStoreTest
+    ConcurrentHashMap<Long, Stream> streams; // package-local rather than private to allow access from SummaryStoreTest
     private final boolean readonly;
 
     /**
@@ -45,13 +45,13 @@ public class SummaryStore implements AutoCloseable {
                 assert created;
             }
             this.backingStore = new RocksDBBackingStore(directory + "/rocksdb", cacheSizePerStream);
-            this.indexesFile = directory + "/indexes";
+            this.directory = directory;
         } else {
             this.backingStore = new MainMemoryBackingStore();
-            this.indexesFile = null;
+            this.directory = null;
         }
         this.readonly = readonly;
-        streams = deserializeIndexes();
+        deserializeMetadata();
     }
 
     public SummaryStore(String filePrefix, long cacheSizePerStream)
@@ -67,25 +67,38 @@ public class SummaryStore implements AutoCloseable {
         this(null);
     }
 
-    private void serializeIndexes() throws IOException {
-        if (indexesFile == null) return;
-        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(indexesFile))) {
-            oos.writeObject(streams);
+    private void serializeMetadata() throws IOException {
+        if (directory == null) return;
+        serializeObject(directory + "/metadata", streams);
+        for (Stream stream : streams.values()) {
+            serializeObject(directory + "/read-index." + stream.streamID, stream.windowManager);
+            serializeObject(directory + "/write-index." + stream.streamID, stream.wbmh);
         }
     }
 
-    private ConcurrentHashMap<Long, Stream> deserializeIndexes() throws IOException, ClassNotFoundException {
-        File file;
-        if (indexesFile == null || !(file = new File(indexesFile)).exists()) {
-            return new ConcurrentHashMap<>();
-        } else {
-            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
-                ConcurrentHashMap<Long, Stream> ret = (ConcurrentHashMap<Long, Stream>) ois.readObject();
-                for (Stream si: ret.values()) {
-                    si.populateTransientFields(backingStore);
-                }
-                return ret;
-            }
+    private void deserializeMetadata() throws IOException, ClassNotFoundException {
+        if (directory == null || !(new File(directory + "/metadata").exists())) {
+            streams =  new ConcurrentHashMap<>();
+            return;
+        }
+        streams = deserializeObject(directory + "/metadata");
+        for (Stream stream : streams.values()) {
+            stream.windowManager = deserializeObject(directory + "/read-index." + stream.streamID);
+            stream.wbmh = readonly ? null
+                    : deserializeObject(directory + "/write-index." + stream.streamID);
+            stream.populateTransientFields(backingStore);
+        }
+    }
+
+    private static <T> void serializeObject(String filename, T obj) throws IOException {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filename))) {
+            oos.writeObject(obj);
+        }
+    }
+
+    private static <T> T deserializeObject(String filename) throws IOException, ClassNotFoundException {
+        try (ObjectInputStream ois = new ObjectInputStream((new FileInputStream(filename)))) {
+            return (T) ois.readObject();
         }
     }
 
@@ -165,7 +178,7 @@ public class SummaryStore implements AutoCloseable {
                 for (Stream stream : streams.values()) {
                     stream.close();
                 }
-                serializeIndexes();
+                serializeMetadata();
             }
             backingStore.close();
         }

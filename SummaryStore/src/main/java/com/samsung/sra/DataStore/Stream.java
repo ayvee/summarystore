@@ -17,10 +17,8 @@ import java.util.function.Function;
 class Stream implements Serializable {
     private static Logger logger = LoggerFactory.getLogger(Stream.class);
 
-    private final long streamID;
+    final long streamID;
     private final WindowOperator[] operators;
-
-    final StreamWindowManager windowManager;
 
     final StreamStatistics stats;
     private long tLastAppend = -1, tLastLandmarkStart = -1, tLastLandmarkEnd = -1;
@@ -32,12 +30,14 @@ class Stream implements Serializable {
     private final Lock extLock;
     private final boolean synchronizeWrites;
 
-    /** Maintains write indexes internally, which SummaryStore will persist to disk along with the rest of Stream */
-    private final CountBasedWBMH wbmh;
+    /** Must be loaded to handle any reads/writes */
+    transient StreamWindowManager windowManager;
+    /** Needed to handle writes, but can be unloaded in read-only mode. Maintains write indexes internally */
+    transient CountBasedWBMH wbmh;
 
     void populateTransientFields(BackingStore backingStore) {
-        windowManager.populateTransientFields(backingStore);
-        wbmh.populateTransientFields(windowManager);
+        if (windowManager != null) windowManager.populateTransientFields(backingStore);
+        if (wbmh != null) wbmh.populateTransientFields(windowManager);
     }
 
     Stream(long streamID, boolean synchronizeWrites, CountBasedWBMH wbmh, WindowOperator[] operators) {
