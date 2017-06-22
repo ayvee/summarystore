@@ -5,6 +5,8 @@ import com.samsung.sra.DataStore.Storage.StreamWindowManager;
 import com.samsung.sra.DataStore.SummaryWindow;
 import com.samsung.sra.DataStore.Utilities;
 import com.samsung.sra.DataStore.Windowing;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongArrayList;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -124,12 +126,12 @@ class BatchingHeapMerger extends Merger {
         }
     }
 
-    private final Map<Long, List<Long>> pendingMerges = new HashMap<>();
+    private final Map<Long, List<Long>> pendingMerges = new Long2ObjectOpenHashMap<>();
 
     /* add entry merge(swid0, [any windows already merged into swid0], swid1, [any windows alread merged into swid1]) */
     private void addPendingMerge(long swid0, long swid1) {
         List<Long> tail = pendingMerges.get(swid0);
-        if (tail == null) tail = new ArrayList<>();
+        if (tail == null) tail = new LongArrayList();
         tail.add(swid1);
         List<Long> transitiveTail = pendingMerges.remove(swid1);
         if (transitiveTail != null) tail.addAll(transitiveTail);
