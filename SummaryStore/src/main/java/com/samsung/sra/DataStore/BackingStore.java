@@ -1,7 +1,9 @@
 package com.samsung.sra.DataStore;
 
+import org.apache.commons.lang.SerializationUtils;
 import org.rocksdb.RocksDBException;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.Map;
 
@@ -44,6 +46,10 @@ interface BackingStore extends AutoCloseable {
     Serializable getMetadata() throws RocksDBException;
 
     void putMetadata(Serializable indexes) throws RocksDBException;
+
+    Serializable getSnodeMetadata() throws RocksDBException;
+
+    void putSnodeMetadata(Serializable nodemd) throws RocksDBException, IOException;
 
     default void warmupCache(Map<Long, StreamManager> streamManagers) throws RocksDBException {}
 

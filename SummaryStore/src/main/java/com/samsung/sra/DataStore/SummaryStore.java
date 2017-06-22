@@ -7,8 +7,9 @@ import com.samsung.sra.protocol.Common.OpType;
 import org.rocksdb.RocksDBException;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
-import java.util.Collections;
+import java.io.IOException;
+import java.io.Serializable;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -24,6 +25,10 @@ public class SummaryStore implements AutoCloseable {
     private final ExecutorService executorService;
 
     private final ConcurrentHashMap<Long, StreamManager> streamManagers;
+
+    public void persistNodeInfo(Serializable nodemd) throws RocksDBException, IOException {
+        backingStore.putSnodeMetadata(nodemd);
+    }
 
     private void persistStreamsInfo() throws RocksDBException {
         backingStore.putMetadata(streamManagers);
@@ -60,7 +65,10 @@ public class SummaryStore implements AutoCloseable {
     public void registerStream(final long streamID, WindowingMechanism windowingMechanism, WindowOperator... operators) throws StreamException, RocksDBException {
         synchronized (streamManagers) {
             if (streamManagers.containsKey(streamID)) {
-                 throw new StreamException("attempting to register streamID " + streamID + " multiple times");
+                logger.error("attempting to register streamID " + streamID + " multiple times; ignored");
+
+                 // TODO: handle without throwing exception? this happens a lot more in multiple clients.
+                 // throw new StreamException("attempting to register streamID " + streamID + " multiple times");
             } else {
                 logger.info("Registered new Stream " + streamID);
                 streamManagers.put(streamID, new StreamManager(backingStore, executorService, streamID, windowingMechanism, operators));
@@ -96,13 +104,6 @@ public class SummaryStore implements AutoCloseable {
     /** client specified time stamp; client needs to ensure no out-of-order */
     public void append(long streamID, long ts, Object... value) throws StreamException, RocksDBException {
         StreamManager streamManager = getStreamManager(streamID);
-
-
-        // FIXME: hack for testing; if client does not specify ts, server assigns
-        if(ts==-1) {
-            ts = Math.abs(System.currentTimeMillis());
-        }
-
         streamManager.lock.writeLock().lock();
         try {
             logger.debug("Appending new value: <ts: " + ts + ", val: " + value + ">");
@@ -249,6 +250,27 @@ public class SummaryStore implements AutoCloseable {
             return new StreamStatistics(streamManager.stats);
         } finally {
             streamManager.lock.readLock().unlock();
+        }
+    }
+
+    public void printStoreStatistics() {
+
+        String msg = "";
+        Map.Entry<Long, StreamManager> entry;
+
+        msg = "Num entries: " + streamManagers.keySet().size();
+        logger.info(msg);
+        Iterator<Map.Entry<Long, StreamManager>> iterator = streamManagers.entrySet().iterator();
+
+        while(iterator.hasNext()) {
+            msg = "";
+            entry = iterator.next();
+            msg += " Stream: " + entry.getKey();
+            msg += " Num values: " + entry.getValue().stats.getNumValues();
+            msg += " time range End: " + entry.getValue().stats.getTimeRangeEnd();
+
+            msg += "\n-------------------------------------------------------\n";
+            logger.info(msg);
         }
     }
 

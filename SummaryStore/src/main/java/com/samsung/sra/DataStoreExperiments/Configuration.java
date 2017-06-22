@@ -5,10 +5,13 @@ import com.samsung.sra.DataStore.*;
 import com.samsung.sra.DataStore.Aggregates.BloomFilterOperator;
 import com.samsung.sra.DataStore.Aggregates.CMSOperator;
 import org.apache.commons.lang.builder.HashCodeBuilder;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.File;
 import java.io.IOException;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -264,14 +267,38 @@ public class Configuration {
     }
 
     // build a hashmap for nodeID -> (IP, port); only valid for gateway nodes
-    public List<HashMap<String, String>> buildNodeIP() {
+    //public List<HashMap<String, String>> buildNodeIP() {
+    public HashMap<Integer, Pair<InetAddress, Integer>>  buildNodeIP() {
         Toml conf = toml.getTable("nodes");
         List<HashMap<String, String>> listIPs;
+
+        HashMap<Integer, Pair<InetAddress, Integer>> mapIPs = new HashMap<>();
+
+        int nodeID, port;
+        InetAddress ip = null;
 
         if (conf!=null) {
             listIPs = conf.getList("nodeips");
             assert(listIPs.size() == getNumNodes());
-            return listIPs;
+
+            for(int i=0; i< listIPs.size(); i++) {
+                String[] tokens = String.valueOf(listIPs.get(i)).replaceAll("}", "").split(",");
+
+                nodeID = Integer.valueOf(tokens[2].substring(7));
+                port = Integer.valueOf(tokens[0].substring(6));
+
+                try {
+                    ip = InetAddress.getByName(tokens[1].substring(4));
+
+                } catch (UnknownHostException u) {
+                    System.out.println("Invalid IP address for host " + nodeID);
+                    u.printStackTrace();
+                }
+
+                mapIPs.put(nodeID, Pair.of(ip, port));
+
+            }
+            return mapIPs;
         } else {
             throw new RuntimeException("node configuration absent from config file");
         }

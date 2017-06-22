@@ -1,5 +1,6 @@
 package com.samsung.sra.DataStore;
 
+import org.apache.commons.lang.SerializationUtils;
 import org.rocksdb.RocksDBException;
 
 import java.io.Serializable;
@@ -44,6 +45,7 @@ class MainMemoryBackingStore implements BackingStore {
     }
 
     private Serializable indexes = null;
+    private Serializable nodemd = null;
 
     @Override
     public Serializable getMetadata() throws RocksDBException {
@@ -54,6 +56,17 @@ class MainMemoryBackingStore implements BackingStore {
     public void putMetadata(Serializable indexes) throws RocksDBException {
         this.indexes = indexes;
     }
+
+    @Override
+    public void putSnodeMetadata(Serializable nodemd) throws RocksDBException {
+        this.nodemd = nodemd;
+    }
+
+    @Override
+    public Serializable getSnodeMetadata() throws RocksDBException {
+        return nodemd;
+    }
+
 
     @Override
     public void close() throws RocksDBException {

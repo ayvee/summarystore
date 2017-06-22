@@ -8,6 +8,7 @@ import org.rocksdb.RocksIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -207,6 +208,9 @@ public class RocksDBBackingStore implements BackingStore {
      */
     private final static byte[] metadataSpecialKey = {};
 
+
+    private final static byte[] snodeSpecialKey = {0,0,0,0};
+
     // FIXME: NA; also use proto here
     @Override
     public Serializable getMetadata() throws RocksDBException {
@@ -219,6 +223,20 @@ public class RocksDBBackingStore implements BackingStore {
     @Override
     public void putMetadata(Serializable indexes) throws RocksDBException {
         rocksDB.put(metadataSpecialKey, SerializationUtils.serialize(indexes));
+    }
+
+    @Override
+    public Serializable getSnodeMetadata() throws RocksDBException {
+        byte[] snodeBytes = rocksDB.get(snodeSpecialKey);
+        return snodeBytes != null ?
+                (Serializable)SerializationUtils.deserialize(snodeBytes) :
+                null;
+    }
+
+    @Override
+    public void putSnodeMetadata(Serializable nodemd) throws RocksDBException, IOException {
+        //rocksDB.put(snodeSpecialKey, SerializationUtils.serialize(nodemd));
+        rocksDB.put(snodeSpecialKey, Serializer.serialize(nodemd));
     }
 
     @Override
