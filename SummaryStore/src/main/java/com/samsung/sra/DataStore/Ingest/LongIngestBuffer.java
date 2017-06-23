@@ -2,15 +2,51 @@ package com.samsung.sra.DataStore.Ingest;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import xerial.larray.LLongArray;
-import xerial.larray.japi.LArrayJ;
+import sun.misc.Unsafe;
 
+import java.lang.reflect.Constructor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 class LongIngestBuffer implements IngestBuffer {
     private static final Logger logger = LoggerFactory.getLogger(LongIngestBuffer.class);
 
-    private LLongArray timestamps, values;
+    /** Off-heap long array with unchecked get/put operations */
+    static class LongArray implements AutoCloseable {
+        private final long ptr;
+
+        private transient static Unsafe unsafe;
+
+        static {
+            try {
+                Constructor<Unsafe> unsafeConstructor = Unsafe.class.getDeclaredConstructor();
+                unsafeConstructor.setAccessible(true);
+                unsafe = unsafeConstructor.newInstance();
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        LongArray(long capacity) {
+            assert capacity >= 0;
+            this.ptr = unsafe.allocateMemory(8 * capacity);
+        }
+
+        long get(long idx) {
+            return unsafe.getLong(ptr + 8 * idx);
+        }
+
+        void put(long idx, long val) {
+            unsafe.putLong(ptr + 8 * idx, val);
+        }
+
+        @Override
+        public void close() {
+            unsafe.freeMemory(ptr);
+        }
+    }
+
+    // FIXME: must reconstruct on SummaryStore reopen
+    private transient LongArray timestamps, values;
     private final int capacity;
     private int size = 0;
     private final int id;
@@ -21,15 +57,15 @@ class LongIngestBuffer implements IngestBuffer {
         this.id = num.incrementAndGet();
         logger.info("ingest buffer {}: about to malloc 2 * long[{}]", this.id, this.capacity);
 
-        this.timestamps = LArrayJ.newLLongArray(capacity);
-        this.values = LArrayJ.newLLongArray(capacity);
+        this.timestamps = new LongArray(capacity);
+        this.values = new LongArray(capacity);
     }
 
     @Override
     public void append(long ts, Object value) {
         if (size >= capacity) throw new IndexOutOfBoundsException();
-        timestamps.update(size, ts);
-        values.update(size, ((Number) value).longValue());
+        timestamps.put(size, ts);
+        values.put(size, ((Number) value).longValue());
         ++size;
     }
 
@@ -48,8 +84,8 @@ class LongIngestBuffer implements IngestBuffer {
         assert s >= 0;
         if (s == 0) return;
         for (int i = 0; i < size - s; ++i) {
-            timestamps.update(i, timestamps.apply(i + s));
-            values.update(i, values.apply(i + s));
+            timestamps.put(i, timestamps.get(i + s));
+            values.put(i, values.get(i + s));
         }
         size -= s;
     }
@@ -62,19 +98,19 @@ class LongIngestBuffer implements IngestBuffer {
     @Override
     public long getTimestamp(int pos) {
         if (pos < 0 || pos >= size) throw new IndexOutOfBoundsException();
-        return timestamps.apply(pos);
+        return timestamps.get(pos);
     }
 
     @Override
     public Object getValue(int pos) {
         if (pos < 0 || pos >= size) throw new IndexOutOfBoundsException();
-        return values.apply(pos);
+        return values.get(pos);
     }
 
     @Override
     public void close() {
         logger.info("ingest buffer {}: about to free 2 * long[{}]", this.id, this.capacity);
-        timestamps.free();
-        values.free();
+        timestamps.close();
+        values.close();
     }
 }
