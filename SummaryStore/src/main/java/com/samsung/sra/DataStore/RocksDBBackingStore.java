@@ -209,7 +209,7 @@ public class RocksDBBackingStore implements BackingStore {
     private final static byte[] metadataSpecialKey = {};
 
 
-    private final static byte[] snodeSpecialKey = {0,0,0,0};
+    private final static byte[] snodeSpecialKey = {0};
 
     // FIXME: NA; also use proto here
     @Override
@@ -236,6 +236,7 @@ public class RocksDBBackingStore implements BackingStore {
     @Override
     public void putSnodeMetadata(Serializable nodemd) throws RocksDBException, IOException {
         //rocksDB.put(snodeSpecialKey, SerializationUtils.serialize(nodemd));
+        logger.info("writing snode metadata to rocks");
         rocksDB.put(snodeSpecialKey, Serializer.serialize(nodemd));
     }
 

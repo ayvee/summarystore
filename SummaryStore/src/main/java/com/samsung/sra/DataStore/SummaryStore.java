@@ -103,7 +103,16 @@ public class SummaryStore implements AutoCloseable {
 
     /** client specified time stamp; client needs to ensure no out-of-order */
     public void append(long streamID, long ts, Object... value) throws StreamException, RocksDBException {
-        StreamManager streamManager = getStreamManager(streamID);
+
+        StreamManager streamManager = null;
+        try {
+            streamManager = getStreamManager(streamID);
+        } catch (StreamException e) {
+            e.printStackTrace();
+            // logger.info("skipping append to stream " + streamID + " ts: " + ts);
+            return;
+        }
+
         streamManager.lock.writeLock().lock();
         try {
             logger.debug("Appending new value: <ts: " + ts + ", val: " + value + ">");
@@ -250,6 +259,14 @@ public class SummaryStore implements AutoCloseable {
             return new StreamStatistics(streamManager.stats);
         } finally {
             streamManager.lock.readLock().unlock();
+        }
+    }
+
+    public long getTEnd(long streamID) {
+        if(streamManagers.containsKey(streamID)) {
+            return streamManagers.get(streamID).stats.getTimeRangeEnd();
+        } else {
+            return 0;
         }
     }
 
