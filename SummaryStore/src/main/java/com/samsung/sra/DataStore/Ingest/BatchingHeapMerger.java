@@ -170,6 +170,7 @@ class BatchingHeapMerger extends Merger {
             }
         });
         pendingMerges.clear();
+        ((Long2ObjectOpenHashMap) pendingMerges).trim();
     }
 
     /**
