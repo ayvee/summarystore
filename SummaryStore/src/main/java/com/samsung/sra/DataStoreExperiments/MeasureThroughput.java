@@ -4,10 +4,12 @@ import com.samsung.sra.DataStore.Aggregates.CMSOperator;
 import com.samsung.sra.DataStore.Aggregates.SimpleCountOperator;
 import com.samsung.sra.DataStore.Ingest.CountBasedWBMH;
 import com.samsung.sra.DataStore.RationalPowerWindowing;
+import com.samsung.sra.DataStore.Storage.BackingStoreException;
 import com.samsung.sra.DataStore.SummaryStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class MeasureThroughput {
@@ -21,13 +23,13 @@ public class MeasureThroughput {
         }
         long T = Long.parseLong(args[0].replace("_", ""));
         int nThreads = Integer.parseInt(args[1]);
-        Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + directory}).waitFor();
+        Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + directory + "*"}).waitFor();
 
-        try (SummaryStore store = new SummaryStore(directory)) {
+        {
             StreamWriter[] writers = new StreamWriter[nThreads];
             Thread[] writerThreads = new Thread[nThreads];
             for (int i = 0; i < nThreads; ++i) {
-                writers[i] = new StreamWriter(store, i, T);
+                writers[i] = new StreamWriter(i, T);
                 writerThreads[i] = new Thread(writers[i], i + "-appender");
             }
             long w0 = System.currentTimeMillis();
@@ -39,11 +41,9 @@ public class MeasureThroughput {
             }
             long we = System.currentTimeMillis();
             logger.info("Write throughput = {} appends/s",  String.format("%,.0f", (nThreads * T * 1000d / (we - w0))));
-
-            long f0 = System.currentTimeMillis();
-            store.query(0, 0, T - 1, 0);
-            long fe = System.currentTimeMillis();
-            logger.info("Time to run longest query, spanning [0, T) = {} sec", (fe - f0) / 1000d);
+            for (int i = 0; i < nThreads; ++i) {
+                writers[i].close();
+            }
         }
     }
 
@@ -53,8 +53,8 @@ public class MeasureThroughput {
         private final CountBasedWBMH wbmh;
         private final ThreadLocalRandom random;
 
-        private StreamWriter(SummaryStore store, long streamID, long N) throws Exception {
-            this.store = store;
+        private StreamWriter(long streamID, long N) throws Exception {
+            this.store = new SummaryStore(directory + "." + streamID);
             this.streamID = streamID;
             this.N = N;
             this.random = ThreadLocalRandom.current();
@@ -82,6 +82,10 @@ public class MeasureThroughput {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
+        }
+
+        private void close() throws BackingStoreException, IOException {
+            store.close();
         }
     }
 }
