@@ -150,11 +150,13 @@ class BatchingHeapMerger extends Merger {
         windows[w++] = windowManager.getSummaryWindow(head);
         for (long swid : tail) {
             windows[w++] = windowManager.getSummaryWindow(swid);
-            windowManager.deleteSummaryWindow(swid);
         }
         assert w == windows.length;
         windowManager.mergeSummaryWindows(windows);
         windowManager.putSummaryWindow(windows[0]);
+        for (long swid : tail) {
+            windowManager.deleteSummaryWindow(swid);
+        }
     }
 
     private void issueAllPendingMerges() throws BackingStoreException {
