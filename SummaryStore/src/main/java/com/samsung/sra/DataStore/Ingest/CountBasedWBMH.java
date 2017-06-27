@@ -38,7 +38,7 @@ public class CountBasedWBMH implements Serializable {
     private final Ingester ingester;
     private final Summarizer summarizer;
     private final Writer writer;
-    private final BatchingHeapMerger merger;
+    private final HeapMerger merger;
     private final FlushBarrier flushBarrier;
 
     private final BlockingQueue<IngestBuffer> emptyBuffers = new LinkedBlockingQueue<>();
@@ -59,8 +59,8 @@ public class CountBasedWBMH implements Serializable {
         ingester = new Ingester(emptyBuffers, summarizerQueue);
         summarizer = new Summarizer(null, emptyBuffers, partialBuffers, summarizerQueue, writerQueue, flushBarrier);
         writer = new Writer(writerQueue, mergerQueue, flushBarrier);
-        //merger = new HeapMerger(windowing, mergerQueue, flushBarrier);
-        merger = new BatchingHeapMerger(windowing, mergerQueue, flushBarrier, 1);
+        //merger = new UnbatchedHeapMerger(windowing, mergerQueue, flushBarrier);
+        merger = new HeapMerger(windowing, mergerQueue, flushBarrier, 1);
     }
 
     /**
@@ -90,6 +90,15 @@ public class CountBasedWBMH implements Serializable {
     }
 
     /**
+     * Use 2 buffers of size up to totalBufferSize / 2 each. Actual buffer size may be smaller since buffers need to be
+     * aligned to window boundaries.
+     *
+     * WARNING: please ensure stream has been flushed before calling */
+    public CountBasedWBMH setBufferSize(int totalBufferSize) {
+        return this.setBufferSize(totalBufferSize, 2);
+    }
+
+    /**
      * If all values are longs and this flag is set, enables a special code path using off-heap long[] value arrays in
      * the ingest buffer.
      *
@@ -98,15 +107,6 @@ public class CountBasedWBMH implements Serializable {
     public CountBasedWBMH setValuesAreLongs(boolean valuesAreLongs) {
         this.valuesAreLongs = valuesAreLongs;
         return this;
-    }
-
-    /**
-     * Use 2 buffers of size up to totalBufferSize / 2 each. Actual buffer size may be smaller since buffers need to be
-     * aligned to window boundaries.
-     *
-     * WARNING: please ensure stream has been flushed before calling */
-    public CountBasedWBMH setBufferSize(int totalBufferSize) {
-        return this.setBufferSize(totalBufferSize, 2);
     }
 
     /**
@@ -119,6 +119,9 @@ public class CountBasedWBMH implements Serializable {
         return this;
     }
 
+    /**
+     * Parallelize issuing merges in each stream's Merger thread. We use Java's parallel streams, which uses a single
+     * a single shared global work queue for all operations across all streams. */
     public CountBasedWBMH setParallelizeMerge(int nThreads) {
         //FIXME: global setting
         System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", Integer.toString(nThreads));
@@ -149,8 +152,9 @@ public class CountBasedWBMH implements Serializable {
     public void append(long ts, Object value) throws BackingStoreException {
         if (bufferSize > 0) {
             if (N % 100_000_000 == 0) {
-                logger.info("N = {}M, queue lengths: emptyBuffers = {}, summarizer = {}, writer = {}, merger = {}",
-                        N / 1_000_000, emptyBuffers.size(), summarizerQueue.size(), writerQueue.size(), mergerQueue.size());
+                logger.info("N = {}M: {} unwritten windows, {} unprocessed merges, {} unissued merges, {} empty buffers",
+                        N / 1_000_000,
+                        writerQueue.size(), mergerQueue.size(), merger.getNumUnissuedMerges(), emptyBuffers.size());
             }
             ingester.append(ts, value);
         } else {

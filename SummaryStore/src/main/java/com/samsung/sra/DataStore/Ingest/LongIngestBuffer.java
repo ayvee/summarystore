@@ -1,20 +1,16 @@
 package com.samsung.sra.DataStore.Ingest;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Constructor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 class LongIngestBuffer implements IngestBuffer {
-    private static final Logger logger = LoggerFactory.getLogger(LongIngestBuffer.class);
-
     /** Off-heap long array with unchecked get/put operations */
     static class LongArray implements AutoCloseable {
         private final long ptr;
 
-        private transient static Unsafe unsafe;
+        private static Unsafe unsafe;
 
         static {
             try {
@@ -55,7 +51,6 @@ class LongIngestBuffer implements IngestBuffer {
     LongIngestBuffer(int capacity) {
         this.capacity = capacity;
         this.id = num.incrementAndGet();
-        logger.info("ingest buffer {}: about to malloc 2 * long[{}]", this.id, this.capacity);
 
         this.timestamps = new LongArray(capacity);
         this.values = new LongArray(capacity);
@@ -109,7 +104,6 @@ class LongIngestBuffer implements IngestBuffer {
 
     @Override
     public void close() {
-        logger.info("ingest buffer {}: about to free 2 * long[{}]", this.id, this.capacity);
         timestamps.close();
         values.close();
     }
