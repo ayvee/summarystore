@@ -6,6 +6,7 @@ import com.samsung.sra.DataStore.SummaryWindow;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.stream.Stream;
 
 public class MainMemoryBackingStore extends BackingStore {
     private Map<Long, ConcurrentSkipListMap<Long, SummaryWindow>> summaryWindows = new ConcurrentHashMap<>();
@@ -14,6 +15,23 @@ public class MainMemoryBackingStore extends BackingStore {
     @Override
     SummaryWindow getSummaryWindow(long streamID, long swid, SerDe serDe) {
         return summaryWindows.get(streamID).get(swid);
+    }
+
+    @Override
+    Stream<SummaryWindow> getSummaryWindowsOverlapping(long streamID, long t0, long t1, SerDe serDe) throws BackingStoreException {
+        ConcurrentSkipListMap<Long, SummaryWindow> windows = summaryWindows.get(streamID);
+        if (windows == null || windows.isEmpty()) {
+            return Stream.empty();
+        }
+        Long l = windows.floorKey(t0);
+        Long r = windows.higherKey(t1);
+        if (l == null) {
+            l = windows.firstKey();
+        }
+        if (r == null) {
+            r = windows.lastKey() + 1;
+        }
+        return windows.subMap(l, true, r, false).values().stream();
     }
 
     @Override
@@ -28,6 +46,11 @@ public class MainMemoryBackingStore extends BackingStore {
             summaryWindows.put(streamID, (stream = new ConcurrentSkipListMap<>()));
         }
         stream.put(swid, window);
+    }
+
+    @Override
+    long getNumSummaryWindows(long streamID, SerDe serDe) throws BackingStoreException {
+        return summaryWindows.get(streamID).size();
     }
 
     @Override

@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 /**
@@ -24,12 +25,15 @@ public class StreamWindowManager implements Serializable {
     private final WindowOperator[] operators;
     private final SerDe serde;
 
-    private final QueryIndex summaryIndex = new QueryIndex(), landmarkIndex = new QueryIndex();
+    private final QueryIndex summaryIndex, landmarkIndex;
 
     public StreamWindowManager(long streamID, WindowOperator[] operators, boolean keepReadIndex) {
         this.streamID = streamID;
         this.operators = operators;
         this.serde = new SerDe(operators);
+        this.summaryIndex = keepReadIndex ? new QueryIndex() : null;
+        // FIXME: should handle landmarks the same as summary windows
+        this.landmarkIndex = new QueryIndex();
     }
 
     public void populateTransientFields(BackingStore backingStore) {
@@ -73,7 +77,10 @@ public class StreamWindowManager implements Serializable {
 
     /** Get all summary windows overlapping [t0, t1] */
     public Stream<SummaryWindow> getSummaryWindowsOverlapping(long t0, long t1) throws BackingStoreException {
-        return summaryIndex.getOverlappingWindowIDs(t0, t1)
+        return summaryIndex == null
+                ? backingStore.getSummaryWindowsOverlapping(streamID, t0, t1, serde)
+                : summaryIndex
+                .getOverlappingWindowIDs(t0, t1)
                 .map(swid -> {
                     try {
                         return backingStore.getSummaryWindow(streamID, swid, serde);
@@ -85,17 +92,19 @@ public class StreamWindowManager implements Serializable {
     }
 
     public void deleteSummaryWindow(long swid) throws BackingStoreException {
-        summaryIndex.remove(swid);
+        if (summaryIndex != null) summaryIndex.remove(swid);
         backingStore.deleteSummaryWindow(streamID, swid, serde);
     }
 
     public void putSummaryWindow(SummaryWindow window) throws BackingStoreException {
-        summaryIndex.add(window.ts);
+        if (summaryIndex != null) summaryIndex.add(window.ts);
         backingStore.putSummaryWindow(streamID, window.ts, serde, window);
     }
 
     public long getNumSummaryWindows() throws BackingStoreException {
-        return summaryIndex.getNumWindows();
+        return summaryIndex == null
+                ? backingStore.getNumSummaryWindows(streamID, serde)
+                : summaryIndex.getNumWindows();
     }
 
     public LandmarkWindow getLandmarkWindow(long lwid) throws BackingStoreException {
@@ -126,22 +135,11 @@ public class StreamWindowManager implements Serializable {
 
     public void printWindows() throws BackingStoreException {
         //backingStore.printWindowState(this);
-        System.out.printf("Stream %d with %d summary windows and %d landmark windows\n", streamID
-                , getNumSummaryWindows(), getNumLandmarkWindows());
-        summaryIndex.getOverlappingWindowIDs(0, Long.MAX_VALUE - 10).forEach(swid -> {
-            try {
-                System.out.println("\t" + getSummaryWindow(swid));
-            } catch (BackingStoreException e) {
-                throw new RuntimeException(e);
-            }
-        });
-        landmarkIndex.getOverlappingWindowIDs(0, Long.MAX_VALUE).forEach(lwid -> {
-            try {
-                System.out.println("\t" + getLandmarkWindow(lwid));
-            } catch (BackingStoreException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        System.out.printf("Stream %d with %d summary windows and %d landmark windows\n", streamID,
+                getNumSummaryWindows(), getNumLandmarkWindows());
+        Consumer<Object> printTabbed = o -> System.out.println("\t" + o);
+        getSummaryWindowsOverlapping(0, Long.MAX_VALUE - 10).forEach(printTabbed);
+        getLandmarkWindowsOverlapping(0, Long.MAX_VALUE - 10).forEach(printTabbed);
     }
 
     public void flushToDisk() throws BackingStoreException {

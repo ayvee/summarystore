@@ -19,11 +19,16 @@ public class SummaryStoreTest {
 
     @Test
     public void exponential() throws Exception {
+        exponentialTest(true);
+        exponentialTest(false);
+    }
+
+    private void exponentialTest(boolean withReadIndex) throws Exception {
         String storeLoc = "/tmp/tdstore";
         Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + storeLoc}).waitFor();
 
         // create and populate store
-        SummaryStore store = new SummaryStore(storeLoc);
+        SummaryStore store = new SummaryStore(storeLoc, withReadIndex, false, 0);
         Windowing windowing = new GenericWindowing(new ExponentialWindowLengths(2));
         CountBasedWBMH wbmh = new CountBasedWBMH(windowing).setBufferSize(62);
         store.registerStream(streamID, wbmh,
@@ -46,7 +51,7 @@ public class SummaryStoreTest {
 
         // close and reopen store (in read-only mode), then check everything still OK
         store.close();
-        store = new SummaryStore(storeLoc, true, true, 0);
+        store = new SummaryStore(storeLoc, withReadIndex, true, 0);
         assertStateIsCorrect(store);
 
         store.close();

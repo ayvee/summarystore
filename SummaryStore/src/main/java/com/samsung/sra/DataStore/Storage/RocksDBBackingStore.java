@@ -7,8 +7,13 @@ import org.rocksdb.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public class RocksDBBackingStore extends BackingStore {
     private static final Logger logger = LoggerFactory.getLogger(RocksDBBackingStore.class);
@@ -87,6 +92,14 @@ public class RocksDBBackingStore extends BackingStore {
         return keyArray;
     }
 
+    private static long getStreamIDFromRocksDBKey(byte[] key) {
+        return Utilities.byteArrayToLong(key, 0);
+    }
+
+    private static long getWindowIDFromRocksDBKey(byte[] key) {
+        return Utilities.byteArrayToLong(key, 8);
+    }
+
     private void insertIntoCache(ConcurrentHashMap<Long, SummaryWindow> streamCache, long swid, SummaryWindow window) {
         if (streamCache.size() >= cacheSizePerStream) { // evict random
             Map.Entry<Long, SummaryWindow> evictedEntry = streamCache.entrySet().iterator().next(); // basically a random evict
@@ -141,6 +154,94 @@ public class RocksDBBackingStore extends BackingStore {
             rocksDB.put(rocksDBWriteOptions, key, value);
         } catch (RocksDBException e) {
             throw new BackingStoreException(e);
+        }
+    }
+
+    /** Iterate over and return all summary windows in RocksDB overlapping the time-range given in the constructor */
+    private class OverlappingRocksIterator implements Iterator<SummaryWindow> {
+        private final RocksIterator rocksIterator;
+        private SummaryWindow nextWindow;
+
+        private final long streamID;
+        private final SerDe serde;
+        private final long t0, t1;
+
+        private OverlappingRocksIterator(long streamID, long t0, long t1, SerDe serde) throws RocksDBException {
+            this.streamID = streamID;
+            this.serde = serde;
+            this.t0 = t0;
+            this.t1 = t1;
+
+            // Note that Stream.query() ensures stream (1) is non-empty, (2) time interval [T0, T1] fully covers [t0, t1]
+            rocksIterator = rocksDB.newIterator();
+            rocksIterator.seek(getRocksDBKey(streamID, t0));
+            assert rocksIterator.isValid();
+            nextWindow = readFromRocksIterator();
+            if (nextWindow == null) { // only one window in stream and t0 > T0
+                rocksIterator.seek(getRocksDBKey(streamID, 0));
+                nextWindow = readFromRocksIterator();
+                assert nextWindow != null;
+            }
+            assert nextWindow.ts >= t0;
+            /* rocksIterator now points to the first window with start timestamp >= t0. If timestamp == t0, we only
+             * need to return this window and its successors. If timestamp > t0, we also need to return the window just
+             * before this one (which is the last window with start timestamp < t0), so we call iterator.prev() */
+            if (nextWindow.ts > t0) {
+                rocksIterator.prev();
+                nextWindow = readFromRocksIterator();
+                assert nextWindow != null;
+            }
+        }
+
+        private SummaryWindow readFromRocksIterator() {
+            if (rocksIterator.isValid()) {
+                byte[] key = rocksIterator.key();
+                if (key.length == KEY_SIZE) {
+                    long streamID = getStreamIDFromRocksDBKey(key), ts = getWindowIDFromRocksDBKey(key);
+                    if (streamID == this.streamID && ts <= t1) {
+                        return serde.deserializeSummaryWindow(rocksIterator.value());
+                    }
+                }
+            }
+            // at least one of the "iterator is valid" conditions must have failed
+            rocksIterator.close();
+            return null;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return nextWindow != null;
+        }
+
+        @Override
+        public SummaryWindow next() {
+            SummaryWindow ret = nextWindow;
+            rocksIterator.next();
+            nextWindow = readFromRocksIterator();
+            return ret;
+        }
+    }
+
+    @Override
+    Stream<SummaryWindow> getSummaryWindowsOverlapping(long streamID, long t0, long t1, SerDe serde)
+            throws BackingStoreException {
+        try {
+            Iterator<SummaryWindow> iterator = new OverlappingRocksIterator(streamID, t0, t1, serde);
+            return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
+        } catch (RocksDBException e) {
+            throw new BackingStoreException(e);
+        }
+    }
+
+    @Override
+    long getNumSummaryWindows(long streamID, SerDe serde) {
+        try (RocksIterator iter = rocksDB.newIterator()){
+            iter.seek(getRocksDBKey(streamID, 0L));
+            long ct = 0;
+            for (; iter.isValid() && getStreamIDFromRocksDBKey(iter.key()) == streamID; iter.next()) {
+                ++ct;
+            }
+            return ct;
         }
     }
 
