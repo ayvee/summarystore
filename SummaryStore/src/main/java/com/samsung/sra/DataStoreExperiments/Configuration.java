@@ -250,8 +250,9 @@ public class Configuration {
     public int getNumNodes() {
         Toml conf = toml.getTable("nodes");
         if (conf!=null) {
-            System.out.println("Number of nodes: " + conf.getLong("num-nodes", 0L).intValue());
-            return conf.getLong("num-nodes", 0L).intValue();
+            List<HashMap<String, String>> listIPs = conf.getList("nodeips");
+            System.out.println("Number of nodes: " + listIPs.size());
+            return listIPs.size();
         }
         else {
             return -1;
@@ -267,7 +268,6 @@ public class Configuration {
     }
 
     // build a hashmap for nodeID -> (IP, port); only valid for gateway nodes
-    //public List<HashMap<String, String>> buildNodeIP() {
     public HashMap<Integer, Pair<InetAddress, Integer>>  buildNodeIP() {
         Toml conf = toml.getTable("nodes");
         List<HashMap<String, String>> listIPs;
@@ -279,8 +279,6 @@ public class Configuration {
 
         if (conf!=null) {
             listIPs = conf.getList("nodeips");
-            assert(listIPs.size() == getNumNodes());
-
             for(int i=0; i< listIPs.size(); i++) {
                 String[] tokens = String.valueOf(listIPs.get(i)).replaceAll("}", "").split(",");
 

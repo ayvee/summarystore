@@ -30,7 +30,11 @@ public class SummaryStore implements AutoCloseable {
         backingStore.putSnodeMetadata(nodemd);
     }
 
-    private void persistStreamsInfo() throws RocksDBException {
+    public Serializable recoverNodeInfo() throws RocksDBException, IOException {
+        return backingStore.getSnodeMetadata();
+    }
+
+    public void persistStreamsInfo() throws RocksDBException {
         backingStore.putMetadata(streamManagers);
     }
 
