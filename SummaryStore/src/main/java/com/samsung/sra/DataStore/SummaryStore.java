@@ -27,14 +27,20 @@ public class SummaryStore implements AutoCloseable {
     private final String directory;
 
     ConcurrentHashMap<Long, Stream> streams; // package-local rather than private to allow access from SummaryStoreTest
+    private final boolean keepReadIndexes;
     private final boolean readonly;
 
     /**
-     * Create a SummaryStore that stores data and indexes in directory. Use a null directory to store everything in-mem
+     * @param directory  Directory to store all summary store data/indexes in. Set to null to use in-memory store
+     * @param keepReadIndexes  Maintain an in-memory index over window IDs for each stream. Needed to use caching when
+     *                         using RocksDB backing store
+     * @param readonly  Open in read-only mode
+     * @param cacheSizePerStream  Number of summary windows to cache in memory for each stream. Set to 0 to disable
+     *                            caching. With RocksDB backing store, only allowed if (keepReadIndexes && readonly)
      */
-    public SummaryStore(String directory, long cacheSizePerStream, boolean readonly)
+    public SummaryStore(String directory, boolean keepReadIndexes, boolean readonly, long cacheSizePerStream)
             throws BackingStoreException, IOException, ClassNotFoundException {
-        if (cacheSizePerStream > 0 && !readonly) {
+        if (cacheSizePerStream > 0 && !(keepReadIndexes && readonly)) {
             throw new IllegalArgumentException("Backing store cache not allowed in read/write mode (use the memory for" +
                     " ingest buffer instead)");
         }
@@ -50,21 +56,13 @@ public class SummaryStore implements AutoCloseable {
             this.backingStore = new MainMemoryBackingStore();
             this.directory = null;
         }
+        this.keepReadIndexes = keepReadIndexes;
         this.readonly = readonly;
         deserializeMetadata();
     }
 
-    public SummaryStore(String filePrefix, long cacheSizePerStream)
-            throws BackingStoreException, IOException, ClassNotFoundException {
-        this(filePrefix, cacheSizePerStream, false);
-    }
-
-    public SummaryStore(String filePrefix) throws BackingStoreException, IOException, ClassNotFoundException {
-        this(filePrefix, 0);
-    }
-
-    public SummaryStore() throws BackingStoreException, IOException, ClassNotFoundException {
-        this(null);
+    public SummaryStore(String directory) throws BackingStoreException, IOException, ClassNotFoundException {
+        this(directory, true, false, 0);
     }
 
     private void serializeMetadata() throws IOException {
@@ -118,7 +116,7 @@ public class SummaryStore implements AutoCloseable {
             if (streams.containsKey(streamID)) {
                  throw new StreamException("attempting to register streamID " + streamID + " multiple times");
             } else {
-                Stream sm = new Stream(streamID, synchronizeWrites, wbmh, operators);
+                Stream sm = new Stream(streamID, synchronizeWrites, wbmh, operators, keepReadIndexes);
                 sm.populateTransientFields(backingStore);
                 streams.put(streamID, sm);
             }

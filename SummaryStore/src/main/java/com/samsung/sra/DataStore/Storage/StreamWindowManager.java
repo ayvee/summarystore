@@ -26,7 +26,7 @@ public class StreamWindowManager implements Serializable {
 
     private final QueryIndex summaryIndex = new QueryIndex(), landmarkIndex = new QueryIndex();
 
-    public StreamWindowManager(long streamID, WindowOperator[] operators) {
+    public StreamWindowManager(long streamID, WindowOperator[] operators, boolean keepReadIndex) {
         this.streamID = streamID;
         this.operators = operators;
         this.serde = new SerDe(operators);

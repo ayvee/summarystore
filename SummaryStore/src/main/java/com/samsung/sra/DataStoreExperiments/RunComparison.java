@@ -83,7 +83,7 @@ class RunComparison {
                     logger.warn("drop-caches failed", e);
                 }
             }
-            try (SummaryStore store = new SummaryStore(config.getStorePrefix(decay), cacheSize)) {
+            try (SummaryStore store = new SummaryStore(config.getStorePrefix(decay), true, true, cacheSize)) {
                 //store.warmupCache();
 
                 List<String> queryClasses = new ArrayList<>(workload.keySet());

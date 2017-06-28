@@ -40,13 +40,13 @@ class Stream implements Serializable {
         if (wbmh != null) wbmh.populateTransientFields(windowManager);
     }
 
-    Stream(long streamID, boolean synchronizeWrites, CountBasedWBMH wbmh, WindowOperator[] operators) {
+    Stream(long streamID, boolean synchronizeWrites, CountBasedWBMH wbmh, WindowOperator[] operators, boolean keepReadIndex) {
         this.streamID = streamID;
         this.synchronizeWrites = synchronizeWrites;
         this.extLock = synchronizeWrites ? new ReentrantLock() : null;
         this.operators = operators;
         this.wbmh = wbmh;
-        windowManager = new StreamWindowManager(streamID, operators);
+        windowManager = new StreamWindowManager(streamID, operators, keepReadIndex);
         stats = new StreamStatistics();
     }
 

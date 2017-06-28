@@ -26,7 +26,7 @@ public class RunWorkload {
         Workload workload = conf.getWorkloadGenerator().generate(conf.getTstart(), conf.getTend());
         System.out.println("#decay\t# summary windows\t# elements in stream\tgroup\tt0\tt1\tresult\terror");
         for (String decay: conf.getDecayFunctions()) {
-            try (SummaryStore store = new SummaryStore(conf.getStorePrefix(decay), conf.getWindowCacheSize(), true)) {
+            try (SummaryStore store = new SummaryStore(conf.getStorePrefix(decay), true, true, conf.getWindowCacheSize())) {
                 long nSumWindows = store.getNumSummaryWindows(streamID);
                 long nElements = store.getStreamStatistics(streamID).getNumValues();
                 for (Map.Entry<String, List<Workload.Query>> entry: workload.entrySet()) {

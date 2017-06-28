@@ -13,7 +13,7 @@ import static org.junit.Assert.assertArrayEquals;
 public class CountBasedWBMHTest {
     @Test
     public void exponential() throws Exception {
-        StreamWindowManager swm = new StreamWindowManager(0L, new WindowOperator[]{new SimpleCountOperator()});
+        StreamWindowManager swm = new StreamWindowManager(0L, new WindowOperator[]{new SimpleCountOperator()}, true);
         swm.populateTransientFields(new MainMemoryBackingStore());
         CountBasedWBMH wbmh = new CountBasedWBMH(new GenericWindowing(new ExponentialWindowLengths(2)));
         wbmh.populateTransientFields(swm);
