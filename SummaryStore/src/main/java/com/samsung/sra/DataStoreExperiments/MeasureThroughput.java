@@ -39,11 +39,12 @@ public class MeasureThroughput {
             }
             long we = System.currentTimeMillis();
             logger.info("Write throughput = {} appends/s",  String.format("%,.0f", (nThreads * T * 1000d / (we - w0))));
+            logger.info("Stream 0 has {} elements in {} windows", T, store.getNumSummaryWindows(0L));
 
-            long f0 = System.currentTimeMillis();
+            /*long f0 = System.currentTimeMillis();
             store.query(0, 0, T - 1, 0);
             long fe = System.currentTimeMillis();
-            logger.info("Time to run longest query, spanning [0, T) = {} sec", (fe - f0) / 1000d);
+            logger.info("Time to run longest query, spanning [0, T) = {} sec", (fe - f0) / 1000d);*/
         }
     }
 
@@ -60,7 +61,7 @@ public class MeasureThroughput {
             this.random = ThreadLocalRandom.current();
             this.wbmh = new CountBasedWBMH(new RationalPowerWindowing(1, 1, 23, 1))
                     .setValuesAreLongs(true)
-                    .setBufferSize(500_000_000)
+                    .setBufferSize(1_600_000_000)
                     .setWindowsPerMergeBatch(1_000_000_000)
                     .setParallelizeMerge(10);
             store.registerStream(streamID, false, wbmh,
@@ -77,8 +78,7 @@ public class MeasureThroughput {
                 /*store.flush(streamID);
                 wbmh.setBufferSize(0);*/
                 wbmh.flushAndSetUnbuffered();
-                logger.info("Populated stream {} of size {} with {} summary windows", streamID, N,
-                        store.getNumSummaryWindows(streamID));
+                logger.info("Populated stream {}", streamID);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
