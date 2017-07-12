@@ -50,10 +50,14 @@ public class SummaryStore implements AutoCloseable {
         Object uncast = backingStore.getMetadata();
         if (uncast != null) {
             streamManagers = (ConcurrentHashMap<Long, StreamManager>) uncast;
+            logger.info("Recovered StreamManagers upon restart: " + streamManagers.size());
             for (StreamManager si: streamManagers.values()) {
                 si.populateTransientFields(backingStore, executorService);
+                logger.info("" + si.stats.toString() + " StreamID: " + si.streamID);
             }
         } else {
+
+            logger.error("Empty StreamManagers upon restart");
             streamManagers = new ConcurrentHashMap<>();
         }
     }

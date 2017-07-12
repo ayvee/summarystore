@@ -222,7 +222,12 @@ public class RocksDBBackingStore implements BackingStore {
 
     @Override
     public void putMetadata(Serializable indexes) throws RocksDBException {
-        rocksDB.put(metadataSpecialKey, SerializationUtils.serialize(indexes));
+        try {
+            logger.info("Writing streamManagers to rocksdb");
+            rocksDB.put(metadataSpecialKey, SerializationUtils.serialize(indexes));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
