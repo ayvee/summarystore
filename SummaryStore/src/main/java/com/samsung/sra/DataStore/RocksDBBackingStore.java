@@ -91,8 +91,18 @@ public class RocksDBBackingStore implements BackingStore {
             return window;
         } else { // either no cache or cache miss; read-through from RocksDB
             byte[] rocksKey = getRocksDBKey(streamManager.streamID, swid);
+            if (rocksKey == null) {
+                logger.error("NULL rocksKey; SWID: " + swid + " streamID: " + streamManager.streamID) ;
+                return null;
+            }
             byte[] rocksValue = rocksDB.get(rocksKey);
-            window = streamManager.deserializeSummaryWindow(rocksValue);
+            if(rocksValue != null ) {
+                window = streamManager.deserializeSummaryWindow(rocksValue);
+            } else {
+                logger.error("NULL rocksValue; SWID: " + swid + " streamID: " + streamManager.streamID) ;
+                return null;
+            }
+
             if (delete) {
                 rocksDB.remove(rocksKey);
             }
@@ -223,7 +233,7 @@ public class RocksDBBackingStore implements BackingStore {
     @Override
     public void putMetadata(Serializable indexes) throws RocksDBException {
         try {
-            logger.info("Writing streamManagers to rocksdb");
+            //logger.info("Writing streamManagers to rocksdb");
             rocksDB.put(metadataSpecialKey, SerializationUtils.serialize(indexes));
         } catch (Exception e) {
             e.printStackTrace();
@@ -241,7 +251,7 @@ public class RocksDBBackingStore implements BackingStore {
     @Override
     public void putSnodeMetadata(Serializable nodemd) throws RocksDBException, IOException {
         //rocksDB.put(snodeSpecialKey, SerializationUtils.serialize(nodemd));
-        logger.info("writing snode metadata to rocks");
+        //logger.info("writing snode metadata to rocks");
         rocksDB.put(snodeSpecialKey, Serializer.serialize(nodemd));
     }
 

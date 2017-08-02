@@ -166,16 +166,21 @@ class StreamManager implements Serializable {
         {
             Long l = summaryWindowIndex.floorKey(t0); // first window with tStart <= t0
             Long r = summaryWindowIndex.higherKey(t1); // first window with tStart > t1
-            if (r == null) {
-                try {
-                    r = summaryWindowIndex.lastKey() + 1;
-                } catch (NoSuchElementException e) {
-                    logger.error("Querying " + summaryWindowIndex.toString()
-                            + " isEmpty:" + summaryWindowIndex.isEmpty());
-                    e.printStackTrace();
-                    return null;
-                }
+
+            if (!summaryWindowIndex.isEmpty()) {
+                    try {
+                        r = summaryWindowIndex.lastKey() + 1;
+                        l = summaryWindowIndex.firstKey();
+                    } catch (NoSuchElementException e) {
+                        e.printStackTrace();
+                        //return operators[operatorNum].getEmptyQueryResult();
+                    }
+            } else {
+                // FIXME: summarywindows is null sometimes. when the data is entirely in the buffer
+                logger.error("Empty summaryWindowIndex; returning empty result");
+                return operators[operatorNum].getEmptyQueryResult();
             }
+
             //logger.debug("Overapproximated time range = [{}, {})", l, r);
             // Query on all windows with l <= tStart < r
             summaryWindows = summaryWindowIndex
@@ -224,6 +229,8 @@ class StreamManager implements Serializable {
                     : b -> b.aggregates[0];
             return operators[operatorNum].query(stats, summaryWindows, retriever, landmarkWindows, t0, t1, queryParams);
         } catch (RuntimeException e) {
+
+            logger.error("Exception in Stream Manager querying");
             if (e.getCause() instanceof RocksDBException) {
                 throw (RocksDBException) e.getCause();
             } else {
