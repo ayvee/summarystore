@@ -194,6 +194,10 @@ class StreamManager implements Serializable {
                             throw new RuntimeException(e);
                         }
                     });
+
+
+
+
         }
 
         Stream<LandmarkWindow> landmarkWindows;
@@ -227,7 +231,13 @@ class StreamManager implements Serializable {
             Function<SummaryWindow, Object> retriever = !backingStore.isColumnar()
                     ? b -> b.aggregates[operatorNum]
                     : b -> b.aggregates[0];
-            return operators[operatorNum].query(stats, summaryWindows, retriever, landmarkWindows, t0, t1, queryParams);
+            // FIXME; why empty, NULL rocksValue?
+            if(summaryWindows == null) {
+                logger.error("NULL/empty SummaryWindows prior to query; returning empty result");
+                return operators[operatorNum].getEmptyQueryResult();
+            } else {
+                return operators[operatorNum].query(stats, summaryWindows, retriever, landmarkWindows, t0, t1, queryParams);
+            }
         } catch (RuntimeException e) {
 
             logger.error("Exception in Stream Manager querying");
