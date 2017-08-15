@@ -23,4 +23,4 @@ java \
     -XX:+UseG1GC \
     -ea \
     -cp $cp \
-    com.samsung.sra.DataStoreExperiments.$className $*
+    com.samsung.sra.experiments.$className $*
