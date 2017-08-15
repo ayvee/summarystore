@@ -8,7 +8,6 @@ import org.apache.commons.math3.util.Pair;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -26,30 +25,13 @@ public class CMSOperator implements WindowOperator<CountMinSketch,Double,Pair<Do
         return supportedQueryTypes;
     }
 
-    private int depth, width, seed;
-
+    private int depth, width;
     private long[] hashA;
 
     public CMSOperator(int depth, int width, int seed) {
         this.depth = depth;
         this.width = width;
-        this.seed = seed;
-        initializeHashes();
-    }
-
-    /** Copied verbatim from CountMinSketch.java */
-    private void initializeHashes() {
-        this.hashA = new long[depth];
-        Random r = new Random(seed);
-        // We're using a linear hash functions
-        // of the form (a*x+b) mod p.
-        // a,b are chosen independently for each hash function.
-        // However we can set b = 0 as all it does is shift the results
-        // without compromising their uniformity or independence with
-        // the other hashes.
-        for (int i = 0; i < depth; ++i) {
-            hashA[i] = r.nextInt(Integer.MAX_VALUE);
-        }
+        this.hashA = CMSProtofier.getHashes(depth, width, seed);
     }
 
     @Override

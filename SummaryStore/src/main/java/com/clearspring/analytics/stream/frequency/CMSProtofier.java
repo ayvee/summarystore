@@ -6,6 +6,11 @@ import java.util.Arrays;
 import java.util.stream.Stream;
 
 public class CMSProtofier {
+    public static long[] getHashes(int depth, int width, int seed) {
+        CountMinSketch cms = new CountMinSketch(depth, width, seed);
+        return cms.hashA;
+    }
+
     public static ProtoCMS.Builder protofy(CountMinSketch cms) {
         ProtoCMS.Builder builder = ProtoCMS.newBuilder();
         builder.setSize(cms.size);

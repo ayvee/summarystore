@@ -5,6 +5,8 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
+ * Find the optimal decay function for a given "workload" (a distribution over queries).
+ *
  * Implements the dynamic programming algo from
  * https://confluence.sisa.samsung.com:8443/display/summarystore/Time-decayed+aggregation
  * (see the page for documentation)
