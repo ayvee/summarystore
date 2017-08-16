@@ -16,7 +16,7 @@ public class MeasureThroughput {
     private static final Logger logger = LoggerFactory.getLogger(MeasureThroughput.class);
 
     public static void main(String[] args) throws Exception {
-        if (args.length <= 2) {
+        if (args.length < 2) {
             System.err.println("SYNTAX: MeasureThroughput numValuesPerThread numThreads [numParallelThreads]");
             System.exit(2);
         }
