@@ -43,6 +43,7 @@ public class MeasureThroughput {
             }
             long we = System.currentTimeMillis();
             logger.info("Write throughput = {} appends/s",  String.format("%,.0f", (nThreads * T * 1000d / (we - w0))));
+            store.loadStream(0L);
             logger.info("Stream 0 has {} elements in {} windows", T, store.getNumSummaryWindows(0L));
 
             /*long f0 = System.currentTimeMillis();
