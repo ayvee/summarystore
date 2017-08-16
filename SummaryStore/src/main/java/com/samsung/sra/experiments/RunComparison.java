@@ -83,9 +83,10 @@ class RunComparison {
                     logger.warn("drop-caches failed", e);
                 }
             }
-            try (SummaryStore store = new SummaryStore(config.getStorePrefix(decay), true, true, cacheSize)) {
-                //store.warmupCache();
-
+            try (SummaryStore store = new SummaryStore(config.getStorePrefix(decay), new SummaryStore.Options()
+                    .setKeepReadIndexes(true)
+                    .setReadOnly(true)
+                    .setCacheSizePerStream(cacheSize))) {
                 List<String> queryClasses = new ArrayList<>(workload.keySet());
                 storeStats = new StoreStats(
                         store.getStreamStatistics(streamID).getNumValues(), store.getNumSummaryWindows(streamID), queryClasses);

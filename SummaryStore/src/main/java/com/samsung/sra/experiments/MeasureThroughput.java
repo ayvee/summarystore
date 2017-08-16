@@ -23,7 +23,7 @@ public class MeasureThroughput {
         int nThreads = Integer.parseInt(args[1]);
         Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + directory}).waitFor();
 
-        try (SummaryStore store = new SummaryStore(directory, false, false, 0)) {
+        try (SummaryStore store = new SummaryStore(directory, new SummaryStore.Options().setKeepReadIndexes(false))) {
             StreamWriter[] writers = new StreamWriter[nThreads];
             Thread[] writerThreads = new Thread[nThreads];
             for (int i = 0; i < nThreads; ++i) {

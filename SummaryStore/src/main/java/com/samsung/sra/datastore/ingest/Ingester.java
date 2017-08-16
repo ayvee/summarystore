@@ -10,8 +10,7 @@ class Ingester implements Serializable {
     private final BlockingQueue<IngestBuffer> emptyBuffers; // input queue
     private final BlockingQueue<IngestBuffer> summarizerQueue; // output queue
 
-    // WARNING: should be declared volatile if external user code appends to the same stream from more than one thread
-    private IngestBuffer activeBuffer = null;
+    private volatile IngestBuffer activeBuffer = null;
 
     Ingester(BlockingQueue<IngestBuffer> emptyBuffers, BlockingQueue<IngestBuffer> summarizerQueue) {
         this.emptyBuffers = emptyBuffers;

@@ -2,6 +2,7 @@ package com.samsung.sra.datastore;
 
 import org.apache.commons.math3.distribution.NormalDistribution;
 
+import java.io.*;
 import java.util.concurrent.BlockingQueue;
 
 public class Utilities {
@@ -56,6 +57,18 @@ public class Utilities {
                 return;
             } catch (InterruptedException ignored) {
             }
+        }
+    }
+
+    public static <T> void serializeObject(String filename, T obj) throws IOException {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filename))) {
+            oos.writeObject(obj);
+        }
+    }
+
+    public static <T> T deserializeObject(String filename) throws IOException, ClassNotFoundException {
+        try (ObjectInputStream ois = new ObjectInputStream((new FileInputStream(filename)))) {
+            return (T) ois.readObject();
         }
     }
 }

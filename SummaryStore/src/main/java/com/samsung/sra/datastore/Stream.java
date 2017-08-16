@@ -7,10 +7,14 @@ import com.samsung.sra.datastore.storage.StreamWindowManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+
+import static com.samsung.sra.datastore.Utilities.deserializeObject;
+import static com.samsung.sra.datastore.Utilities.serializeObject;
 
 
 /** One Summary Store stream. This class has the outermost level of the logic for all major API calls. */
@@ -19,6 +23,9 @@ class Stream implements Serializable {
 
     final long streamID;
     private final WindowOperator[] operators;
+
+    private volatile transient boolean loaded; // transient resets it to false on SummaryStore reopen
+    private final Serializable loadingLock = new Object[0];
 
     final StreamStatistics stats;
     private long tLastAppend = -1, tLastLandmarkStart = -1, tLastLandmarkEnd = -1;
@@ -48,6 +55,31 @@ class Stream implements Serializable {
         this.wbmh = wbmh;
         windowManager = new StreamWindowManager(streamID, operators, keepReadIndex);
         stats = new StreamStatistics();
+        loaded = true;
+    }
+
+    boolean isLoaded() {
+        return loaded;
+    }
+
+    void load(String directory, boolean readonly, BackingStore backingStore) throws IOException, ClassNotFoundException {
+        synchronized (loadingLock) {
+            if (loaded) return;
+            windowManager = deserializeObject(directory + "/read-index." + streamID);
+            wbmh = readonly ? null : deserializeObject(directory + "/write-index." + streamID);
+            populateTransientFields(backingStore);
+            loaded = true;
+        }
+    }
+
+    void unload(String directory) throws IOException {
+        synchronized (loadingLock) {
+            serializeObject(directory + "/read-index." + streamID, windowManager);
+            serializeObject(directory + "/write-index." + streamID, wbmh);
+            windowManager = null;
+            wbmh = null;
+            loaded = false;
+        }
     }
 
     void append(long ts, Object value) throws BackingStoreException, StreamException {

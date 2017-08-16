@@ -11,8 +11,10 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 
 public class SummaryStoreTest {
     private static final long streamID = 0;
@@ -28,7 +30,7 @@ public class SummaryStoreTest {
         Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + storeLoc}).waitFor();
 
         // create and populate store
-        SummaryStore store = new SummaryStore(storeLoc, withReadIndex, false, 0);
+        SummaryStore store = new SummaryStore(storeLoc, new SummaryStore.Options().setKeepReadIndexes(withReadIndex));
         Windowing windowing = new GenericWindowing(new ExponentialWindowLengths(2));
         CountBasedWBMH wbmh = new CountBasedWBMH(windowing).setBufferSize(62);
         store.registerStream(streamID, wbmh,
@@ -49,9 +51,22 @@ public class SummaryStoreTest {
 
         assertStateIsCorrect(store);
 
+        // check unloading and loading works correctly
+        store.unloadStream(streamID);
+        boolean exceptionThrown = false;
+        try {
+            store.query(streamID, 0, 10, 2);
+        } catch (StreamException e) {
+            assertThat(e.getMessage(), containsString("unloaded"));
+            exceptionThrown = true;
+        }
+        assertEquals(true, exceptionThrown);
+        store.loadStream(streamID);
+        assertStateIsCorrect(store);
+
         // close and reopen store (in read-only mode), then check everything still OK
         store.close();
-        store = new SummaryStore(storeLoc, withReadIndex, true, 0);
+        store = new SummaryStore(storeLoc, new SummaryStore.Options().setKeepReadIndexes(withReadIndex).setReadOnly(true));
         assertStateIsCorrect(store);
 
         store.close();
