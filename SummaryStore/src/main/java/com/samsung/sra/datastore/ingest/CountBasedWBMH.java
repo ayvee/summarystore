@@ -30,7 +30,7 @@ public class CountBasedWBMH implements Serializable {
     private transient StreamWindowManager windowManager;
 
     private final Windowing windowing;
-    private final long sizeOfNewestWindow;
+    //private final long sizeOfNewestWindow;
 
     private long bufferSize;
     private boolean valuesAreLongs;
@@ -51,7 +51,7 @@ public class CountBasedWBMH implements Serializable {
 
     public CountBasedWBMH(Windowing windowing) {
         this.windowing = windowing;
-        this.sizeOfNewestWindow = windowing.getSizeOfFirstWindow();
+        //this.sizeOfNewestWindow = windowing.getSizeOfFirstWindow();
 
         bufferSize = 0;
         valuesAreLongs = false;
@@ -75,9 +75,9 @@ public class CountBasedWBMH implements Serializable {
         summarizer.setWindowLengths(bufferWindowLengths);
         bufferSize = IntStream.of(bufferWindowLengths).sum(); // actual buffer size, <= numValuesToBuffer
         logger.info("{} ingest buffers each covering {} windows and {} values", numBuffers, bufferWindowLengths.length, bufferSize);
-        if (bufferSize == 0 && sizeOfNewestWindow > 1) {
+        /*if (bufferSize == 0 && sizeOfNewestWindow > 1) {
             throw new UnsupportedOperationException("do not yet support unbuffered ingest when size of newest window > 1");
-        }
+        }*/
         if (bufferSize > 0) {
             assert numBuffers > 0;
             for (int i = 0; i < numBuffers; ++i) {
@@ -176,7 +176,7 @@ public class CountBasedWBMH implements Serializable {
                 return;
             }
         }*/
-        assert sizeOfNewestWindow == 1;
+        //assert sizeOfNewestWindow == 1;
         SummaryWindow newWindow = windowManager.createEmptySummaryWindow(timestamp, timestamp, N, N);
         windowManager.insertIntoSummaryWindow(newWindow, timestamp, value);
         windowManager.putSummaryWindow(newWindow);
