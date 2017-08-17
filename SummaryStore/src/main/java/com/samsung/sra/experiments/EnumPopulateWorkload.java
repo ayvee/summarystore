@@ -4,6 +4,7 @@ import com.samsung.sra.experiments.Workload.Query;
 import it.unimi.dsi.fastutil.longs.Long2LongRBTreeMap;
 import it.unimi.dsi.fastutil.longs.Long2LongSortedMap;
 import it.unimi.dsi.fastutil.longs.LongIterator;
+import org.apache.commons.lang3.SerializationUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -131,7 +132,7 @@ public class EnumPopulateWorkload {
         logger.info("Test succeeded");
     }
 
-    /*public static void main(String[] args) throws Exception {
+    public static void main(String[] args) throws Exception {
         //test(); System.exit(0);
         File configFile;
         if (args.length != 1 || !(configFile = new File(args[0])).isFile()) {
@@ -146,16 +147,16 @@ public class EnumPopulateWorkload {
             System.exit(1);
         }
         long T0 = conf.getTstart(), Te = conf.getTend();
-        long partI = conf.getPartialGenI(), partN = conf.getPartialGenN();
+        /*long partI = conf.getPartialGenI(), partN = conf.getPartialGenN();
         if (conf.getPartialGenN() != 1 && conf.getPartialGenI() < conf.getPartialGenN() - 1) {
             // generate workload we have only generated upto the current partI
             long binsize = (Te - T0) / partN;
             Te = T0 + partI * binsize + binsize - 1;
-        }
+        }*/
         Workload workload = conf.getWorkloadGenerator().generate(T0, Te);
         computeTrueAnswers(conf, workload);
         try (FileOutputStream fos = new FileOutputStream(conf.getWorkloadFile())) {
             SerializationUtils.serialize(workload, fos);
         }
-    }*/
+    }
 }
