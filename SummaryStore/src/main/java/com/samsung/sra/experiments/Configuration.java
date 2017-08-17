@@ -25,6 +25,10 @@ public class Configuration {
         toml = new Toml().read(file);
     }
 
+    public Toml getToml() {
+        return toml;
+    }
+
     /** Optional prefix to add onto every input file */
     public String getPrefix() {
         return toml.getString("prefix", "");
