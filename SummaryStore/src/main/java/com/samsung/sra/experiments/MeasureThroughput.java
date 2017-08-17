@@ -57,7 +57,6 @@ public class MeasureThroughput {
         private final long streamID, N;
         private final SummaryStore store;
         private final Semaphore semaphore;
-        private final CountBasedWBMH wbmh;
         private final ThreadLocalRandom random;
 
         private StreamWriter(SummaryStore store, Semaphore semaphore, long streamID, long N) throws Exception {
@@ -66,19 +65,19 @@ public class MeasureThroughput {
             this.streamID = streamID;
             this.N = N;
             this.random = ThreadLocalRandom.current();
-            this.wbmh = new CountBasedWBMH(new RationalPowerWindowing(1, 1, 23, 1))
-                    .setValuesAreLongs(true)
-                    .setBufferSize(1_600_000_000)
-                    .setWindowsPerMergeBatch(1_000_000_000)
-                    .setParallelizeMerge(10);
-            store.registerStream(streamID, false, wbmh,
-                    new SimpleCountOperator(), new CMSOperator(5, 1000, 0));
         }
 
         @Override
         public void run() {
             if (semaphore != null) semaphore.acquireUninterruptibly();
+            CountBasedWBMH wbmh = new CountBasedWBMH(new RationalPowerWindowing(1, 1, 1, 1))
+                    .setValuesAreLongs(true)
+                    .setBufferSize(800_000_000)
+                    .setWindowsPerMergeBatch(100_000)
+                    .setParallelizeMerge(10);
             try {
+                store.registerStream(streamID, false, wbmh,
+                        new SimpleCountOperator(), new CMSOperator(5, 1000, 0));
                 for (long t = 0; t < N; ++t) {
                     long v = random.nextLong(100);
                     store.append(streamID, t, v);
