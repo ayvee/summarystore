@@ -29,9 +29,13 @@ public class PopulateData {
             }
             try (SummaryStore store = new SummaryStore(outprefix/*, config.getWindowCacheSize()*/);
                  StreamGenerator streamgen = config.getStreamGenerator()) {
-                store.registerStream(streamID,
-                        new CountBasedWBMH(config.parseDecayFunction(decay)).setBufferSize(config.getIngestBufferSize()),
-                        config.getOperators());
+                // FIXME: push constants into config file
+                CountBasedWBMH wbmh = new CountBasedWBMH(config.parseDecayFunction(decay))
+                        .setValuesAreLongs(true)
+                        .setBufferSize(config.getIngestBufferSize())
+                        .setWindowsPerMergeBatch(100_000)
+                        .setParallelizeMerge(10);
+                store.registerStream(streamID, wbmh, config.getOperators());
                 streamgen.reset();
                 long[] N = {0};
                 streamgen.generate(config.getTstart(), config.getTend(), op -> {
@@ -54,7 +58,8 @@ public class PopulateData {
                         throw new RuntimeException(e);
                     }
                 });
-                store.flush(streamID);
+                wbmh.flushAndSetUnbuffered();
+                //store.flush(streamID);
                 logger.info("Inserted {} elements", N[0]);
                 logger.info("{} = {} windows", outprefix, store.getNumSummaryWindows(streamID));
             } catch (Exception e) {
