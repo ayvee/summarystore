@@ -2,19 +2,19 @@ package com.samsung.sra.experiments;
 
 import com.moandjiezana.toml.Toml;
 
-import java.util.Random;
+import java.util.SplittableRandom;
 import java.util.function.Consumer;
 
 public class RandomStreamGenerator implements StreamGenerator {
     private final Distribution<Long> interarrivals, values;
-    private Random random;
+    private SplittableRandom random;
     private final long R;
 
     public RandomStreamGenerator(Toml params) {
         this.interarrivals = Configuration.parseDistribution(params.getTable("interarrivals"));
         this.values = Configuration.parseDistribution(params.getTable("values"));
         this.R = params.getLong("random-seed", 0L);
-        this.random = new Random(R);
+        this.random = new SplittableRandom(R);
     }
 
     @Override
@@ -27,6 +27,6 @@ public class RandomStreamGenerator implements StreamGenerator {
 
     @Override
     public void reset() {
-        random.setSeed(R);
+        random = new SplittableRandom(R);
     }
 }

@@ -34,7 +34,7 @@ public class CalendarWorkloadGenerator implements WorkloadGenerator {
             }
         }
 
-        Query getQuery(long l, long r, Random rand) {
+        Query getQuery(long l, long r, SplittableRandom rand) {
             Object[] params = valueParamDistr != null
                     ? new Object[]{valueParamDistr.next(rand)}
                     : null;
@@ -51,7 +51,7 @@ public class CalendarWorkloadGenerator implements WorkloadGenerator {
 
     @Override
     public Workload generate(long T0, long T1) {
-        Random rand = new Random(0);
+        SplittableRandom rand = new SplittableRandom(0);
         Workload workload = new Workload();
         // Age/length classes will sample query ranges from [0s, (T1-T0) in seconds]. We will rescale below to correct
         List<AgeLengthClass> alClasses = CalendarAgeLengths.getClasses((T1 - T0) / ticksPerS);

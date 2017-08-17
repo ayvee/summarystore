@@ -2,7 +2,7 @@ package com.samsung.sra.experiments;
 
 import com.moandjiezana.toml.Toml;
 
-import java.util.Random;
+import java.util.SplittableRandom;
 
 public class ExponentialDistribution implements Distribution<Long> {
     private final double lambda;
@@ -12,7 +12,7 @@ public class ExponentialDistribution implements Distribution<Long> {
     }
 
     @Override
-    public Long next(Random random) {
+    public Long next(SplittableRandom random) {
         return (long) Math.ceil(-Math.log(random.nextDouble()) / lambda);
     }
 }

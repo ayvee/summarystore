@@ -118,6 +118,21 @@ public class Configuration {
         }
     }
 
+    /** How many enum answers to load in memory per batch when using EnumPopulateWorkload */
+    public long getEnumBatchSize() {
+        long defaultVal = 1_000_000_000;
+        Toml conf = toml.getTable("performance");
+        return conf != null ? conf.getLong("enum-batch-size", defaultVal) : defaultVal;
+    }
+
+
+    /** FIXME */
+    public RandomStreamIterator getStreamIterator() {
+        RandomStreamIterator ris = new RandomStreamIterator(toml.getTable("data"));
+        ris.setTimeRange(getTstart(), getTend());
+        return ris;
+    }
+
     /**
      * Compute a deterministic hash of some portion of the toml tree.
      * Use case: suppose we run several experiments trying various workloads against the same dataset. We want to

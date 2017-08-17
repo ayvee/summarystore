@@ -2,7 +2,7 @@ package com.samsung.sra.experiments;
 
 import com.moandjiezana.toml.Toml;
 
-import java.util.Random;
+import java.util.SplittableRandom;
 
 public class FixedDistribution implements Distribution<Long> {
     private final long value;
@@ -16,7 +16,7 @@ public class FixedDistribution implements Distribution<Long> {
     }
 
     @Override
-    public Long next(Random random) {
+    public Long next(SplittableRandom random) {
         return value;
     }
 }

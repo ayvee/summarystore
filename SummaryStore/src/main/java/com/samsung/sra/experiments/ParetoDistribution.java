@@ -2,7 +2,7 @@ package com.samsung.sra.experiments;
 
 import com.moandjiezana.toml.Toml;
 
-import java.util.Random;
+import java.util.SplittableRandom;
 
 public class ParetoDistribution implements Distribution<Long> {
     private final double xm, alpha;
@@ -13,7 +13,7 @@ public class ParetoDistribution implements Distribution<Long> {
     }
 
     @Override
-    public Long next(Random random) {
+    public Long next(SplittableRandom random) {
         return (long)Math.ceil(xm / Math.pow(random.nextDouble(), 1 / alpha));
     }
 }

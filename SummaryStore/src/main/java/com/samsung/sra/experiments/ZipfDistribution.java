@@ -2,7 +2,7 @@ package com.samsung.sra.experiments;
 
 import com.moandjiezana.toml.Toml;
 
-import java.util.Random;
+import java.util.SplittableRandom;
 
 /** Zipf distribution over [1, N] with shape parameter k */
 public class ZipfDistribution implements Distribution<Long> {
@@ -16,7 +16,7 @@ public class ZipfDistribution implements Distribution<Long> {
 
     /** WARNING: ignores argument and uses private RNG */
     @Override
-    public Long next(Random random) {
+    public Long next(SplittableRandom random) {
         return (long) apacheZD.sample();
     }
 }
