@@ -5,7 +5,6 @@ import com.moandjiezana.toml.Toml;
 import java.util.SplittableRandom;
 
 public class RandomStreamIterator {
-    private final int dim;
     private final Distribution<Long> interarrivals, values;
     private SplittableRandom random;
     private final long R;
@@ -14,8 +13,6 @@ public class RandomStreamIterator {
         this.interarrivals = Configuration.parseDistribution(params.getTable("interarrivals"));
         this.values = Configuration.parseDistribution(params.getTable("values"));
         this.R = params.getLong("random-seed", 0L);
-        this.dim = params.getLong("dimensionality").intValue();
-        assert dim > 0;
         reset();
     }
 
