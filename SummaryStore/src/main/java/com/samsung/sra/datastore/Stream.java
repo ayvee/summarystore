@@ -25,7 +25,7 @@ class Stream implements Serializable {
     private final WindowOperator[] operators;
 
     private volatile transient boolean loaded; // transient resets it to false on SummaryStore reopen
-    private final Serializable loadingLock = new Object[0];
+    private final Serializable loadingMonitor = new Object[0];
 
     final StreamStatistics stats;
     private long tLastAppend = -1, tLastLandmarkStart = -1, tLastLandmarkEnd = -1;
@@ -63,19 +63,26 @@ class Stream implements Serializable {
     }
 
     void load(String directory, boolean readonly, BackingStore backingStore) throws IOException, ClassNotFoundException {
-        synchronized (loadingLock) {
+        synchronized (loadingMonitor) {
             if (loaded) return;
             windowManager = deserializeObject(directory + "/read-index." + streamID);
             wbmh = readonly ? null : deserializeObject(directory + "/write-index." + streamID);
             populateTransientFields(backingStore);
             loaded = true;
+            logger.info("Loaded stream {}: windowManager = {}", streamID, windowManager);
         }
     }
 
-    void unload(String directory) throws IOException {
-        synchronized (loadingLock) {
+    void unload(String directory) throws IOException, BackingStoreException {
+        synchronized (loadingMonitor) {
+            if (!loaded) return;
+            if (wbmh == null) return; // in readonly mode, unload should do nothing
             serializeObject(directory + "/read-index." + streamID, windowManager);
             serializeObject(directory + "/write-index." + streamID, wbmh);
+            logger.info("Closing wbmh");
+            wbmh.close();
+            logger.info("Flushing window manager");
+            windowManager.flushToDisk();
             windowManager = null;
             wbmh = null;
             loaded = false;
@@ -186,7 +193,11 @@ class Stream implements Serializable {
 
     void close() throws BackingStoreException {
         if (synchronizeWrites) extLock.lock(); // block all new writes
-        wbmh.close();
-        windowManager.flushToDisk();
+        synchronized (loadingMonitor) {
+            if (!loaded) return;
+            if (wbmh == null) return; // readonly mode
+            wbmh.close();
+            windowManager.flushToDisk();
+        }
     }
 }

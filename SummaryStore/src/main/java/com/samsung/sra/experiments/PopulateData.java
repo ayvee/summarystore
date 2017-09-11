@@ -22,7 +22,7 @@ public class PopulateData {
 
         // uncomment the parallelStream to parallelize
         config.getDecayFunctions()./*parallelStream().*/forEach(decay -> {
-            String outprefix = config.getStorePrefix(decay);
+            String outprefix = config.getStoreDirectory(decay);
             if ((new File(outprefix).exists())) {
                 logger.warn("Decay function {} already populated at {}, skipping", decay, outprefix);
                 return;

@@ -1,7 +1,5 @@
 package com.samsung.sra.experiments;
 
-import com.moandjiezana.toml.Toml;
-
 import java.util.SplittableRandom;
 
 public class RandomStreamIterator {
@@ -9,10 +7,10 @@ public class RandomStreamIterator {
     private SplittableRandom random;
     private final long R;
 
-    public RandomStreamIterator(Toml params) {
-        this.interarrivals = Configuration.parseDistribution(params.getTable("interarrivals"));
-        this.values = Configuration.parseDistribution(params.getTable("values"));
-        this.R = params.getLong("random-seed", 0L);
+    public RandomStreamIterator(Distribution<Long> interarrivals, Distribution<Long> values, long R) {
+        this.interarrivals = interarrivals;
+        this.values = values;
+        this.R = R;
         reset();
     }
 

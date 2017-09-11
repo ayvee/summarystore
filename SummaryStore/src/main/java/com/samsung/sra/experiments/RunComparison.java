@@ -83,7 +83,7 @@ class RunComparison {
                     logger.warn("drop-caches failed", e);
                 }
             }
-            try (SummaryStore store = new SummaryStore(config.getStorePrefix(decay), new SummaryStore.Options()
+            try (SummaryStore store = new SummaryStore(config.getStoreDirectory(decay), new SummaryStore.Options()
                     .setKeepReadIndexes(true)
                     .setReadOnly(true)
                     .setCacheSizePerStream(cacheSize))) {
