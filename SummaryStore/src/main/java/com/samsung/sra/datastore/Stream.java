@@ -69,7 +69,6 @@ class Stream implements Serializable {
             wbmh = readonly ? null : deserializeObject(directory + "/write-index." + streamID);
             populateTransientFields(backingStore);
             loaded = true;
-            logger.info("Loaded stream {}: windowManager = {}", streamID, windowManager);
         }
     }
 
@@ -79,9 +78,7 @@ class Stream implements Serializable {
             if (wbmh == null) return; // in readonly mode, unload should do nothing
             serializeObject(directory + "/read-index." + streamID, windowManager);
             serializeObject(directory + "/write-index." + streamID, wbmh);
-            logger.info("Closing wbmh");
             wbmh.close();
-            logger.info("Flushing window manager");
             windowManager.flushToDisk();
             windowManager = null;
             wbmh = null;
