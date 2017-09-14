@@ -143,6 +143,10 @@ public class Configuration {
         return getStreamIterator(0L);
     }
 
+    public ParRandomStreamIterator getParStreamIterator(long streamID) {
+        return new ParRandomStreamIterator(streamID);
+    }
+
     public int getNStreams() {
         Toml conf = toml.getTable("streams");
         return conf == null ? 1 : conf.getLong("nstreams", 1L).intValue();

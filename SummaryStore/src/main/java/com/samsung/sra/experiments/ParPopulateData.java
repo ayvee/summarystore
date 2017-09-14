@@ -94,7 +94,7 @@ public class ParPopulateData {
                     .setParallelizeMerge(10);
             try {
                 store.registerStream(streamID, wbmh, conf.getOperators());
-                RandomStreamIterator ris = conf.getStreamIterator(streamID);
+                ParRandomStreamIterator ris = conf.getParStreamIterator(streamID);
                 while (ris.hasNext()) {
                     store.append(streamID, ris.currT, ris.currV);
                     ris.next();
