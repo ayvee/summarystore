@@ -144,7 +144,9 @@ public class Configuration {
     }
 
     public ParRandomStreamIterator getParStreamIterator(long streamID) {
-        return new ParRandomStreamIterator(streamID);
+        ParRandomStreamIterator pris = new ParRandomStreamIterator(streamID);
+        pris.setTimeRange(getTstart(), getTend());
+        return pris;
     }
 
     public int getNStreams() {
