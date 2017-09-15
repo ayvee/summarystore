@@ -13,7 +13,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Paths;
@@ -65,24 +64,7 @@ class RunComparison {
             StoreStats storeStats;
             // WARNING: setting cache size to length(all time), i.e. loading all data into main memory
             long cacheSize = config.getTend() - config.getTstart() + 1;
-            if (config.dropKernelCaches()) {
-                try {
-                    URL script = RunComparison.class.getClassLoader().getResource("drop-caches.sh");
-                    if (script == null) {
-                        throw new IllegalStateException("could not find script");
-                    }
-                    int dropStatus = new ProcessBuilder()
-                            .inheritIO() // wire stdout/stderr properly
-                            .command("sudo", script.getPath())
-                            .start()
-                            .waitFor();
-                    if (dropStatus != 0) {
-                        throw new IllegalStateException("process returned non-zero status " + dropStatus);
-                    }
-                } catch (IllegalStateException e) {
-                    logger.warn("drop-caches failed", e);
-                }
-            }
+            config.dropKernelCachesIfNecessary();
             try (SummaryStore store = new SummaryStore(config.getStoreDirectory(decay), new SummaryStore.Options()
                     .setKeepReadIndexes(true)
                     .setReadOnly(true)

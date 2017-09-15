@@ -29,7 +29,7 @@ public class ParPopulateData {
         if (nStreams > nStreamsPerShard) {
             if (args.length != 2) syntaxError();
             shardNum = Long.parseLong(args[1]);
-            assert shardNum * nStreamsPerShard < nStreams : "Invalid shard number";
+            assert 0 <= shardNum && shardNum < config.getNShards() : "Invalid shard number";
         } else {
             shardNum = 0;
         }

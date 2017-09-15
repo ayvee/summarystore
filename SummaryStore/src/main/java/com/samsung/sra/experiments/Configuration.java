@@ -5,9 +5,12 @@ import com.samsung.sra.datastore.*;
 import com.samsung.sra.datastore.aggregates.BloomFilterOperator;
 import com.samsung.sra.datastore.aggregates.CMSOperator;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.util.List;
 import java.util.Map;
 
@@ -19,6 +22,7 @@ import java.util.Map;
  */
 public class Configuration {
     private final Toml toml;
+    private static final Logger logger = LoggerFactory.getLogger(Configuration.class);
 
     public Configuration(File file) {
         if (!file.isFile()) throw new IllegalArgumentException("invalid or non-existent config file " + file);
@@ -159,6 +163,10 @@ public class Configuration {
         return conf == null ? 1 : conf.getLong("nstreams-per-shard", 1L).intValue();
     }
 
+    public int getNShards() {
+        return (int) Math.ceil(getNStreams() / getNStreamsPerShard());
+    }
+
     public int getNumIngestThreads() {
         Toml conf = toml.getTable("performance");
         return conf.getLong("num-ingest-threads", getNStreamsPerShard()).intValue();
@@ -282,9 +290,25 @@ public class Configuration {
     /**
      * Drop kernel page/inode/dentries caches before testing each SummaryStore in RunComparison
      */
-    public boolean dropKernelCaches() {
+    public void dropKernelCachesIfNecessary() {
         Toml conf = toml.getTable("performance");
-        return conf != null && conf.getBoolean("drop-caches", false);
+        if (conf == null || !conf.getBoolean("drop-caches", false)) return;
+        try {
+            URL script = RunComparison.class.getClassLoader().getResource("drop-caches.sh");
+            if (script == null) {
+                throw new IllegalStateException("could not find script");
+            }
+            int dropStatus = new ProcessBuilder()
+                    .inheritIO() // wire stdout/stderr properly
+                    .command("sudo", script.getPath())
+                    .start()
+                    .waitFor();
+            if (dropStatus != 0) {
+                throw new IllegalStateException("process returned non-zero status " + dropStatus);
+            }
+        } catch (Exception e) {
+            logger.warn("drop-caches failed", e);
+        }
     }
 
     public static Distribution<Long> parseDistribution(Toml conf) {
