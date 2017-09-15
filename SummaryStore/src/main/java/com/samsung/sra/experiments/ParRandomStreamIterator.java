@@ -1,9 +1,10 @@
 package com.samsung.sra.experiments;
 
-import java.util.SplittableRandom;
+import it.unimi.dsi.util.XoRoShiRo128PlusRandomGenerator;
 
 public class ParRandomStreamIterator {
-    private SplittableRandom random;
+    //private SplittableRandom random;
+    private final XoRoShiRo128PlusRandomGenerator random = new XoRoShiRo128PlusRandomGenerator();
     private final long R;
 
     public ParRandomStreamIterator(long R) {
@@ -26,13 +27,16 @@ public class ParRandomStreamIterator {
     }
 
     public void next() {
-        currT += (long) Math.ceil(166.66666667 / Math.pow(random.nextDouble(), 1d / 1.2));
-        currV = random.nextInt(1, 101);
+        currT += (long) Math.ceil(166.66666667 / Math.pow(random.nextFloat(), 1d / 1.2));
+        //currV = random.nextInt(1, 101);
+        currV = random.nextInt(100);
     }
 
     public void reset() {
-        this.random = new SplittableRandom(R);
-        this.currT = T0;
-        this.currV = random.nextInt(1, 101);
+        //random = new SplittableRandom(R);
+        random.setSeed(R);
+        currT = T0;
+        //currV = random.nextInt(1, 101);
+        currV = random.nextInt(100);
     }
 }

@@ -81,7 +81,7 @@ public class SummaryStore implements AutoCloseable {
                 boolean created = dir.mkdirs();
                 assert created;
             }
-            this.backingStore = new RocksDBBackingStore(directory + "/rocksdb", options.cacheSizePerStream);
+            this.backingStore = new RocksDBBackingStore(directory + "/rocksdb", options.cacheSizePerStream, options.readonly);
             this.directory = directory;
         } else {
             this.backingStore = new MainMemoryBackingStore();
