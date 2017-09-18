@@ -63,7 +63,7 @@ public class RocksDBBackingStore extends BackingStore {
                         // FIXME
                         .setBlockCacheSize(readonly
                                 ? 512 * 1024 * 1024L
-                                : 40 * 1024 * 1024 * 1024L)
+                                : 30 * 1024 * 1024 * 1024L)
                         .setCacheIndexAndFilterBlocks(true)
                         //.setFilter(new BloomFilter())
                 )

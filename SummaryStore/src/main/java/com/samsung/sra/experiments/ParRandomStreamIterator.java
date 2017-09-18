@@ -27,7 +27,7 @@ public class ParRandomStreamIterator {
     }
 
     public void next() {
-        currT += (long) Math.ceil(166.66666667 / Math.pow(random.nextFloat(), 1d / 1.2));
+        currT += (long) Math.ceil(166.66666667 / Math.pow(random.nextDouble(), 1d / 1.2));
         //currV = random.nextInt(1, 101);
         currV = random.nextInt(100);
     }
