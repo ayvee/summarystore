@@ -56,58 +56,63 @@ public class ParMeasureLatency {
                 .setCacheSizePerStream(conf.getWindowCacheSize());
         conf.dropKernelCachesIfNecessary();
         SummaryStore[] stores = new SummaryStore[conf.getNShards()];
-        for (int i = 0; i < stores.length; ++i) {
-            stores[i] = new SummaryStore(conf.getStoreDirectory(decay) + ".shard" + i, storeOptions);
-        }
-
-        int nShards = conf.getNShards();
-        long nStreams = conf.getNStreams();
-        long nStreamsPerShard = conf.getNStreamsPerShard();
-        while (!workload.isEmpty()) {
-            // synchronized (workload) {
-            String group = groups[rand.nextInt(0, groups.length)];
-            List<Workload.Query> groupQueries = workload.get(group);
-            Workload.Query q = groupQueries.remove(rand.nextInt(0, groupQueries.size()));
-            q.streamID = rand.nextLong(0, nStreams);
-            if (groupQueries.isEmpty()) workload.remove(group);
-            // }
-
-            Object[] params = q.params;
-            if (params == null || params.length == 0) {
-                params = new Object[]{0.95d};
-            } else {
-                Object[] newParams = new Object[params.length + 1];
-                System.arraycopy(params, 0, newParams, 0, params.length);
-                newParams[params.length] = 0.95d;
-                params = newParams;
+        try {
+            for (int i = 0; i < stores.length; ++i) {
+                stores[i] = new SummaryStore(conf.getStoreDirectory(decay) + ".shard" + i, storeOptions);
             }
-            long ts = System.currentTimeMillis();
-            stores[(int) q.streamID /nShards].query(q.streamID % nStreamsPerShard, q.l, q.r, q.operatorNum, params);
-            long te = System.currentTimeMillis();
-            double timeS = (te - ts) / 1000d;
-            groupStats.get(group).addObservation(timeS);
-            globalStats.addObservation(timeS);
-        }
 
-        String outPrefix = FilenameUtils.removeExtension(configFile.getAbsolutePath());
-        System.out.println("#query\tage class\tlength class\tlatency:p0\tlatency:mean\tlatency:p50\tlatency:p95\tlatency:p99\tlatency:p99.9\tlatency:p100");
-        for (String group : groups) {
-            Statistics stats = groupStats.get(group);
-            System.out.print(group);
-            System.out.print("\t" + stats.getQuantile(0));
-            System.out.print("\t" + stats.getMean());
-            System.out.print("\t" + stats.getQuantile(0.5));
-            System.out.print("\t" + stats.getQuantile(0.95));
-            System.out.print("\t" + stats.getQuantile(0.99));
-            System.out.print("\t" + stats.getQuantile(0.999));
-            System.out.print("\t" + stats.getQuantile(1));
-            System.out.println();
-            stats.writeCDF(outPrefix + "." + group + ".cdf");
-        }
-        globalStats.writeCDF(outPrefix + ".cdf");
+            int nShards = conf.getNShards();
+            long nStreams = conf.getNStreams();
+            long nStreamsPerShard = conf.getNStreamsPerShard();
+            int N = workload.values().stream().mapToInt(List::size).sum();
+            int n = 0;
+            while (!workload.isEmpty()) {
+                if (n++ % 10 == 0) logger.info("Processed {} out of {} queries", n, N);
+                // synchronized (workload) {
+                String group = groups[rand.nextInt(0, groups.length)];
+                List<Workload.Query> groupQueries = workload.get(group);
+                Workload.Query q = groupQueries.remove(rand.nextInt(0, groupQueries.size()));
+                q.streamID = rand.nextLong(0, nStreams);
+                if (groupQueries.isEmpty()) workload.remove(group);
+                // }
 
-        for (int i = 0; i < stores.length; ++i) {
-            stores[i].close();
+                Object[] params = q.params;
+                if (params == null || params.length == 0) {
+                    params = new Object[]{0.95d};
+                } else {
+                    Object[] newParams = new Object[params.length + 1];
+                    System.arraycopy(params, 0, newParams, 0, params.length);
+                    newParams[params.length] = 0.95d;
+                    params = newParams;
+                }
+                long ts = System.currentTimeMillis();
+                stores[(int) q.streamID / nShards].query(q.streamID % nStreamsPerShard, q.l, q.r, q.operatorNum, params);
+                long te = System.currentTimeMillis();
+                double timeS = (te - ts) / 1000d;
+                groupStats.get(group).addObservation(timeS);
+                globalStats.addObservation(timeS);
+            }
+
+            String outPrefix = FilenameUtils.removeExtension(configFile.getAbsolutePath());
+            System.out.println("#query\tage class\tlength class\tlatency:p0\tlatency:mean\tlatency:p50\tlatency:p95\tlatency:p99\tlatency:p99.9\tlatency:p100");
+            for (String group : groups) {
+                Statistics stats = groupStats.get(group);
+                System.out.print(group);
+                System.out.print("\t" + stats.getQuantile(0));
+                System.out.print("\t" + stats.getMean());
+                System.out.print("\t" + stats.getQuantile(0.5));
+                System.out.print("\t" + stats.getQuantile(0.95));
+                System.out.print("\t" + stats.getQuantile(0.99));
+                System.out.print("\t" + stats.getQuantile(0.999));
+                System.out.print("\t" + stats.getQuantile(1));
+                System.out.println();
+                stats.writeCDF(outPrefix + "." + group + ".cdf");
+            }
+            globalStats.writeCDF(outPrefix + ".cdf");
+        } finally {
+            for (SummaryStore store : stores) {
+                if (store != null) store.close();
+            }
         }
     }
 }
