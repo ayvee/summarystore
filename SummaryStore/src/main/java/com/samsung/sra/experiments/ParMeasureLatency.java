@@ -2,14 +2,14 @@ package com.samsung.sra.experiments;
 
 import com.samsung.sra.datastore.SummaryStore;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.math3.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.SplittableRandom;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 public class ParMeasureLatency {
     private static final Logger logger = LoggerFactory.getLogger(ParMeasureLatency.class);
@@ -37,6 +37,9 @@ public class ParMeasureLatency {
             syntaxError();
             return;
         }
+        int nShards = conf.getNShards();
+        long nStreams = conf.getNStreams();
+        long nStreamsPerShard = conf.getNStreamsPerShard();
 
         Workload workload = conf.getWorkloadGenerator().generate(conf.getTstart(), conf.getTend());
         String[] groups = workload.keySet().toArray(new String[0]);
@@ -50,6 +53,15 @@ public class ParMeasureLatency {
                 q.streamID = rand.nextInt(0, conf.getNStreams());
             }
         }
+        List<Pair<String, Workload.Query>> shuffle = new ArrayList<>();
+        while (!workload.isEmpty()) {
+            String group = groups[rand.nextInt(0, groups.length)];
+            List<Workload.Query> groupQueries = workload.get(group);
+            Workload.Query q = groupQueries.remove(rand.nextInt(0, groupQueries.size()));
+            q.streamID = rand.nextLong(0, nStreams);
+            shuffle.add(new Pair<>(group, q));
+            if (groupQueries.isEmpty()) workload.remove(group);
+        }
 
         SummaryStore.Options storeOptions = new SummaryStore.Options()
                 .setReadOnly(true)
@@ -61,20 +73,20 @@ public class ParMeasureLatency {
                 stores[i] = new SummaryStore(conf.getStoreDirectory(decay) + ".shard" + i, storeOptions);
             }
 
-            int nShards = conf.getNShards();
-            long nStreams = conf.getNStreams();
-            long nStreamsPerShard = conf.getNStreamsPerShard();
-            int N = workload.values().stream().mapToInt(List::size).sum();
-            int n = 0;
-            while (!workload.isEmpty()) {
-                if (n++ % 10 == 0) logger.info("Processed {} out of {} queries", n, N);
-                // synchronized (workload) {
-                String group = groups[rand.nextInt(0, groups.length)];
-                List<Workload.Query> groupQueries = workload.get(group);
-                Workload.Query q = groupQueries.remove(rand.nextInt(0, groupQueries.size()));
-                q.streamID = rand.nextLong(0, nStreams);
-                if (groupQueries.isEmpty()) workload.remove(group);
-                // }
+            int N = shuffle.size();
+            AtomicInteger n = new AtomicInteger(0);
+            // FIXME: config param means something else, should really add another
+            Stream<Pair<String, Workload.Query>> stream = conf.isWorkloadParallelismEnabled()
+                    ? shuffle.parallelStream() : shuffle.stream();
+            stream.forEach(p -> {
+                {
+                    int nv = n.getAndIncrement();
+                    if (nv % 10 == 0) {
+                        logger.info("Processed {} out of {} queries", nv, N);
+                    }
+                }
+                String group = p.getFirst();
+                Workload.Query q = p.getSecond();
 
                 Object[] params = q.params;
                 if (params == null || params.length == 0) {
@@ -86,33 +98,37 @@ public class ParMeasureLatency {
                     params = newParams;
                 }
                 long ts = System.currentTimeMillis();
-                stores[(int) q.streamID / nShards].query(q.streamID % nStreamsPerShard, q.l, q.r, q.operatorNum, params);
+                try {
+                    stores[(int) q.streamID / nShards].query(q.streamID % nStreamsPerShard, q.l, q.r, q.operatorNum, params);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
                 long te = System.currentTimeMillis();
                 double timeS = (te - ts) / 1000d;
                 groupStats.get(group).addObservation(timeS);
                 globalStats.addObservation(timeS);
-            }
-
-            String outPrefix = FilenameUtils.removeExtension(configFile.getAbsolutePath());
-            System.out.println("#query\tage class\tlength class\tlatency:p0\tlatency:mean\tlatency:p50\tlatency:p95\tlatency:p99\tlatency:p99.9\tlatency:p100");
-            for (String group : groups) {
-                Statistics stats = groupStats.get(group);
-                System.out.print(group);
-                System.out.print("\t" + stats.getQuantile(0));
-                System.out.print("\t" + stats.getMean());
-                System.out.print("\t" + stats.getQuantile(0.5));
-                System.out.print("\t" + stats.getQuantile(0.95));
-                System.out.print("\t" + stats.getQuantile(0.99));
-                System.out.print("\t" + stats.getQuantile(0.999));
-                System.out.print("\t" + stats.getQuantile(1));
-                System.out.println();
-                stats.writeCDF(outPrefix + "." + group + ".cdf");
-            }
-            globalStats.writeCDF(outPrefix + ".cdf");
+            });
         } finally {
             for (SummaryStore store : stores) {
                 if (store != null) store.close();
             }
         }
+
+        String outPrefix = FilenameUtils.removeExtension(configFile.getAbsolutePath());
+        System.out.println("#query\tage class\tlength class\tlatency:p0\tlatency:mean\tlatency:p50\tlatency:p95\tlatency:p99\tlatency:p99.9\tlatency:p100");
+        for (String group : groups) {
+            Statistics stats = groupStats.get(group);
+            System.out.print(group);
+            System.out.print("\t" + stats.getQuantile(0));
+            System.out.print("\t" + stats.getMean());
+            System.out.print("\t" + stats.getQuantile(0.5));
+            System.out.print("\t" + stats.getQuantile(0.95));
+            System.out.print("\t" + stats.getQuantile(0.99));
+            System.out.print("\t" + stats.getQuantile(0.999));
+            System.out.print("\t" + stats.getQuantile(1));
+            System.out.println();
+            stats.writeCDF(outPrefix + "." + group + ".cdf");
+        }
+        globalStats.writeCDF(outPrefix + ".cdf");
     }
 }
