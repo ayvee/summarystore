@@ -45,7 +45,7 @@ public class ParMeasureLatency {
         String[] groups = workload.keySet().toArray(new String[0]);
         Map<String, Statistics> groupStats = new LinkedHashMap<>();
         for (String group : workload.keySet()) {
-            groupStats.put(group, new Statistics());
+            groupStats.put(group, new Statistics(true));
         }
         Statistics globalStats = new Statistics(true);
         for (List<Workload.Query> groupQueries : workload.values()) {
@@ -115,20 +115,28 @@ public class ParMeasureLatency {
         }
 
         String outPrefix = FilenameUtils.removeExtension(configFile.getAbsolutePath());
-        System.out.println("#query\tage class\tlength class\tlatency:p0\tlatency:mean\tlatency:p50\tlatency:p95\tlatency:p99\tlatency:p99.9\tlatency:p100");
+        System.out.println(STATS_HEADER);
         for (String group : groups) {
             Statistics stats = groupStats.get(group);
-            System.out.print(group);
-            System.out.print("\t" + stats.getQuantile(0));
-            System.out.print("\t" + stats.getMean());
-            System.out.print("\t" + stats.getQuantile(0.5));
-            System.out.print("\t" + stats.getQuantile(0.95));
-            System.out.print("\t" + stats.getQuantile(0.99));
-            System.out.print("\t" + stats.getQuantile(0.999));
-            System.out.print("\t" + stats.getQuantile(1));
-            System.out.println();
-            stats.writeCDF(outPrefix + "." + group + ".cdf");
+            printStats(group, stats);
+            stats.writeCDF(outPrefix + "." + group.replaceAll("\\s+", "_") + ".cdf");
         }
+        printStats("ALL\tALL\tALL", globalStats);
         globalStats.writeCDF(outPrefix + ".cdf");
+    }
+
+    private static final String STATS_HEADER = "#query\tage class\tlength class\t"
+            + "latency:p0\tlatency:mean\tlatency:p50\tlatency:p95\tlatency:p99\tlatency:p99.9\tlatency:p100";
+
+    private static void printStats(String group, Statistics stats) {
+        System.out.print(group);
+        System.out.print("\t" + stats.getQuantile(0));
+        System.out.print("\t" + stats.getMean());
+        System.out.print("\t" + stats.getQuantile(0.5));
+        System.out.print("\t" + stats.getQuantile(0.95));
+        System.out.print("\t" + stats.getQuantile(0.99));
+        System.out.print("\t" + stats.getQuantile(0.999));
+        System.out.print("\t" + stats.getQuantile(1));
+        System.out.println();
     }
 }
