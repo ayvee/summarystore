@@ -56,6 +56,7 @@ public class ParMeasureLatency {
         List<Pair<String, Workload.Query>> shuffle = new ArrayList<>();
         while (!workload.isEmpty()) {
             String group = groups[rand.nextInt(0, groups.length)];
+            if (!workload.containsKey(group)) continue;
             List<Workload.Query> groupQueries = workload.get(group);
             Workload.Query q = groupQueries.remove(rand.nextInt(0, groupQueries.size()));
             q.streamID = rand.nextLong(0, nStreams);
