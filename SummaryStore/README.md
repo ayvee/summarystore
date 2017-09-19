@@ -1,15 +1,9 @@
-INSTALL
+SETUP
 ==============
 
-1. Install RocksDB (needs to be done on each OS separately because the jar contains an embedded .so)
-
-        git clone https://github.com/facebook/rocksdb.git
-        cd rocksdb
-        Set JAVA_HOME
-        make rocksdbjavastatic
-        mvn install:install-file -Dfile=java/target/rocksdbjni-4.8.0-linux64.jar -DgroupId=org.rocksdb -DartifactId=rocksdbjni -Dversion=4.4 -Dpackaging=jar -DgeneratePom=true
-
-2. mvn package
+```bash
+mvn package
+```
 
 EXPERIMENTS
 ==============

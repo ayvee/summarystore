@@ -15,4 +15,12 @@ cp="$cp:$root/scripts" # put all scripts on classpath, so they can be found with
 
 className=$1
 shift
-java -Dorg.slf4j.simpleLogger.showDateTime=true -Djava.rmi.server.hostname=localhost -ea -Xmx$Xmx -cp $cp com.samsung.sra.DataStoreExperiments.$className $*
+java \
+    -Dorg.slf4j.simpleLogger.showDateTime=true \
+    -Dorg.slf4j.simpleLogger.showShortLogName=true \
+    -Djava.rmi.server.hostname=localhost \
+    -Xmx$Xmx \
+    -XX:+UseG1GC \
+    -ea \
+    -cp $cp \
+    com.samsung.sra.experiments.$className $*

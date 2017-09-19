@@ -1,0 +1,46 @@
+data-dir = "/mnt/md0/sstore"                # where we store SummaryStore (RocksDB) data
+results-dir = "results"             # where we store experiment output
+window-cache-size = 2_000_000       # number of windows to cache in memory
+ingest-buffer-size = 1_000_000      # number of values to buffer before triggering merge
+
+decay-functions = [
+    "rationalPower1,1,1,1",
+]
+
+# List of operators to maintain in each SummaryStore
+# (names of classes in the com.samsung.sra.DataStore.Aggregates package)
+operators = ["SimpleCountOperator", "SumOperator", "BloomFilterOperator5,1000", "CMSOperator5,500"]
+#operators = ["SimpleCountOperator", "SumOperator", "CMSOperator1,2500"]
+
+
+num-parallel-streams = 1
+[data]
+nstreams = 1
+dimensionality = 1
+tstart = 0
+tend = 62_500_000_000_000
+stream-generator = "RandomStreamGenerator"
+interarrivals = {distribution = "ParetoDistribution", xm = 166.66666667, alpha = 1.2} # mean = a xm / (a-1) = 1000 ms. So rate = 1/s
+#interarrivals = {distribution = "ExponentialDistribution", lambda = 0.001}
+values = {distribution = "ZipfDistribution", N = 1000, k = 0.333}
+random-seed = 0                              # RandomStreamGenerator seed. Optional, defaults to 0
+
+
+[workload]
+workload-generator = "SampledCalendarWorkloadGenerator"
+operators = [
+  {index = 0, type = "count"},
+  {index = 1, type = "sum"},
+  {index = 2, type = "bf", param = {distribution = "UniformDistribution", min = 1, max = 1000}},
+  {index = 3, type = "cms", param = {distribution = "UniformDistribution", min = 1, max = 1000}}
+]
+ticks-per-second = 1000
+rescale-to-year = true
+smallest-bin = "minutes"
+queries-per-class = 100
+
+
+[performance]
+enum-batch-size = 100_000_000
+parallel-workload-gen = true
+drop-caches = true
