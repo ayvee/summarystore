@@ -1,6 +1,7 @@
 package com.samsung.sra.DataStore;
 
 import org.apache.commons.lang.SerializationUtils;
+import org.apache.commons.lang.UnhandledException;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
@@ -99,8 +100,11 @@ public class RocksDBBackingStore implements BackingStore {
             if(rocksValue != null ) {
                 window = streamManager.deserializeSummaryWindow(rocksValue);
             } else {
-                logger.error("NULL rocksValue; SWID: " + swid + " streamID: " + streamManager.streamID) ;
-                return null;
+                logger.error("NULL rocksValue; SWID: " + swid
+                        + " streamID: " + streamManager.streamID
+                        + " rocksKey: " + rocksKey.toString()) ;
+                logger.error(""+ Thread.currentThread().getStackTrace());
+
             }
 
             if (delete) {

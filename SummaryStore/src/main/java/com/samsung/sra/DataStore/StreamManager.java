@@ -283,6 +283,7 @@ class StreamManager implements Serializable {
     }
 
     SummaryWindow getSummaryWindow(long swid) throws RocksDBException {
+        logger.info("getWindow: " + swid);
         return backingStore.getSummaryWindow(this, swid);
     }
 
