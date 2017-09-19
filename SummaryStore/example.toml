@@ -17,8 +17,12 @@ decay-functions = [
 # (names of classes in the com.samsung.sra.DataStore.Aggregates package)
 operators = ["SimpleCountOperator", "SumOperator"]
 
+# Total number of streams in dataset. Need to use Par* scripts for multi-stream
+[streams]
+nstreams = 10
+nstreams-per-shard = 3
 
-# Dataset (stream generator) specification
+# Dataset (stream generator) specification for a single stream
 [data]
 tstart = 0                                   # all queries/data will span [tstart, tend]
 tend = 31_536_000                            # 1 year, timestamps in seconds
@@ -44,6 +48,7 @@ ticks-per-second = 1   # optional, default 1. E.g. set to 1000 if data timestamp
 
 
 [performance]
+num-ingest-threads = 8 # optional, defaults to nstreams-per-shard
 # Process queries in parallel when generating workload. Adds a couple of
 # minutes of stream management overhead, only recommended in large streams
 parallel-workload-gen = true   # optional, default false

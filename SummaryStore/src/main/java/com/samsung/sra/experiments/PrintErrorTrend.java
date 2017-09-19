@@ -24,7 +24,7 @@ public class PrintErrorTrend {
         String decay = args[1];
         Query.Type queryType = Query.Type.valueOf(args[2].toUpperCase());
         if (args.length <= 3) {
-            try (SummaryStore store = new SummaryStore(conf.getStorePrefix(decay), new SummaryStore.Options()
+            try (SummaryStore store = new SummaryStore(conf.getStoreDirectory(decay), new SummaryStore.Options()
                     .setKeepReadIndexes(true)
                     .setReadOnly(true)
                     .setCacheSizePerStream(conf.getWindowCacheSize()))) {
@@ -54,8 +54,8 @@ public class PrintErrorTrend {
         }
         Workload workload = new Workload();
         workload.put("all", queries);
-        PopulateWorkload.computeTrueAnswers(conf, workload);
-        try (SummaryStore store = new SummaryStore(conf.getStorePrefix(decay), new SummaryStore.Options()
+        LRMSPopulateWorkload.computeTrueAnswers(conf, workload);
+        try (SummaryStore store = new SummaryStore(conf.getStoreDirectory(decay), new SummaryStore.Options()
                 .setKeepReadIndexes(true)
                 .setReadOnly(true)
                 .setCacheSizePerStream(conf.getWindowCacheSize()))) {

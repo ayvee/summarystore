@@ -24,7 +24,7 @@ public class MeasureLatency {
 
         Workload wl = conf.getWorkloadGenerator().generate(conf.getTstart(), conf.getTend());
         Statistics stats = new Statistics(true);
-        try (SummaryStore store = new SummaryStore(conf.getStorePrefix(decay), new SummaryStore.Options()
+        try (SummaryStore store = new SummaryStore(conf.getStoreDirectory(decay), new SummaryStore.Options()
                 .setKeepReadIndexes(true)
                 .setReadOnly(true)
                 .setCacheSizePerStream(conf.getWindowCacheSize()))) {

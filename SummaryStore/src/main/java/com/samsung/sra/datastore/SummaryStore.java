@@ -81,7 +81,7 @@ public class SummaryStore implements AutoCloseable {
                 boolean created = dir.mkdirs();
                 assert created;
             }
-            this.backingStore = new RocksDBBackingStore(directory + "/rocksdb", options.cacheSizePerStream);
+            this.backingStore = new RocksDBBackingStore(directory + "/rocksdb", options.cacheSizePerStream, options.readonly);
             this.directory = directory;
         } else {
             this.backingStore = new MainMemoryBackingStore();
@@ -98,20 +98,20 @@ public class SummaryStore implements AutoCloseable {
     }
 
     /** Unload stream indexes etc to disk */
-    public void unloadStream(long streamID) throws StreamException, IOException {
+    public void unloadStream(long streamID) throws StreamException, IOException, BackingStoreException {
         getStream(streamID).unload(directory);
     }
 
-    /** Load stream into main memory */
+    /** Load stream into main memory. FIXME: only loads into readonly mode right now (read/write reload is buggy) */
     public void loadStream(long streamID) throws IOException, ClassNotFoundException, StreamException {
         Stream stream = streams.get(streamID);
         if (stream == null) {
             throw new StreamException("attempting to load unknown stream " + streamID);
         }
-        stream.load(directory, options.readonly, backingStore);
+        stream.load(directory, true, backingStore);
     }
 
-    private void serializeMetadata() throws IOException {
+    private void serializeMetadata() throws IOException, BackingStoreException {
         if (directory == null) return;
         Utilities.serializeObject(directory + "/metadata", streams);
         for (Stream stream : streams.values()) {

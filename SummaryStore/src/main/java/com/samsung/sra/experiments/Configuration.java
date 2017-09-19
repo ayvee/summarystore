@@ -5,9 +5,12 @@ import com.samsung.sra.datastore.*;
 import com.samsung.sra.datastore.aggregates.BloomFilterOperator;
 import com.samsung.sra.datastore.aggregates.CMSOperator;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.util.List;
 import java.util.Map;
 
@@ -19,6 +22,7 @@ import java.util.Map;
  */
 public class Configuration {
     private final Toml toml;
+    private static final Logger logger = LoggerFactory.getLogger(Configuration.class);
 
     public Configuration(File file) {
         if (!file.isFile()) throw new IllegalArgumentException("invalid or non-existent config file " + file);
@@ -54,10 +58,12 @@ public class Configuration {
         return toml.getString("results-dir");
     }
 
-    /** Get prefix of all SummaryStore output files. {@link #getHash} explains why we use a hash here */
-    public String getStorePrefix(String decayName) {
-        return String.format("%s/%sS%s.O%s.D%s",
-                getDataDirectory(), getPrefix(),
+    /** Get SummaryStore output directory. {@link #getHash} explains why we use a hash here */
+    public String getStoreDirectory(String decayName) {
+        long nstreams = getNStreams();
+        String streamPrefix = nstreams > 1 ? "N" + nstreams + "." : "";
+        return String.format("%s/%s%sS%s.O%s.D%s",
+                getDataDirectory(), getPrefix(),streamPrefix,
                 getHash(toml.getTable("data")), getHash(toml.getList("operators")), decayName);
     }
 
@@ -118,7 +124,7 @@ public class Configuration {
         }
     }
 
-    /** How many enum answers to load in memory per batch when using EnumPopulateWorkload */
+    /** How many enum answers to load in memory per batch when using PopulateWorkload */
     public long getEnumBatchSize() {
         long defaultVal = 1_000_000_000;
         Toml conf = toml.getTable("performance");
@@ -127,10 +133,43 @@ public class Configuration {
 
 
     /** FIXME */
-    public RandomStreamIterator getStreamIterator() {
-        RandomStreamIterator ris = new RandomStreamIterator(toml.getTable("data"));
+    public RandomStreamIterator getStreamIterator(long streamID) {
+        Toml conf = toml.getTable("data");
+        Distribution<Long>
+                interarrivals = Configuration.parseDistribution(conf.getTable("interarrivals")),
+                values = Configuration.parseDistribution(conf.getTable("values"));
+        RandomStreamIterator ris = new RandomStreamIterator(interarrivals, values, streamID);
         ris.setTimeRange(getTstart(), getTend());
         return ris;
+    }
+
+    public RandomStreamIterator getStreamIterator() {
+        return getStreamIterator(0L);
+    }
+
+    public ParRandomStreamIterator getParStreamIterator(long streamID) {
+        ParRandomStreamIterator pris = new ParRandomStreamIterator(streamID);
+        pris.setTimeRange(getTstart(), getTend());
+        return pris;
+    }
+
+    public int getNStreams() {
+        Toml conf = toml.getTable("streams");
+        return conf == null ? 1 : conf.getLong("nstreams", 1L).intValue();
+    }
+
+    public long getNStreamsPerShard() {
+        Toml conf = toml.getTable("streams");
+        return conf == null ? 1 : conf.getLong("nstreams-per-shard", 1L).intValue();
+    }
+
+    public int getNShards() {
+        return (int) Math.ceil(getNStreams() / getNStreamsPerShard());
+    }
+
+    public int getNumIngestThreads() {
+        Toml conf = toml.getTable("performance");
+        return conf.getLong("num-ingest-threads", getNStreamsPerShard()).intValue();
     }
 
     /**
@@ -251,9 +290,25 @@ public class Configuration {
     /**
      * Drop kernel page/inode/dentries caches before testing each SummaryStore in RunComparison
      */
-    public boolean dropKernelCaches() {
+    public void dropKernelCachesIfNecessary() {
         Toml conf = toml.getTable("performance");
-        return conf != null && conf.getBoolean("drop-caches", false);
+        if (conf == null || !conf.getBoolean("drop-caches", false)) return;
+        try {
+            URL script = RunComparison.class.getClassLoader().getResource("drop-caches.sh");
+            if (script == null) {
+                throw new IllegalStateException("could not find script");
+            }
+            int dropStatus = new ProcessBuilder()
+                    .inheritIO() // wire stdout/stderr properly
+                    .command("sudo", script.getPath())
+                    .start()
+                    .waitFor();
+            if (dropStatus != 0) {
+                throw new IllegalStateException("process returned non-zero status " + dropStatus);
+            }
+        } catch (Exception e) {
+            logger.warn("drop-caches failed", e);
+        }
     }
 
     public static Distribution<Long> parseDistribution(Toml conf) {

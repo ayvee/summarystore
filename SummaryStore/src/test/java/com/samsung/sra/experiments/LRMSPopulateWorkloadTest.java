@@ -12,7 +12,7 @@ import java.util.Random;
 
 import static org.junit.Assert.assertEquals;
 
-public class PopulateWorkloadTest {
+public class LRMSPopulateWorkloadTest {
     @Test
     public void computeTrueAnswers() throws Exception {
         File configFile = File.createTempFile("test-workload", "toml");
@@ -43,7 +43,7 @@ public class PopulateWorkloadTest {
             long l = Math.min(a, b), r = Math.max(a, b);
             queries.add(new Workload.Query(Workload.Query.Type.COUNT, l, r, 0, null));
         }
-        PopulateWorkload.computeTrueAnswers(conf, workload);
+        LRMSPopulateWorkload.computeTrueAnswers(conf, workload);
         for (Workload.Query q : queries) {
             assertEquals(q.r - q.l + 1, q.trueAnswer.get());
         }

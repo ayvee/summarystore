@@ -22,9 +22,9 @@ public class PopulateData {
 
         // uncomment the parallelStream to parallelize
         config.getDecayFunctions()./*parallelStream().*/forEach(decay -> {
-            String outprefix = config.getStorePrefix(decay);
-            if ((new File(outprefix + ".backingStore").exists())) {
-                logger.warn("Decay function {} already populated at {}.backingStore, skipping", decay, outprefix);
+            String outprefix = config.getStoreDirectory(decay);
+            if ((new File(outprefix).exists())) {
+                logger.warn("Decay function {} already populated at {}, skipping", decay, outprefix);
                 return;
             }
             try (SummaryStore store = new SummaryStore(outprefix/*, config.getWindowCacheSize()*/);

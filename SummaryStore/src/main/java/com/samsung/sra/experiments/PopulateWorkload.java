@@ -1,132 +1,135 @@
 package com.samsung.sra.experiments;
 
-import com.changingbits.Builder;
-import com.changingbits.LongRange;
-import com.changingbits.LongRangeMultiSet;
 import com.samsung.sra.experiments.Workload.Query;
+import it.unimi.dsi.fastutil.longs.Long2LongRBTreeMap;
+import it.unimi.dsi.fastutil.longs.Long2LongSortedMap;
+import it.unimi.dsi.fastutil.longs.LongIterator;
 import org.apache.commons.lang3.SerializationUtils;
-import org.apache.commons.lang3.mutable.MutableLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ForkJoinPool;
-import java.util.stream.IntStream;
+import java.util.Random;
+import java.util.stream.Stream;
 
 public class PopulateWorkload {
     private static Logger logger = LoggerFactory.getLogger(PopulateWorkload.class);
 
-    static void computeTrueAnswers(Configuration conf, Workload workload) throws Exception {
-        long T0 = conf.getTstart(), T1 = conf.getTend();
-        ArrayList<LongRange> intervals = new ArrayList<>();
-        ArrayList<Query> queries = new ArrayList<>();
-        for (List<Query> classQueries: workload.values()) {
-            for (Query q: classQueries) {
-                queries.add(q);
-                intervals.add(new LongRange(q.l + ":" + q.r, q.l, true, q.r, true));
+    /** Working in batches, ingest portions of the enum trace into an in-memory tree, then update query answers for batch */
+    private static void computeTrueAnswers(Configuration conf, Workload workload) throws Exception {
+        Long2LongSortedMap data = new Long2LongRBTreeMap();
+        long enumBatchSize = conf.getEnumBatchSize();
+        RandomStreamIterator ris = conf.getStreamIterator();
+        long N = 0;
+        while (ris.hasNext()) {
+            data.clear();
+            long Ni = 0;
+            while (ris.hasNext() && Ni < enumBatchSize) {
+                if (N % 10_000_000 == 0) {
+                    logger.info("Processed {} values", String.format("%,d", N));
+                }
+                ++Ni;
+                ++N;
+                data.put(ris.currT, ris.currV);
+                ris.next();
             }
-        }
-        int Q = queries.size();
-        Builder builder = new Builder(intervals.toArray(new LongRange[Q]), T0, T1);
-        LongRangeMultiSet lrms = builder.getMultiSet(false, true);
-
-        if (!conf.isWorkloadParallelismEnabled()) {
-            int[] matchedIndexes = new int[Q];
-            long[] N = {0};
-            conf.getStreamGenerator().generate(T0, T1, op -> {
-                if (op.type != StreamGenerator.Operation.Type.APPEND) {
-                    return;
+            logger.info("Starting query batch update");
+            for (List<Query> classQueries: workload.values()) {
+                Stream<Query> stream = classQueries.stream();
+                if (conf.isWorkloadParallelismEnabled()) {
+                    stream = stream.parallel();
                 }
-                if (++N[0] % 1_000_000 == 0) logger.info("t = {}", op.timestamp);
-                processDataPoint(queries, lrms, matchedIndexes, op.timestamp, op.value);
-
-            });
-        } else {
-            // Divide [0, N) into equal-size bins and process one bin per thread (where N = # of data points in stream)
-            int nThreads = ForkJoinPool.getCommonPoolParallelism(); // by default = # CPU cores - 1
-            assert nThreads > 0;
-            logger.info("# threads = {}", nThreads);
-            long N;
-            {
-                MutableLong nvals = new MutableLong(0L);
-                try (StreamGenerator streamGenerator = conf.getStreamGenerator()) {
-                    streamGenerator.generate(T0, T1, op -> {
-                        if (op.type == StreamGenerator.Operation.Type.APPEND) {
-                            nvals.increment();
-                        }
-                    });
-                }
-                N = nvals.toLong();
+                stream.forEach(q -> processQuery(data, q));
             }
-            IntStream.range(0, nThreads).parallel().forEach(threadNum -> {
-                // this thread will process values with count [Nleft, Nright)
-                long Nleft = threadNum * (N / nThreads);
-                long Nright = (threadNum != nThreads - 1) ? Nleft + (N / nThreads) : N;
-                logger.info("Thread {}: [{}, {})", threadNum, Nleft, Nright);
-                try (StreamGenerator streamGenerator = conf.getStreamGenerator()) {
-                    MutableLong Ncurr = new MutableLong(0L);
-                    int[] matchedIndexes = new int[Q];
-                    streamGenerator.generate(T0, T1, op -> {
-                        if (op.type != StreamGenerator.Operation.Type.APPEND) {
-                            return;
-                        }
-                        if (Nleft <= Ncurr.toLong() && Ncurr.toLong() < Nright) {
-                            if (Ncurr.toLong() % 1_000_000 == 0) logger.info("t = {}", op.timestamp);
-                            processDataPoint(queries, lrms, matchedIndexes, op.timestamp, op.value);
-                        } else if (Ncurr.toLong() >= Nright) {
-                            return;
-                        }
-                        Ncurr.increment();
-                    });
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-                logger.info("Thread {} done", threadNum);
-            });
+            logger.info("Query batch update complete");
         }
     }
 
-    /**
-     * Process data point <t, v>. Lookup t in lrms, storing match output in matchedIndexes, then update all matching
-     * queries' answers. Not thread-safe, assumes unique access to matchedIndexes.
-     */
-    private static void processDataPoint(List<Query> queries, LongRangeMultiSet lrms, int[] matchedIndexes,
-                                         long t, Object v) {
-        int matchCount = lrms.lookup(t, matchedIndexes);
-        for (int i = 0; i < matchCount; ++i) {
-            Query q = queries.get(matchedIndexes[i]);
+    private static void processQuery(Long2LongSortedMap data, Query q) {
+        LongIterator iter = data.subMap(q.l, q.r+1).values().iterator();
+        if (q.queryType == Query.Type.BF) {
+            if (q.trueAnswer.longValue() == 1) {
+                return; // already true
+            }
+            long b = (long) q.params[0];
+            while (iter.hasNext()) {
+                if (b == iter.nextLong()) {
+                    q.trueAnswer.set(1);
+                    return;
+                }
+            }
+        } else {
+            long ans = 0;
             switch (q.queryType) {
                 case COUNT:
-                    q.trueAnswer.incrementAndGet();
+                    while (iter.hasNext()) {
+                        ans += 1;
+                        iter.nextLong();
+                    }
                     break;
                 case SUM:
-                    q.trueAnswer.addAndGet((long) v);
-                    break;
-                case BF:
-                    if (v.equals(q.params[0])) {
-                        q.trueAnswer.set(1);
+                    while (iter.hasNext()) {
+                        ans += iter.nextLong();
                     }
                     break;
                 case CMS:
-                    if (v.equals(q.params[0])) {
-                        /*if (v.length > 1) {
-                            q.trueAnswer.addAndGet((long) v[1]);
-                        } else {
-                            q.trueAnswer.incrementAndGet();
-                        }*/
-                        q.trueAnswer.incrementAndGet();
-                    }
-                    break;
-                case MAX_THRESH:
-                    if ((long) v > (long) q.params[0]) {
-                        q.trueAnswer.set(1);
+                    long c = (long) q.params[0];
+                    // FIXME: ignores two-param inserts to CMS (also specifying frequency)
+                    while (iter.hasNext()) {
+                        if (c == iter.nextLong()) {
+                            ++ans;
+                        }
                     }
                     break;
             }
+            q.trueAnswer.addAndGet(ans);
         }
+    }
+
+    public static void test() throws Exception {
+        File configFile = File.createTempFile("test-workload", "toml");
+        configFile.deleteOnExit();
+        try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(configFile.getAbsolutePath()))) {
+            writer.write(
+                       "directory = \"/tmp\"\n"
+                    + "[data]\n"
+                    + "dimensionality = 1\n"
+                    + "tstart = 0\n"
+                    + "tend = 10_000_000\n"
+                    + "stream-generator = \"RandomStreamGenerator\"\n"
+                    + "interarrivals = {distribution = \"FixedDistribution\", value = 1}\n"
+                    + "values = {distribution = \"FixedDistribution\", value = 1}\n"
+                    + "[workload]\n"
+                    + "enable-parallelism = true\n"
+            );
+        }
+        Configuration conf = new Configuration(configFile);
+        assert conf.getTstart() == 0;
+        long T = conf.getTend();
+        int Q = 1000;
+
+        Workload workload = new Workload();
+        List<Query> queries = new ArrayList<>();
+        workload.put("", queries);
+        Random random = new Random(0);
+        for (int q = 0; q < Q; ++q) {
+            long a = Math.floorMod(random.nextLong(), T), b = Math.floorMod(random.nextLong(), T);
+            long l = Math.min(a, b), r = Math.max(a, b);
+            queries.add(new Query(Query.Type.COUNT, l, r, 0, null));
+        }
+        computeTrueAnswers(conf, workload);
+        for (Query q : queries) {
+            if (q.r - q.l + 1 != q.trueAnswer.get()) {
+                throw new RuntimeException("incorrect answer in query " + q);
+            }
+        }
+        logger.info("Test succeeded");
     }
 
     public static void main(String[] args) throws Exception {
@@ -143,7 +146,14 @@ public class PopulateWorkload {
             logger.warn("Workload file {} already exists, skipping generation", conf.getWorkloadFile());
             System.exit(1);
         }
-        Workload workload = conf.getWorkloadGenerator().generate(conf.getTstart(), conf.getTend());
+        long T0 = conf.getTstart(), Te = conf.getTend();
+        /*long partI = conf.getPartialGenI(), partN = conf.getPartialGenN();
+        if (conf.getPartialGenN() != 1 && conf.getPartialGenI() < conf.getPartialGenN() - 1) {
+            // generate workload we have only generated upto the current partI
+            long binsize = (Te - T0) / partN;
+            Te = T0 + partI * binsize + binsize - 1;
+        }*/
+        Workload workload = conf.getWorkloadGenerator().generate(T0, Te);
         computeTrueAnswers(conf, workload);
         try (FileOutputStream fos = new FileOutputStream(conf.getWorkloadFile())) {
             SerializationUtils.serialize(workload, fos);

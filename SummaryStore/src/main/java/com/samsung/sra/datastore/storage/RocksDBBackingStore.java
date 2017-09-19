@@ -31,7 +31,7 @@ public class RocksDBBackingStore extends BackingStore {
      *                            Should only be used in readonly mode
      * @throws BackingStoreException  wrapping RocksDBException
      */
-    public RocksDBBackingStore(String rocksPath, long cacheSizePerStream) throws BackingStoreException {
+    public RocksDBBackingStore(String rocksPath, long cacheSizePerStream, boolean readonly) throws BackingStoreException {
         this.cacheSizePerStream = cacheSizePerStream;
         cache = cacheSizePerStream > 0 ? new ConcurrentHashMap<>() : null;
         rocksDBOptions = new Options()
@@ -43,7 +43,7 @@ public class RocksDBBackingStore extends BackingStore {
                 .setMaxBackgroundFlushes(10)
                 .setAllowConcurrentMemtableWrite(true)
                 .setDbWriteBufferSize(512L * 1024 * 1024)
-                .setMaxWriteBufferNumber(24)
+                .setMaxWriteBufferNumber(16)
                 .setMinWriteBufferNumberToMerge(4)
                 .setLevel0FileNumCompactionTrigger(4)
                 .setLevel0SlowdownWritesTrigger(10_000)
@@ -60,7 +60,10 @@ public class RocksDBBackingStore extends BackingStore {
                 //.setMemTableConfig(new VectorMemTableConfig())
                 .setTableFormatConfig(new BlockBasedTableConfig()
                         .setBlockSize(256L * 1024)
-                        .setBlockCacheSize(50L * 1024 * 1024 * 1024)
+                        // FIXME
+                        .setBlockCacheSize(readonly
+                                ? 512 * 1024 * 1024L
+                                : 30 * 1024 * 1024 * 1024L)
                         .setCacheIndexAndFilterBlocks(true)
                         //.setFilter(new BloomFilter())
                 )
@@ -69,7 +72,9 @@ public class RocksDBBackingStore extends BackingStore {
         rocksDBWriteOptions = new WriteOptions()
                 .setDisableWAL(true);
         try {
-            rocksDB = RocksDB.open(rocksDBOptions, rocksPath);
+            rocksDB = readonly
+                    ? RocksDB.openReadOnly(rocksDBOptions, rocksPath)
+                    : RocksDB.open(rocksDBOptions, rocksPath);
         } catch (RocksDBException e) {
             throw new BackingStoreException(e);
         }
