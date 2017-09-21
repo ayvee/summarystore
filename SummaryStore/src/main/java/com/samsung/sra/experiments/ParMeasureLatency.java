@@ -6,7 +6,11 @@ import org.apache.commons.math3.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
@@ -106,6 +110,7 @@ public class ParMeasureLatency {
                 }
                 long te = System.currentTimeMillis();
                 double timeS = (te - ts) / 1000d;
+                System.out.printf("%s\t%f\n", group, timeS);
                 groupStats.get(group).addObservation(timeS);
                 globalStats.addObservation(timeS);
             });
@@ -116,28 +121,30 @@ public class ParMeasureLatency {
         }
 
         String outPrefix = FilenameUtils.removeExtension(configFile.getAbsolutePath());
-        System.out.println(STATS_HEADER);
-        for (String group : groups) {
-            Statistics stats = groupStats.get(group);
-            printStats(group, stats);
-            stats.writeCDF(outPrefix + "." + group.replaceAll("\\s+", "_") + ".cdf");
+        try (BufferedWriter bw = Files.newBufferedWriter(Paths.get(outPrefix + ".tsv"))) {
+            bw.write(STATS_HEADER + "\n");
+            for (String group : groups) {
+                Statistics stats = groupStats.get(group);
+                printStats(bw, group, stats);
+                stats.writeCDF(outPrefix + "." + group.replaceAll("\\s+", "_") + ".cdf");
+            }
+            printStats(bw, "ALL\tALL\tALL", globalStats);
+            globalStats.writeCDF(outPrefix + ".cdf");
         }
-        printStats("ALL\tALL\tALL", globalStats);
-        globalStats.writeCDF(outPrefix + ".cdf");
     }
 
     private static final String STATS_HEADER = "#query\tage class\tlength class\t"
             + "latency:p0\tlatency:mean\tlatency:p50\tlatency:p95\tlatency:p99\tlatency:p99.9\tlatency:p100";
 
-    private static void printStats(String group, Statistics stats) {
-        System.out.print(group);
-        System.out.print("\t" + stats.getQuantile(0));
-        System.out.print("\t" + stats.getMean());
-        System.out.print("\t" + stats.getQuantile(0.5));
-        System.out.print("\t" + stats.getQuantile(0.95));
-        System.out.print("\t" + stats.getQuantile(0.99));
-        System.out.print("\t" + stats.getQuantile(0.999));
-        System.out.print("\t" + stats.getQuantile(1));
-        System.out.println();
+    private static void printStats(BufferedWriter br, String group, Statistics stats) throws IOException {
+        br.write(group);
+        br.write("\t" + stats.getQuantile(0));
+        br.write("\t" + stats.getMean());
+        br.write("\t" + stats.getQuantile(0.5));
+        br.write("\t" + stats.getQuantile(0.95));
+        br.write("\t" + stats.getQuantile(0.99));
+        br.write("\t" + stats.getQuantile(0.999));
+        br.write("\t" + stats.getQuantile(1));
+        br.write("\n");
     }
 }
