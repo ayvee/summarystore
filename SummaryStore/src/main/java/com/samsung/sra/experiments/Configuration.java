@@ -287,12 +287,7 @@ public class Configuration {
         return conf != null && conf.getBoolean("parallel-workload-gen", false);
     }
 
-    /**
-     * Drop kernel page/inode/dentries caches before testing each SummaryStore in RunComparison
-     */
-    public void dropKernelCachesIfNecessary() {
-        Toml conf = toml.getTable("performance");
-        if (conf == null || !conf.getBoolean("drop-caches", false)) return;
+    public static void dropKernelCaches() {
         try {
             URL script = RunComparison.class.getClassLoader().getResource("drop-caches.sh");
             if (script == null) {
@@ -309,6 +304,15 @@ public class Configuration {
         } catch (Exception e) {
             logger.warn("drop-caches failed", e);
         }
+    }
+
+    /**
+     * Drop kernel page/inode/dentries caches before testing each SummaryStore in RunComparison
+     */
+    public void dropKernelCachesIfNecessary() {
+        Toml conf = toml.getTable("performance");
+        if (conf == null || !conf.getBoolean("drop-caches", false)) return;
+        dropKernelCaches();
     }
 
     public static Distribution<Long> parseDistribution(Toml conf) {
