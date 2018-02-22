@@ -60,13 +60,31 @@ public class Utilities {
         }
     }
 
-    public static <T> void serializeObject(String filename, T obj) throws IOException {
+    public static <T> byte[] serialize(T obj) throws IOException {
+        try(ByteArrayOutputStream b = new ByteArrayOutputStream()){
+            try(ObjectOutputStream o = new ObjectOutputStream(b)){
+                o.writeObject(obj);
+            }
+
+            return b.toByteArray();
+        }
+    }
+
+    public static <T> T deserialize(byte[] bytes) throws IOException, ClassNotFoundException {
+        try(ByteArrayInputStream b = new ByteArrayInputStream(bytes)){
+            try(ObjectInputStream o = new ObjectInputStream(b)){
+                return (T) o.readObject();
+            }
+        }
+    }
+
+    public static <T> void serializeToFile(String filename, T obj) throws IOException {
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filename))) {
             oos.writeObject(obj);
         }
     }
 
-    public static <T> T deserializeObject(String filename) throws IOException, ClassNotFoundException {
+    public static <T> T deserializeFromFile(String filename) throws IOException, ClassNotFoundException {
         try (ObjectInputStream ois = new ObjectInputStream((new FileInputStream(filename)))) {
             return (T) ois.readObject();
         }

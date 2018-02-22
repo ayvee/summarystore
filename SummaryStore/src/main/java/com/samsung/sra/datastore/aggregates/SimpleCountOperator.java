@@ -1,8 +1,12 @@
 package com.samsung.sra.datastore.aggregates;
 
 import com.samsung.sra.datastore.*;
+import com.samsung.sra.protocol.Common.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
-import org.apache.commons.math3.util.Pair;
+//import org.apache.commons.math3.util.Pair;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,9 +20,16 @@ public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Doub
 
     private static final List<String> supportedQueries = Collections.singletonList("count");
 
+    private static final OpType opType = OpType.COUNT;
+
     @Override
     public List<String> getSupportedQueryTypes() {
         return supportedQueries;
+    }
+
+    @Override
+    public OpType getOpType() {
+        return opType;
     }
 
     @Override
@@ -47,6 +58,9 @@ public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Doub
             confidenceLevel = ((Number) params[0]).doubleValue();
         }
         //double sd = streamStats.getCVInterarrival() * Math.sqrt(var.toDouble());
+
+
+
         double sdMultiplier = streamStats.getCVInterarrival();
         return new SumEstimator(t0, t1, summaryWindows, countRetriever, landmarkWindows, o -> 1L)
                 .estimate(sdMultiplier, confidenceLevel);
@@ -54,7 +68,8 @@ public class SimpleCountOperator implements WindowOperator<Long,Double,Pair<Doub
 
     @Override
     public ResultError<Double, Pair<Double, Double>> getEmptyQueryResult() {
-        return new ResultError<>(0d, new Pair<>(0d, 0d));
+        return new ResultError<>(0d, new ImmutablePair<>(0d, 0d));
+
     }
 
     @Override

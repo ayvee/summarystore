@@ -5,12 +5,17 @@ import com.samsung.sra.datastore.*;
 import com.samsung.sra.datastore.aggregates.BloomFilterOperator;
 import com.samsung.sra.datastore.aggregates.CMSOperator;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
+import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+
 import java.net.URL;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -319,6 +324,62 @@ public class Configuration {
         return constructObjectViaReflection(
                 "com.samsung.sra.experiments." + conf.getString("distribution"),
                 conf);
+    }
+
+    public int getNumNodes() {
+        Toml conf = toml.getTable("nodes");
+        if (conf!=null) {
+            List<HashMap<String, String>> listIPs = conf.getList("nodeips");
+            System.out.println("Number of nodes: " + listIPs.size());
+            return listIPs.size();
+        }
+        else {
+            return -1;
+        }
+    }
+
+    public String getHostIP() {
+        return toml.getString("host-ip");
+    }
+
+    public int getHostPort() {
+        return toml.getLong("host-port", 0L).intValue();
+    }
+
+    // build a hashmap for nodeID -> (IP, port); only valid for gateway nodes
+    public HashMap<Integer, Pair<InetAddress, Integer>>  buildNodeIP() {
+        Toml conf = toml.getTable("nodes");
+        List<HashMap<String, String>> listIPs;
+
+        HashMap<Integer, Pair<InetAddress, Integer>> mapIPs = new HashMap<>();
+
+        int nodeID, port;
+        InetAddress ip = null;
+
+        if (conf!=null) {
+            listIPs = conf.getList("nodeips");
+            for(int i=0; i< listIPs.size(); i++) {
+                String[] tokens = String.valueOf(listIPs.get(i)).replaceAll("}", "").split(",");
+
+                nodeID = Integer.valueOf(tokens[2].substring(7));
+                port = Integer.valueOf(tokens[0].substring(6));
+
+                try {
+                    ip = InetAddress.getByName(tokens[1].substring(4));
+
+                } catch (UnknownHostException u) {
+                    System.out.println("Invalid IP address for host " + nodeID);
+                    u.printStackTrace();
+                }
+
+                mapIPs.put(nodeID, Pair.of(ip, port));
+
+            }
+            return mapIPs;
+        } else {
+            throw new RuntimeException("node configuration absent from config file");
+        }
+
     }
 
     public static void main(String[] args) throws Exception {

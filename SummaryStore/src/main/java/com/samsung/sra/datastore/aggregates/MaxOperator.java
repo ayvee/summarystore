@@ -1,6 +1,7 @@
 package com.samsung.sra.datastore.aggregates;
 
 import com.samsung.sra.datastore.*;
+import com.samsung.sra.protocol.Common.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 import org.apache.commons.lang3.mutable.MutableLong;
 
@@ -14,12 +15,20 @@ import java.util.stream.Stream;
  * the answer (happens when querying only over landmarks) */
 public class MaxOperator implements WindowOperator<Long, Long, Boolean> {
     private static final List<String> supportedQueries = Collections.singletonList("max");
+
+    private static final OpType opType = OpType.MAX;
+
     /** What value to return for max over empty set */
     private static final long EMPTY_MAX = Long.MIN_VALUE;
 
     @Override
     public List<String> getSupportedQueryTypes() {
         return supportedQueries;
+    }
+
+    @Override
+    public OpType getOpType() {
+        return opType;
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.samsung.sra.datastore.aggregates;
 import com.clearspring.analytics.stream.membership.BFProtofier;
 import com.clearspring.analytics.stream.membership.BloomFilter;
 import com.samsung.sra.datastore.*;
+import com.samsung.sra.protocol.Common.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.apache.commons.lang3.mutable.MutableLong;
@@ -31,6 +32,7 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
     private int filterSize; // = 128
     private int nrHashes; // = 7
     private static Logger logger = LoggerFactory.getLogger(BloomFilterOperator.class);
+    private static final OpType opType = OpType.BLOOM;
 
     public BloomFilterOperator(int nrHashes, int minimumFilterSize) {
         // can be larger than specified minimum, Java seems to round BitSet sizes up to pow(2) multiples
@@ -39,6 +41,11 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
     }
 
     private static final List<String> supportedQueries = Collections.singletonList("simplebloom");
+
+    @Override
+    public OpType getOpType() {
+        return opType;
+    }
 
     @Override
     public List<String> getSupportedQueryTypes() {

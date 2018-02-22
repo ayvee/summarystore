@@ -2,6 +2,7 @@ package com.samsung.sra.datastore.aggregates;
 
 import com.clearspring.analytics.stream.quantile.QDigest;
 import com.samsung.sra.datastore.*;
+import com.samsung.sra.protocol.Common.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 
 import java.util.Collections;
@@ -11,6 +12,7 @@ import java.util.stream.Stream;
 
 public class QuantileOperator implements WindowOperator<QDigest, Long, Long> {
     private static final List<String> supportedQueries = Collections.singletonList("quantile");
+    private static final OpType opType = OpType.FREQ;
 
     private long comprFactor = 64;
     private long byteCount = 2048;
@@ -21,6 +23,11 @@ public class QuantileOperator implements WindowOperator<QDigest, Long, Long> {
 
     public QuantileOperator() {
         this.comprFactor = 64;
+    }
+
+    @Override
+    public OpType getOpType() {
+        return opType;
     }
 
     @Override

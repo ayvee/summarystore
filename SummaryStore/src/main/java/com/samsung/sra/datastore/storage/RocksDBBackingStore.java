@@ -321,6 +321,35 @@ public class RocksDBBackingStore extends BackingStore {
         stream.put(lwid, window);
     }
 
+    private static final int AUX_KEY_MIN_SIZE = 18;
+
+    private static byte[] getAuxRocksKey(String auxKey) {
+        // "AUX" + enough zeroes to fill AUX_KEY_MIN_SIZE + auxKey
+        byte[] auxKeyBytes = auxKey.getBytes();
+        byte[] key = new byte[AUX_KEY_MIN_SIZE + auxKeyBytes.length];
+        key[0] = 'A'; key[1] = 'U'; key[2] = 'X';
+        System.arraycopy(auxKeyBytes, 0, key, AUX_KEY_MIN_SIZE, auxKeyBytes.length);
+        return key;
+    }
+
+    @Override
+    public byte[] getAux(String key) throws BackingStoreException {
+        try {
+            return rocksDB.get(getAuxRocksKey(key));
+        } catch (RocksDBException e) {
+            throw new BackingStoreException(e);
+        }
+    }
+
+    @Override
+    public void putAux(String key, byte[] value) throws BackingStoreException {
+        try {
+            rocksDB.put(getAuxRocksKey(key), value);
+        } catch (RocksDBException e) {
+            throw new BackingStoreException(e);
+        }
+    }
+
     @Override
     public void close() throws BackingStoreException {
         if (rocksDB != null) rocksDB.close();

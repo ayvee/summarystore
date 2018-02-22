@@ -13,8 +13,8 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
-import static com.samsung.sra.datastore.Utilities.deserializeObject;
-import static com.samsung.sra.datastore.Utilities.serializeObject;
+import static com.samsung.sra.datastore.Utilities.deserializeFromFile;
+import static com.samsung.sra.datastore.Utilities.serializeToFile;
 
 
 /** One Summary Store stream. This class has the outermost level of the logic for all major API calls. */
@@ -63,21 +63,23 @@ class Stream implements Serializable {
     }
 
     void load(String directory, boolean readonly, BackingStore backingStore) throws IOException, ClassNotFoundException {
+        if (directory == null) return; // in-memory store, do nothing
         synchronized (loadingMonitor) {
             if (loaded) return;
-            windowManager = deserializeObject(directory + "/read-index." + streamID);
-            wbmh = readonly ? null : deserializeObject(directory + "/write-index." + streamID);
+            windowManager = deserializeFromFile(directory + "/read-index." + streamID);
+            wbmh = readonly ? null : deserializeFromFile(directory + "/write-index." + streamID);
             populateTransientFields(backingStore);
             loaded = true;
         }
     }
 
     void unload(String directory) throws IOException, BackingStoreException {
+        if (directory == null) return; // in-memory store, do nothing
         synchronized (loadingMonitor) {
             if (!loaded) return;
             if (wbmh == null) return; // in readonly mode, unload should do nothing
-            serializeObject(directory + "/read-index." + streamID, windowManager);
-            serializeObject(directory + "/write-index." + streamID, wbmh);
+            serializeToFile(directory + "/read-index." + streamID, windowManager);
+            serializeToFile(directory + "/write-index." + streamID, wbmh);
             wbmh.close();
             windowManager.flushToDisk();
             windowManager = null;

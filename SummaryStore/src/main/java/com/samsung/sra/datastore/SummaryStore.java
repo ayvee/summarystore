@@ -5,6 +5,8 @@ import com.samsung.sra.datastore.storage.BackingStore;
 import com.samsung.sra.datastore.storage.BackingStoreException;
 import com.samsung.sra.datastore.storage.MainMemoryBackingStore;
 import com.samsung.sra.datastore.storage.RocksDBBackingStore;
+import com.samsung.sra.protocol.Common.OpType;
+
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
@@ -97,6 +99,30 @@ public class SummaryStore implements AutoCloseable {
         this(directory, new Options());
     }
 
+    /**
+     * getAux and putAux are for retrieving and persistently storing auxiliary info, such as stream statistics, stream
+     * metadata, Snode info etc. Currently not very optimized, not advisable to store large or frequently updated
+     * objects here.
+     *
+     * FIXME: we use this mechanism for our internal metadata too, so it's possible for clients to
+     * accidentally/maliciously overwrite it.
+     */
+    public byte[] getAux(String key) throws BackingStoreException {
+        return backingStore.getAux(key);
+    }
+
+    /**
+     * getAux and putAux are for retrieving and persistently storing auxiliary info, such as stream statistics, stream
+     * metadata, Snode info etc. Currently not very optimized, not advisable to store large or frequently updated
+     * objects here.
+     *
+     * FIXME: we use this mechanism for our internal metadata too, so it's possible for clients to
+     * accidentally/maliciously overwrite it.
+     */
+    public void putAux(String key, byte[] value) throws BackingStoreException {
+        backingStore.putAux(key, value);
+    }
+
     /** Unload stream indexes etc to disk */
     public void unloadStream(long streamID) throws StreamException, IOException, BackingStoreException {
         getStream(streamID).unload(directory);
@@ -112,19 +138,26 @@ public class SummaryStore implements AutoCloseable {
     }
 
     private void serializeMetadata() throws IOException, BackingStoreException {
-        if (directory == null) return;
-        Utilities.serializeObject(directory + "/metadata", streams);
+        putAux("metadata", Utilities.serialize(streams));
+        //Utilities.serializeObject(directory + "/metadata", streams);
         for (Stream stream : streams.values()) {
             stream.unload(directory);
         }
     }
 
     private void deserializeMetadata() throws IOException, ClassNotFoundException {
-        if (directory == null || !(new File(directory + "/metadata").exists())) {
+        try {
+            streams = Utilities.deserialize(getAux("metadata"));
+        } catch (Exception e) {
+            logger.debug("Could not read metadata, initializing assuming empty store");
+            streams = new ConcurrentHashMap<>();
+            return;
+        }
+        /*if (directory == null || !(new File(directory + "/metadata").exists())) {
             streams =  new ConcurrentHashMap<>();
             return;
         }
-        streams = Utilities.deserializeObject(directory + "/metadata");
+        streams = Utilities.deserializeObject(directory + "/metadata");*/
         if (!options.lazyload) {
             for (Stream stream : streams.values()) {
                 stream.load(directory, options.readonly, backingStore);
@@ -165,6 +198,10 @@ public class SummaryStore implements AutoCloseable {
         return stream;
     }
 
+    public int getOpSequenceForStream(long streamID, OpType opType) {
+        throw new UnsupportedOperationException("not yet implemented");
+    }
+
     public Object query(long streamID, long t0, long t1, int aggregateNum, Object... queryParams)
             throws StreamException, BackingStoreException {
         if (t0 < 0 || t0 > t1) {
@@ -197,6 +234,14 @@ public class SummaryStore implements AutoCloseable {
 
     public void printWindowState(long streamID) throws StreamException, BackingStoreException {
         getStream(streamID).printWindows();
+    }
+
+    public void printStoreState() {
+        logger.info(streams.size() + " streams");
+        for (Stream s : streams.values()) {
+            logger.info("Stream {}: {} values, time range [{}:{}]", s.streamID, s.stats.getNumValues(),
+                    s.stats.getTimeRangeStart(), s.stats.getTimeRangeEnd());
+        }
     }
 
     public void flush(long streamID) throws BackingStoreException, StreamException {

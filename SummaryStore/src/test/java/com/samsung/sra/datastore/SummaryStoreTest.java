@@ -4,7 +4,7 @@ import com.samsung.sra.datastore.aggregates.CMSOperator;
 import com.samsung.sra.datastore.aggregates.MaxOperator;
 import com.samsung.sra.datastore.aggregates.SimpleCountOperator;
 import com.samsung.sra.datastore.ingest.CountBasedWBMH;
-import org.apache.commons.math3.util.Pair;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.Test;
 
 import java.util.List;
@@ -172,21 +172,21 @@ public class SummaryStoreTest {
         // queries
         long t0 = 1, t1 = 511;
         double delta = 1e-6;
-        ResultError<Double, Pair<Double, Double>> countRE = (ResultError) store.query(streamID, t0, t1, 0, 0.95);
+        ResultError<Double, ImmutablePair<Double, Double>> countRE = (ResultError) store.query(streamID, t0, t1, 0, 0.95);
         assertEquals(511, countRE.result, delta);
-        assertEquals(511, countRE.error.getFirst(), delta);
-        assertEquals(511, countRE.error.getSecond(), delta);
-        ResultError<Double, Pair<Double, Double>> freq8RE = (ResultError) store.query(streamID, t0, t1, 1, 8L);
+        assertEquals(511, countRE.error.getLeft(), delta);
+        assertEquals(511, countRE.error.getRight(), delta);
+        ResultError<Double, ImmutablePair<Double, Double>> freq8RE = (ResultError) store.query(streamID, t0, t1, 1, 8L);
         assertEquals(50.9866234190742, freq8RE.result, delta);
-        assertEquals(1, freq8RE.error.getFirst(), delta);
-        assertEquals(74, freq8RE.error.getSecond(), delta);
+        assertEquals(1, freq8RE.error.getLeft(), delta);
+        assertEquals(74, freq8RE.error.getRight(), delta);
         ResultError<Long, Boolean> maxRE = (ResultError) store.query(streamID, t0, t1, 2);
         assertEquals(new Long(9), maxRE.result);
         assertEquals(false, maxRE.error);
-        ResultError<Double, Pair<Double, Double>> fullCountRE = (ResultError) store.query(streamID, 0, 1021, 0, 0.95);
+        ResultError<Double, ImmutablePair<Double, Double>> fullCountRE = (ResultError) store.query(streamID, 0, 1021, 0, 0.95);
         assertEquals(1022, fullCountRE.result, delta);
-        assertEquals(1022, fullCountRE.error.getFirst(), delta);
-        assertEquals(1022, fullCountRE.error.getSecond(), delta);
+        assertEquals(1022, fullCountRE.error.getLeft(), delta);
+        assertEquals(1022, fullCountRE.error.getRight(), delta);
     }
 
     private static void assertSummaryPropertyEquals(Integer[] expected, List<SummaryWindow> windows,

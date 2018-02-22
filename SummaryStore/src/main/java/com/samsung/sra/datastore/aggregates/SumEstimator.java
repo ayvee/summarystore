@@ -1,11 +1,11 @@
 package com.samsung.sra.datastore.aggregates;
 
-import com.samsung.sra.datastore.LandmarkWindow;
-import com.samsung.sra.datastore.ResultError;
-import com.samsung.sra.datastore.SummaryWindow;
-import com.samsung.sra.datastore.Utilities;
-import org.apache.commons.lang3.mutable.MutableLong;
-import org.apache.commons.math3.util.Pair;
+import com.samsung.sra.datastore.*;
+//import org.apache.commons.lang3.mutable.MutableLong;
+//import org.apache.commons.math3.util.Pair;
+import org.apache.commons.lang.mutable.MutableLong;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -167,6 +167,6 @@ class SumEstimator {
             CIl = Math.max(ans - numSDs * sd, lowerbound);
             CIr = Math.min(ans + numSDs * sd, upperbound);
         }
-        return new ResultError<>(ans, new Pair<>(CIl, CIr));
+        return new ResultError<>(ans, new ImmutablePair<>(CIl, CIr));
     }
 }

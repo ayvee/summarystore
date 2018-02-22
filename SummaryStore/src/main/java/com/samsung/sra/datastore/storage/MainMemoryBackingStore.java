@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 public class MainMemoryBackingStore extends BackingStore {
     private Map<Long, ConcurrentSkipListMap<Long, SummaryWindow>> summaryWindows = new ConcurrentHashMap<>();
     private Map<Long, ConcurrentSkipListMap<Long, LandmarkWindow>> landmarkWindows = new ConcurrentHashMap<>();
+    private Map<String, byte[]> auxData = new ConcurrentHashMap<>();
 
     @Override
     SummaryWindow getSummaryWindow(long streamID, long swid, SerDe serDe) {
@@ -63,6 +64,16 @@ public class MainMemoryBackingStore extends BackingStore {
         ConcurrentSkipListMap<Long, LandmarkWindow> stream = landmarkWindows.get(streamID);
         if (stream == null) landmarkWindows.put(streamID, (stream = new ConcurrentSkipListMap<>()));
         stream.put(lwid, window);
+    }
+
+    @Override
+    public byte[] getAux(String key) throws BackingStoreException {
+        return auxData.get(key);
+    }
+
+    @Override
+    public void putAux(String key, byte[] value) throws BackingStoreException {
+        auxData.put(key, value);
     }
 
     /*@Override

@@ -37,6 +37,10 @@ public abstract class BackingStore implements AutoCloseable {
 
     abstract void putLandmarkWindow(long streamID, long lwid, SerDe serDe, LandmarkWindow window) throws BackingStoreException;
 
+    abstract public byte[] getAux(String key) throws BackingStoreException;
+
+    abstract public void putAux(String key, byte[] value) throws BackingStoreException;
+
     /** Flush all entries for specified stream to disk */
     void flushToDisk(long streamID, SerDe serDe) throws BackingStoreException {}
 
