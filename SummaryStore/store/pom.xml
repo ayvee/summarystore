@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>summarystore-store</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <parent>
+        <groupId>com.samsung.sra.summarystore</groupId>
+        <artifactId>summarystore-parent</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+	<!-- http://stackoverflow.com/questions/5692256/maven-best-way-of-linking-custom-external-jar-to-my-project -->
+	<!-- we use this for a couple of external deps which aren't on Maven and had to be downloaded by hand -->
+	<repositories>
+		<repository>
+			<id>in-project</id>
+			<name>In-project non-maven dependencies</name>
+			<url>file://${project.basedir}/non-mvn-libs</url>
+		</repository>
+	</repositories>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.samsung.sra.summarystore</groupId>
+            <artifactId>summarystore-common</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.rocksdb</groupId>
+            <artifactId>rocksdbjni</artifactId>
+            <version>5.4.5</version>
+        </dependency>
+        <dependency>
+            <groupId>com.clearspring.analytics</groupId>
+            <artifactId>stream</artifactId>
+            <version>2.9.0</version>
+		</dependency> 
+		<!-- https://code.google.com/archive/p/java-heaps/ -->
+		<dependency>
+			<groupId>teneighty</groupId>
+			<artifactId>heaps</artifactId>
+			<version>2.0</version>
+		</dependency>
+        <dependency>
+            <groupId>it.unimi.dsi</groupId>
+            <artifactId>fastutil</artifactId>
+            <version>7.2.1</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.xolstice.maven.plugins</groupId>
+                <artifactId>protobuf-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

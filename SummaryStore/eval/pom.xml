@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>summarystore-eval</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <parent>
+        <groupId>com.samsung.sra.summarystore</groupId>
+        <artifactId>summarystore-parent</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+    <!-- http://stackoverflow.com/questions/5692256/maven-best-way-of-linking-custom-external-jar-to-my-project -->
+    <!-- we use this for a couple of external deps which aren't on Maven and had to be downloaded by hand -->
+    <repositories>
+        <repository>
+            <id>in-project</id>
+            <name>In-project non-maven dependencies</name>
+            <url>file://${project.basedir}/non-mvn-libs</url>
+        </repository>
+    </repositories>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.samsung.sra.summarystore</groupId>
+            <artifactId>summarystore-store</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>it.unimi.dsi</groupId>
+            <artifactId>dsiutils</artifactId>
+            <version>2.4.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.moandjiezana.toml</groupId>
+            <artifactId>toml4j</artifactId>
+            <version>0.7.1</version>
+        </dependency>
+        <dependency>
+            <groupId>net.sourceforge.argparse4j</groupId>
+            <artifactId>argparse4j</artifactId>
+            <version>0.7.0</version>
+        </dependency>
+		<!-- http://blog.mikemccandless.com/2013/12/fast-range-faceting-using-segment-trees.html
+			 https://github.com/mikemccand/segment-trees/blob/master/src/java/com/changingbits/Builder.java -->
+        <dependency>
+            <groupId>changingbits</groupId>
+            <artifactId>segment_trees</artifactId>
+            <version>0.1</version>
+        </dependency>
+		<!-- BEGIN segment-trees dependencies -->
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm</artifactId>
+            <version>4.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm-commons</artifactId>
+            <version>4.1</version>
+        </dependency>
+		<!-- END segment-trees dependencies -->
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

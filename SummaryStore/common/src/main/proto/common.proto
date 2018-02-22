@@ -1,0 +1,13 @@
+syntax = "proto2";
+package com.samsung.sra.protocol;
+
+option java_package = "com.samsung.sra.protocol";
+
+enum OpType {
+    COUNT = 1;
+    SUM = 2;
+    BLOOM = 3;
+    CMS = 4;
+    MAX = 5;
+    FREQ = 6;
+}
