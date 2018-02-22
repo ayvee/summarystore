@@ -5,17 +5,12 @@ import com.samsung.sra.datastore.*;
 import com.samsung.sra.datastore.aggregates.BloomFilterOperator;
 import com.samsung.sra.datastore.aggregates.CMSOperator;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
-import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-
 import java.net.URL;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,31 +20,31 @@ import java.util.Map;
  * Raises IllegalArgumentException on some parse errors but is generally optimistic and expects the file is a legal
  * config.
  */
-public class Configuration {
+class Configuration {
     private final Toml toml;
     private static final Logger logger = LoggerFactory.getLogger(Configuration.class);
 
-    public Configuration(File file) {
+    Configuration(File file) {
         if (!file.isFile()) throw new IllegalArgumentException("invalid or non-existent config file " + file);
         toml = new Toml().read(file);
     }
 
-    public Toml getToml() {
+    Toml getToml() {
         return toml;
     }
 
     /** Optional prefix to add onto every input file */
-    public String getPrefix() {
+    private String getPrefix() {
         return toml.getString("prefix", "");
     }
 
     /** Size of SummaryStore window cache per stream (in readonly mode) */
-    public long getWindowCacheSize() {
+    long getWindowCacheSize() {
         return toml.getLong("window-cache-size", 0L);
     }
 
     /** Size of ingest buffer size per stream (in read/write mode) */
-    public int getIngestBufferSize() {
+    int getIngestBufferSize() {
         return toml.getLong("ingest-buffer-size", 0L).intValue();
     }
 
@@ -64,7 +59,7 @@ public class Configuration {
     }
 
     /** Get SummaryStore output directory. {@link #getHash} explains why we use a hash here */
-    public String getStoreDirectory(String decayName) {
+    String getStoreDirectory(String decayName) {
         long nstreams = getNStreams();
         String streamPrefix = nstreams > 1 ? "N" + nstreams + "." : "";
         return String.format("%s/%s%sS%s.O%s.D%s",
@@ -72,12 +67,12 @@ public class Configuration {
                 getHash(toml.getTable("data")), getHash(toml.getList("operators")), decayName);
     }
 
-    public String getWorkloadFile() {
+    String getWorkloadFile() {
         return String.format("%s/%sS%s.W%s.workload",
                 getResultsDirectory(), getPrefix(), getHash(toml.getTable("data")), getHash(toml.getTable("workload")));
     }
 
-    public String getProfileFile(String confidenceLevel) {
+    String getProfileFile(String confidenceLevel) {
         String prefix =  String.format("%s/%sS%s.W%s.O%s.D%s", getResultsDirectory(), getPrefix(),
                 getHash(toml.getTable("data")), getHash(toml.getTable("workload")),
                 getHash(toml.getList("operators")), getHash(toml.getList("decay-functions")));
@@ -87,19 +82,19 @@ public class Configuration {
     }
 
     /** Data/queries will span the time range [tstart, tend] */
-    public long getTstart() {
+    long getTstart() {
         return toml.getLong("data.tstart");
     }
 
     /** Data/queries will span the time range [tstart, tend] */
-    public long getTend() {
+    long getTend() {
         return toml.getLong("data.tend");
     }
 
     private StreamGenerator cachedBaseStreamGenerator = null;
 
     // TODO: add synchronized. Not needed for all our uses as of 04/13/2017
-    public StreamGenerator getBaseStreamGenerator() {
+    private StreamGenerator getBaseStreamGenerator() {
         Toml conf = toml.getTable("data");
         if (cachedBaseStreamGenerator != null) {
             return cachedBaseStreamGenerator.copy();
@@ -114,7 +109,7 @@ public class Configuration {
         }
     }
 
-    public StreamGenerator getStreamGenerator() {
+    StreamGenerator getStreamGenerator() {
         Toml conf = toml.getTable("data");
         StreamGenerator baseStream = getBaseStreamGenerator();
         Toml taggerConf = conf.getTable("tag-landmarks");
@@ -130,7 +125,7 @@ public class Configuration {
     }
 
     /** How many enum answers to load in memory per batch when using PopulateWorkload */
-    public long getEnumBatchSize() {
+    long getEnumBatchSize() {
         long defaultVal = 1_000_000_000;
         Toml conf = toml.getTable("performance");
         return conf != null ? conf.getLong("enum-batch-size", defaultVal) : defaultVal;
@@ -138,7 +133,7 @@ public class Configuration {
 
 
     /** FIXME */
-    public RandomStreamIterator getStreamIterator(long streamID) {
+    private RandomStreamIterator getStreamIterator(long streamID) {
         Toml conf = toml.getTable("data");
         Distribution<Long>
                 interarrivals = Configuration.parseDistribution(conf.getTable("interarrivals")),
@@ -148,31 +143,31 @@ public class Configuration {
         return ris;
     }
 
-    public RandomStreamIterator getStreamIterator() {
+    RandomStreamIterator getStreamIterator() {
         return getStreamIterator(0L);
     }
 
-    public ParRandomStreamIterator getParStreamIterator(long streamID) {
+    ParRandomStreamIterator getParStreamIterator(long streamID) {
         ParRandomStreamIterator pris = new ParRandomStreamIterator(streamID);
         pris.setTimeRange(getTstart(), getTend());
         return pris;
     }
 
-    public int getNStreams() {
+    int getNStreams() {
         Toml conf = toml.getTable("streams");
         return conf == null ? 1 : conf.getLong("nstreams", 1L).intValue();
     }
 
-    public long getNStreamsPerShard() {
+    long getNStreamsPerShard() {
         Toml conf = toml.getTable("streams");
         return conf == null ? 1 : conf.getLong("nstreams-per-shard", 1L).intValue();
     }
 
-    public int getNShards() {
+    int getNShards() {
         return (int) Math.ceil(getNStreams() / getNStreamsPerShard());
     }
 
-    public int getNumIngestThreads() {
+    int getNumIngestThreads() {
         Toml conf = toml.getTable("performance");
         return conf.getLong("num-ingest-threads", getNStreamsPerShard()).intValue();
     }
@@ -183,7 +178,7 @@ public class Configuration {
      * recognize that we can use the same generated SummaryStores for all these experiments. To do this we will name
      * SummaryStores using a hash of the dataset config portion of the toml.
      */
-    public static String getHash(Object node) {
+    private static String getHash(Object node) {
         HashCodeBuilder builder = new HashCodeBuilder();
         buildHash(node, builder);
         return Long.toString((long)builder.toHashCode() - (long)Integer.MIN_VALUE);
@@ -220,12 +215,12 @@ public class Configuration {
     }
 
     /** Return list of all decay function names. Use parseDecayFunction to convert name to Windowing */
-    public List<String> getDecayFunctions() {
+    List<String> getDecayFunctions() {
         return toml.getList("decay-functions");
     }
 
     /** Convert decay function name to Windowing */
-    public Windowing parseDecayFunction(String decayName) {
+    Windowing parseDecayFunction(String decayName) {
         if (decayName == null) {
             throw new IllegalArgumentException("expect non-null decay spec");
         } else if (decayName.startsWith("exponential")) {
@@ -249,7 +244,7 @@ public class Configuration {
         }
     }
 
-    public WindowOperator[] getOperators() {
+    WindowOperator[] getOperators() {
         List<String> operatorNames = toml.getList("operators");
         WindowOperator[] operators = new WindowOperator[operatorNames.size()];
         for (int i = 0; i < operators.length; ++i) {
@@ -276,7 +271,7 @@ public class Configuration {
         return operators;
     }
 
-    public WorkloadGenerator getWorkloadGenerator() {
+    WorkloadGenerator getWorkloadGenerator() {
         Toml conf = toml.getTable("workload");
         return constructObjectViaReflection(
                 "com.samsung.sra.experiments." + conf.getString("workload-generator"),
@@ -287,12 +282,12 @@ public class Configuration {
      * Compute true answers to queries in parallel when generating workload. WARNING: stream seeking adds a couple
      * of minutes of overhead, only worth enabling for large workloads.
      */
-    public boolean isWorkloadParallelismEnabled() {
+    boolean isWorkloadParallelismEnabled() {
         Toml conf = toml.getTable("performance");
         return conf != null && conf.getBoolean("parallel-workload-gen", false);
     }
 
-    public static void dropKernelCaches() {
+    static void dropKernelCaches() {
         try {
             URL script = RunComparison.class.getClassLoader().getResource("drop-caches.sh");
             if (script == null) {
@@ -314,77 +309,15 @@ public class Configuration {
     /**
      * Drop kernel page/inode/dentries caches before testing each SummaryStore in RunComparison
      */
-    public void dropKernelCachesIfNecessary() {
+    void dropKernelCachesIfNecessary() {
         Toml conf = toml.getTable("performance");
         if (conf == null || !conf.getBoolean("drop-caches", false)) return;
         dropKernelCaches();
     }
 
-    public static Distribution<Long> parseDistribution(Toml conf) {
+    static Distribution<Long> parseDistribution(Toml conf) {
         return constructObjectViaReflection(
                 "com.samsung.sra.experiments." + conf.getString("distribution"),
                 conf);
-    }
-
-    public int getNumNodes() {
-        Toml conf = toml.getTable("nodes");
-        if (conf!=null) {
-            List<HashMap<String, String>> listIPs = conf.getList("nodeips");
-            System.out.println("Number of nodes: " + listIPs.size());
-            return listIPs.size();
-        }
-        else {
-            return -1;
-        }
-    }
-
-    public String getHostIP() {
-        return toml.getString("host-ip");
-    }
-
-    public int getHostPort() {
-        return toml.getLong("host-port", 0L).intValue();
-    }
-
-    // build a hashmap for nodeID -> (IP, port); only valid for gateway nodes
-    public HashMap<Integer, Pair<InetAddress, Integer>>  buildNodeIP() {
-        Toml conf = toml.getTable("nodes");
-        List<HashMap<String, String>> listIPs;
-
-        HashMap<Integer, Pair<InetAddress, Integer>> mapIPs = new HashMap<>();
-
-        int nodeID, port;
-        InetAddress ip = null;
-
-        if (conf!=null) {
-            listIPs = conf.getList("nodeips");
-            for(int i=0; i< listIPs.size(); i++) {
-                String[] tokens = String.valueOf(listIPs.get(i)).replaceAll("}", "").split(",");
-
-                nodeID = Integer.valueOf(tokens[2].substring(7));
-                port = Integer.valueOf(tokens[0].substring(6));
-
-                try {
-                    ip = InetAddress.getByName(tokens[1].substring(4));
-
-                } catch (UnknownHostException u) {
-                    System.out.println("Invalid IP address for host " + nodeID);
-                    u.printStackTrace();
-                }
-
-                mapIPs.put(nodeID, Pair.of(ip, port));
-
-            }
-            return mapIPs;
-        } else {
-            throw new RuntimeException("node configuration absent from config file");
-        }
-
-    }
-
-    public static void main(String[] args) throws Exception {
-        Configuration config = new Configuration(
-                new File("/Users/a.vulimiri/samsung/summarystore/code/SummaryStore/example.toml"));
-        System.out.println(getHash(config.toml.getTable("data")));
     }
 }
