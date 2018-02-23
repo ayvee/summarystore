@@ -5,11 +5,11 @@ import com.samsung.sra.datastore.storage.BackingStore;
 import com.samsung.sra.datastore.storage.BackingStoreException;
 import com.samsung.sra.datastore.storage.MainMemoryBackingStore;
 import com.samsung.sra.datastore.storage.RocksDBBackingStore;
-import com.samsung.sra.protocol.Common.OpType;
-
+import com.samsung.sra.protocol.Common;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
@@ -179,7 +179,9 @@ public class SummaryStore implements AutoCloseable {
             throws StreamException, BackingStoreException {
         synchronized (streams) {
             if (streams.containsKey(streamID)) {
-                 throw new StreamException("attempting to register streamID " + streamID + " multiple times");
+                logger.warn("Attempting to register stream {} multiple times, ignoring", streamID);
+                // can happen during distributed bootup; warn instead of throwing exception
+                //throw new StreamException("attempting to register streamID " + streamID + " multiple times");
             } else {
                 Stream sm = new Stream(streamID, synchronizeWrites, wbmh, operators, options.keepReadIndexes);
                 sm.populateTransientFields(backingStore);
@@ -198,8 +200,12 @@ public class SummaryStore implements AutoCloseable {
         return stream;
     }
 
-    public int getOpSequenceForStream(long streamID, OpType opType) {
-        throw new UnsupportedOperationException("not yet implemented");
+    /**
+     * Get the operator index of the specified operator. Throws StreamException if the stream does not exist or does not
+     * have an operator of type opType.
+     */
+    public int getOperatorIndex(long streamID, Common.OpType opType) throws StreamException {
+        return getStream(streamID).getOperatorIndex(opType);
     }
 
     public Object query(long streamID, long t0, long t1, int aggregateNum, Object... queryParams)
@@ -212,6 +218,10 @@ public class SummaryStore implements AutoCloseable {
 
     public void append(long streamID, long ts, Object value) throws StreamException, BackingStoreException {
         getStream(streamID).append(ts, value);
+    }
+
+    public void appendAutoTimestamped(long streamID, Object value) throws StreamException, BackingStoreException {
+        append(streamID, System.currentTimeMillis(), value);
     }
 
     /**

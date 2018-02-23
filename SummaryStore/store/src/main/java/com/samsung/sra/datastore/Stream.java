@@ -4,11 +4,14 @@ import com.samsung.sra.datastore.ingest.CountBasedWBMH;
 import com.samsung.sra.datastore.storage.BackingStore;
 import com.samsung.sra.datastore.storage.BackingStoreException;
 import com.samsung.sra.datastore.storage.StreamWindowManager;
+import com.samsung.sra.protocol.Common.OpType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
@@ -23,6 +26,7 @@ class Stream implements Serializable {
 
     final long streamID;
     private final WindowOperator[] operators;
+    private final Map<OpType, Integer> operatorIndexes = new HashMap<>();
 
     private volatile transient boolean loaded; // transient resets it to false on SummaryStore reopen
     private final Serializable loadingMonitor = new Object[0];
@@ -52,10 +56,26 @@ class Stream implements Serializable {
         this.synchronizeWrites = synchronizeWrites;
         this.extLock = synchronizeWrites ? new ReentrantLock() : null;
         this.operators = operators;
+        for (int i = 0; i < operators.length; ++i) {
+            OpType opType = operators[i].getOpType();
+            if (operatorIndexes.containsKey(operators[i].getOpType())) {
+                logger.warn("Stream has multiple operators of same type; getOperatorIndex will return the first");
+            } else {
+                operatorIndexes.put(opType, i);
+            }
+        }
         this.wbmh = wbmh;
         windowManager = new StreamWindowManager(streamID, operators, keepReadIndex);
         stats = new StreamStatistics();
         loaded = true;
+    }
+
+    int getOperatorIndex(OpType opType) throws StreamException {
+        Integer ret = operatorIndexes.get(opType);
+        if (ret == null) {
+            throw new StreamException("Stream " + streamID + " does not have an operator of type " + opType);
+        }
+        return ret;
     }
 
     boolean isLoaded() {
