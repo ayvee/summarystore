@@ -26,11 +26,6 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.samsung.sra.summarystore</groupId>
-            <artifactId>summarystore-common</artifactId>
-            <version>1.0-SNAPSHOT</version>
-        </dependency>
-        <dependency>
             <groupId>org.rocksdb</groupId>
             <artifactId>rocksdbjni</artifactId>
             <version>5.4.5</version>

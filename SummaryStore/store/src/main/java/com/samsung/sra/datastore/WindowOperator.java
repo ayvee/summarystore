@@ -1,6 +1,6 @@
 package com.samsung.sra.datastore;
 
-import com.samsung.sra.protocol.Common.OpType;
+import com.samsung.sra.protocol.OpTypeOuterClass.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 
 import java.io.Serializable;

@@ -6,7 +6,7 @@ import com.samsung.sra.datastore.*;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 //import org.apache.commons.math3.util.Pair;
 import org.apache.commons.lang3.tuple.Pair;
-import com.samsung.sra.protocol.Common.OpType;
+import com.samsung.sra.protocol.OpTypeOuterClass.OpType;
 
 import java.util.Arrays;
 import java.util.List;

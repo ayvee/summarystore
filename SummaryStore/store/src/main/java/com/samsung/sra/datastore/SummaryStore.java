@@ -5,7 +5,7 @@ import com.samsung.sra.datastore.storage.BackingStore;
 import com.samsung.sra.datastore.storage.BackingStoreException;
 import com.samsung.sra.datastore.storage.MainMemoryBackingStore;
 import com.samsung.sra.datastore.storage.RocksDBBackingStore;
-import com.samsung.sra.protocol.Common;
+import com.samsung.sra.protocol.OpTypeOuterClass;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
@@ -204,7 +204,7 @@ public class SummaryStore implements AutoCloseable {
      * Get the operator index of the specified operator. Throws StreamException if the stream does not exist or does not
      * have an operator of type opType.
      */
-    public int getOperatorIndex(long streamID, Common.OpType opType) throws StreamException {
+    public int getOperatorIndex(long streamID, OpTypeOuterClass.OpType opType) throws StreamException {
         return getStream(streamID).getOperatorIndex(opType);
     }
 

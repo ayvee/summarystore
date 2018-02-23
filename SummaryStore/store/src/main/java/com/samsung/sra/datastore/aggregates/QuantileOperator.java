@@ -2,7 +2,7 @@ package com.samsung.sra.datastore.aggregates;
 
 import com.clearspring.analytics.stream.quantile.QDigest;
 import com.samsung.sra.datastore.*;
-import com.samsung.sra.protocol.Common.OpType;
+import com.samsung.sra.protocol.OpTypeOuterClass.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 
 import java.util.Collections;

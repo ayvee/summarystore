@@ -3,7 +3,7 @@ package com.samsung.sra.datastore.aggregates;
 import com.clearspring.analytics.stream.membership.BFProtofier;
 import com.clearspring.analytics.stream.membership.BloomFilter;
 import com.samsung.sra.datastore.*;
-import com.samsung.sra.protocol.Common.OpType;
+import com.samsung.sra.protocol.OpTypeOuterClass.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.apache.commons.lang3.mutable.MutableLong;

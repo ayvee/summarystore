@@ -4,7 +4,7 @@ import com.samsung.sra.datastore.ingest.CountBasedWBMH;
 import com.samsung.sra.datastore.storage.BackingStore;
 import com.samsung.sra.datastore.storage.BackingStoreException;
 import com.samsung.sra.datastore.storage.StreamWindowManager;
-import com.samsung.sra.protocol.Common.OpType;
+import com.samsung.sra.protocol.OpTypeOuterClass.OpType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

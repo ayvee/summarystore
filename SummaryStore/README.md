@@ -4,6 +4,4 @@ store: single-node SummaryStore. Can be used standalone, without the distributed
 
 distributed: multi-node SummaryStore.
 
-common: code common to both single- and multi-node SummaryStore.
-
 eval: experimental eval code.
