@@ -11,8 +11,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.BitSet;
-import java.util.Collections;
-import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -29,10 +27,11 @@ import java.util.stream.Stream;
 
 //AVRE: Bloomfilter, Long, Boolean, Double
 public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean, Double> {
-    private int filterSize; // = 128
-    private int nrHashes; // = 7
     private static Logger logger = LoggerFactory.getLogger(BloomFilterOperator.class);
     private static final OpType opType = OpType.BLOOM;
+
+    private int filterSize; // = 128
+    private int nrHashes; // = 7
 
     public BloomFilterOperator(int nrHashes, int minimumFilterSize) {
         // can be larger than specified minimum, Java seems to round BitSet sizes up to pow(2) multiples
@@ -40,16 +39,9 @@ public class BloomFilterOperator implements WindowOperator<BloomFilter, Boolean,
         this.nrHashes = nrHashes;
     }
 
-    private static final List<String> supportedQueries = Collections.singletonList("simplebloom");
-
     @Override
     public OpType getOpType() {
         return opType;
-    }
-
-    @Override
-    public List<String> getSupportedQueryTypes() {
-        return supportedQueries;
     }
 
     /**

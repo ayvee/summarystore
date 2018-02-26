@@ -1,23 +1,15 @@
 package com.samsung.sra.datastore.aggregates;
 
 import com.samsung.sra.datastore.*;
-import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 import com.samsung.sra.protocol.OpTypeOuterClass.OpType;
+import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
 /** Implements COUNT(DISTINCT) over the values in an integer stream */
 public class HyperLogLogOperator implements WindowOperator<HyperLogLog, Long, Long> {
-    private static List<String> supportedQueries = Collections.singletonList("count");
     private static final OpType opType = OpType.COUNT;
-
-    @Override
-    public List<String> getSupportedQueryTypes() {
-        return supportedQueries;
-    }
 
     @Override
     public OpType getOpType() {

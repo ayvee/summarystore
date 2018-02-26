@@ -5,20 +5,16 @@ import com.google.protobuf.ByteString;
 import com.samsung.sra.datastore.*;
 import com.samsung.sra.protocol.OpTypeOuterClass.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
-//import org.apache.commons.math3.util.Pair;
 import org.apache.commons.lang3.tuple.Pair;
 
-
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+//import org.apache.commons.math3.util.Pair;
+
 /* Consider evaluating and comparing against http://dl.acm.org/citation.cfm?id=1756034 */
 public class TDigestOperator implements WindowOperator<TDigest, Double, Pair<Double, Double>> {
-    private static final List<String> supportedQueries = Arrays.asList("quantile", "frequency");
-
     private final double compression;
 
     public TDigestOperator(long nbytes) {
@@ -27,11 +23,6 @@ public class TDigestOperator implements WindowOperator<TDigest, Double, Pair<Dou
     }
 
     private static final OpType opType = OpType.FREQ;
-
-    @Override
-    public List<String> getSupportedQueryTypes() {
-        return supportedQueries;
-    }
 
     @Override
     public OpType getOpType() {

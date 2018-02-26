@@ -4,7 +4,6 @@ import com.samsung.sra.protocol.OpTypeOuterClass.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 
 import java.io.Serializable;
-import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -12,14 +11,12 @@ import java.util.stream.Stream;
  * Implements all the functions needed to manage aggregate data structures of type A which returns query answers of type
  * ResultError<R, E>. Note that WindowOperators manage aggregate objects, they are not aggregates themselves (i.e. a
  * BloomFilterOperator object only creates, updates and queries Bloom filters; it is not a Bloom filter itself and does
- * not have an internal bit-array). We maintain one WindowOperator instance per stream.
+ * not have an internal bit-array). We maintain one WindowOperator instance per operator per stream.
  *
  * If it helps think about things, this interface was originally called AggregateManager.
  */
 public interface WindowOperator<A, R, E> extends Serializable {
-    List<String> getSupportedQueryTypes();
-
-    /** return OpType; i.e, OpType.MAX */
+    /** Return operator type, e.g. OpType.MAX */
     OpType getOpType();
 
     /** Create an empty aggregate (containing zero elements) */

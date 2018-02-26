@@ -5,8 +5,6 @@ import com.samsung.sra.protocol.OpTypeOuterClass.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 import org.apache.commons.lang3.mutable.MutableLong;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -14,17 +12,10 @@ import java.util.stream.Stream;
  * Query along a Long stream returning the Long maximum. query() also returns a boolean true if we are certain of
  * the answer (happens when querying only over landmarks) */
 public class MaxOperator implements WindowOperator<Long, Long, Boolean> {
-    private static final List<String> supportedQueries = Collections.singletonList("max");
-
     private static final OpType opType = OpType.MAX;
 
     /** What value to return for max over empty set */
     private static final long EMPTY_MAX = Long.MIN_VALUE;
-
-    @Override
-    public List<String> getSupportedQueryTypes() {
-        return supportedQueries;
-    }
 
     @Override
     public OpType getOpType() {

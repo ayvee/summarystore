@@ -5,13 +5,10 @@ import com.samsung.sra.datastore.*;
 import com.samsung.sra.protocol.OpTypeOuterClass.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
 public class QuantileOperator implements WindowOperator<QDigest, Long, Long> {
-    private static final List<String> supportedQueries = Collections.singletonList("quantile");
     private static final OpType opType = OpType.FREQ;
 
     private long comprFactor = 64;
@@ -28,11 +25,6 @@ public class QuantileOperator implements WindowOperator<QDigest, Long, Long> {
     @Override
     public OpType getOpType() {
         return opType;
-    }
-
-    @Override
-    public List<String> getSupportedQueryTypes() {
-        return supportedQueries;
     }
 
     @Override

@@ -3,29 +3,19 @@ package com.samsung.sra.datastore.aggregates;
 import com.samsung.sra.datastore.*;
 import com.samsung.sra.protocol.OpTypeOuterClass.OpType;
 import com.samsung.sra.protocol.SummaryStore.ProtoOperator;
-//import org.apache.commons.math3.util.Pair;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+//import org.apache.commons.math3.util.Pair;
+
 public class SumOperator implements WindowOperator<Long,Double,Pair<Double,Double>> {
-    private static Logger logger = LoggerFactory.getLogger(SumOperator.class);
-
-    private static final List<String> supportedQueries = Collections.singletonList("sum");
-
     private static final OpType opType = OpType.SUM;
-
-    @Override
-    public List<String> getSupportedQueryTypes() {
-        return supportedQueries;
-    }
+    private static Logger logger = LoggerFactory.getLogger(SumOperator.class);
 
     @Override
     public OpType getOpType() {
