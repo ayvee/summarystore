@@ -1,0 +1,7 @@
+*.tsv
+*.cdf
+*.pdf
+*.gp
+
+SummaryStore/workdir
+old.prophet

@@ -5,8 +5,9 @@ then
 	exit 2
 fi
 root=`dirname $0`
-Xmx=`$root/xmx.sh`
-cp="$root:$root/target/SummaryStore-1.0-SNAPSHOT.jar"
+Xmx=`$root/../xmx.sh`
+#cp="$root:$root/target/SummaryStore-1.0-SNAPSHOT.jar"
+cp="$root:$root/target/summarystore-eval-1.0-SNAPSHOT.jar"
 for jar in $root/target/lib/*
 do
 	cp="$cp:$jar"

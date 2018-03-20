@@ -4,6 +4,8 @@
 target
 src/main/java/com/samsung/sra/protocol
 
+*.pyc
+
 *.cdf
 *.csv
 *.dat

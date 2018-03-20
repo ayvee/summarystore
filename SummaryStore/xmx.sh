@@ -1,2 +1,2 @@
 #!/bin/sh
-echo 60G
+echo 10G
