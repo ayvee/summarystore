@@ -25,24 +25,18 @@ an instance of the SummaryStore class.
 
 * **Low-latency analytics on colossal data streams with SummaryStore**
  [[pdf](SummaryStore/papers/17sosp.pdf)]
- [[bib](SummaryStore/papers/17sosp.bib)]
-
-  Nitin Agrawal, Ashish Vulimiri
-
+ [[bib](SummaryStore/papers/17sosp.bib)]  
+  Nitin Agrawal, Ashish Vulimiri  
   _26th Symposium on Operating Systems Principles (SOSP'17), October 2017_
 
 * **Learning with less: Can approximate storage systems save learning from drowning in data?**
- [[pdf](SummaryStore/papers/17aisys.pdf)]
-
-  Nitin Agrawal, Ashish Vulimiri
-
+ [[pdf](SummaryStore/papers/17aisys.pdf)]  
+  Nitin Agrawal, Ashish Vulimiri  
   _Workshop on AI Systems at Symposium on Operating Systems Principles (SOSP), October 2017_
 
 * **Building highly-available geo-distributed data stores for continuous learning**
- [[pdf](SummaryStore/papers/18mlsys.pdf)]
-
-  Nitin Agrawal, Ashish Vulimiri
-
+ [[pdf](SummaryStore/papers/18mlsys.pdf)]  
+  Nitin Agrawal, Ashish Vulimiri  
   _Workshop on Systems for ML at NIPS '18, December 2018_
 
 
