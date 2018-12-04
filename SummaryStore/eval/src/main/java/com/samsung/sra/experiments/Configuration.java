@@ -93,7 +93,7 @@ class Configuration {
 
     private StreamGenerator cachedBaseStreamGenerator = null;
 
-    // TODO: add synchronized. Not needed for all our uses as of 04/13/2017
+    // TODO: add synchronized? Not needed for our uses so far
     private StreamGenerator getBaseStreamGenerator() {
         Toml conf = toml.getTable("data");
         if (cachedBaseStreamGenerator != null) {
@@ -132,7 +132,7 @@ class Configuration {
     }
 
 
-    /** FIXME */
+    /** WARNING: basically exposes internal RocksDB state. Use with care */
     private RandomStreamIterator getStreamIterator(long streamID) {
         Toml conf = toml.getTable("data");
         Distribution<Long>

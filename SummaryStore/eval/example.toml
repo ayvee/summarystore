@@ -6,7 +6,6 @@ host-ip = "127.0.0.1"
 host-port = 8080
 
 # List of decay functions. Allowed vals: exponentialBASE, rationalPowerP,Q,R,S
-# TODO: consider specifying each decay as a map, instead of encoding into string
 decay-functions = [
     "exponential2",
     "rationalPower1,1,1,1",
@@ -54,7 +53,7 @@ num-ingest-threads = 8 # optional, defaults to nstreams-per-shard
 # Process queries in parallel when generating workload. Adds a couple of
 # minutes of stream management overhead, only recommended in large streams
 parallel-workload-gen = true   # optional, default false
-# TODO: drop kernel page/inode/dentries caches before starting RunComparison
+# Drop kernel page/inode/dentries caches before starting query workload
 drop-caches = false            # optional, default false
 
 # static config for summary nodes

@@ -4,7 +4,6 @@ window-cache-size = 1_000_000_000       # number of windows to cache in memory
 ingest-buffer-size = 2_000_000      # number of values to buffer before triggering merge
 
 # List of decay functions. Allowed vals: exponentialBASE, rationalPowerP,Q,R,S
-# TODO: consider specifying each decay as a map, instead of encoding into string
 decay-functions = [
     "rationalPower1,1,8,2", # 10.3% full sstore
     "rationalPower8,1,1,1", # 11% max-only sstore
@@ -38,5 +37,4 @@ ticks-per-second = 1_000_000   # us
 # Process queries in parallel when generating workload. Adds a couple of
 # minutes of stream management overhead, only recommended in large streams
 parallel-workload-gen = true   # optional, default false
-# TODO: drop kernel page/inode/dentries caches before starting RunComparison
 drop-caches = false            # optional, default false

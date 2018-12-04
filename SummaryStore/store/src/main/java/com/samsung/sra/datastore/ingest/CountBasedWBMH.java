@@ -121,9 +121,9 @@ public class CountBasedWBMH implements Serializable {
 
     /**
      * Parallelize issuing merges in each stream's Merger thread. We use Java's parallel streams, which uses a single
-     * a single shared global work queue for all operations across all streams. */
+     * shared global work queue for all operations across all streams. */
     public CountBasedWBMH setParallelizeMerge(int nThreads) {
-        //FIXME: global setting
+        //FIXME: global setting. Should switch to dedicated ExecutorService
         System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", Integer.toString(nThreads));
         merger.setParallelizeMerge(true);
         return this;

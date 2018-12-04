@@ -58,7 +58,7 @@ public class CalendarAgeLengths {
         for (Bin ageBin: legalBins) {
             for (Bin lengthBin: legalBins) {
                 if (lengthBin.getStart() == 0) {
-                    continue; // length should be at least 1. FIXME: cleanup/verify?
+                    continue; // length should be at least 1
                 }
                 if (ageBin.getStart() + lengthBin.getStart() - 1 <= maxAgeInSeconds) {
                     ret.add(new AgeLengthClass(ageBin, lengthBin, maxAgeInSeconds));

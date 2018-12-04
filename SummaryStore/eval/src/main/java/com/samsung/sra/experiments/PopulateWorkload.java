@@ -80,7 +80,7 @@ public class PopulateWorkload {
                     break;
                 case CMS:
                     long c = (long) q.params[0];
-                    // FIXME: ignores two-param inserts to CMS (also specifying frequency)
+                    // NOTE: yet to support two-param inserts to CMS (also specifying frequency)
                     while (iter.hasNext()) {
                         if (c == iter.nextLong()) {
                             ++ans;

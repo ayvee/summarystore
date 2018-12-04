@@ -61,7 +61,7 @@ public class AgeLengthClass implements Serializable {
 
     /** Return random age, random length */
     public Pair<Long, Long> sample(Random random) {
-        // TODO: verify rejection sampling (1) is unbiased; (2) does not stall in sparse bins
+        // TODO: rejection sampling is wasteful in very sparse bins. But not an issue in our experiments so far
         while (true) {
             long age = ageBin.sample(random);
             long length = lengthBin.sample(random);

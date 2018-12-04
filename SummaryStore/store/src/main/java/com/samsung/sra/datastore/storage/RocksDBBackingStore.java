@@ -34,6 +34,7 @@ public class RocksDBBackingStore extends BackingStore {
     public RocksDBBackingStore(String rocksPath, long cacheSizePerStream, boolean readonly) throws BackingStoreException {
         this.cacheSizePerStream = cacheSizePerStream;
         cache = cacheSizePerStream > 0 ? new ConcurrentHashMap<>() : null;
+        // FIXME: take from external conf rather than hard-coding. Current settings are for our default test hardware
         rocksDBOptions = new Options()
                 .setCreateIfMissing(true)
                 .setDbLogDir("/tmp")
@@ -60,7 +61,6 @@ public class RocksDBBackingStore extends BackingStore {
                 //.setMemTableConfig(new VectorMemTableConfig())
                 .setTableFormatConfig(new BlockBasedTableConfig()
                         .setBlockSize(256L * 1024)
-                        // FIXME
                         .setBlockCacheSize(readonly
                                 ? 512 * 1024 * 1024L
                                 : 30 * 1024 * 1024 * 1024L)

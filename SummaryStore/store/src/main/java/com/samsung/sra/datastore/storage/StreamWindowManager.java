@@ -17,7 +17,8 @@ import java.util.stream.Stream;
  */
 public class StreamWindowManager implements Serializable {
     private static final Logger logger = LoggerFactory.getLogger(StreamWindowManager.class);
-    // FIXME: what if user actually wants to insert Long.MIN_VALUE?
+    // FIXME: what if user actually wants to insert Long.MIN_VALUE? Not an issue unless setValuesAreLongs is called to
+    //        make us use LongIngestBuffer
     public static final Object LANDMARK_SENTINEL = Long.MIN_VALUE; // sentinel used when handling append
 
     private transient BackingStore backingStore;

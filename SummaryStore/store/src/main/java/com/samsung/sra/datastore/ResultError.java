@@ -2,7 +2,6 @@ package com.samsung.sra.datastore;
 
 import java.io.Serializable;
 
-/** TODO?: return confidence level along with error? */
 public class ResultError<R, E> implements Serializable{
     public final R result;
     public final E error;

@@ -6,7 +6,7 @@ import org.apache.commons.math3.util.Pair;
 
 import java.util.*;
 
-/** Generate a workload of random count/sum/(TODO) queries with calendar age/lengths. */
+/** Generate a workload of random count/sum/etc queries with calendar age/lengths. */
 public class SampledCalendarWorkloadGenerator implements WorkloadGenerator {
     private final List<OperatorInfo> operators = new ArrayList<>();
     private final long ticksPerS;

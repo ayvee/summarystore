@@ -38,7 +38,7 @@ public class CMSProtofier {
                 table[i][j] = row.getCell(j);
             }
         }
-        // FIXME: bug in CMS code, uses int for size in constructor but field is declared as long
+        // FIXME: bug in clearspring's CMS code, uses int for size in constructor but field is declared as long
         return new CountMinSketch(depth, width, (int) size, hashA, table);
     }
 

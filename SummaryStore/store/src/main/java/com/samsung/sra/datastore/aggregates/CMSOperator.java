@@ -65,7 +65,7 @@ public class CMSOperator implements WindowOperator<CountMinSketch,Double,Pair<Do
         Function<SummaryWindow, Long> countRetriever = cmsRetriever.andThen(
                 cms -> cms.estimateCount(targetVal)
         );
-        // FIXME! Returns correct base answer, but we have a better CI construction with a hypergeom distr
+        // FIXME: Returns correct base answer, but we have a better CI construction with a hypergeom distr
         //        (which accounts for, among other things, the fact that we know true count over all values)
         double confidenceLevel = 1;
         if (params.length > 1) {
