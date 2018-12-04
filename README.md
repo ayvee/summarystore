@@ -1,10 +1,10 @@
 SummaryStore is an approximate time-series data store, designed for
-analytics applications, capable of storing large volumes of data (tested
-up to 1 petabyte) on a single node.
+analytics applications, capable of storing large volumes of data (on the
+order of a petabyte) on a single node.
 
 SummaryStore uses a novel _time-decayed summarization_ mechanism to
 significantly compact data while maintaining high accuracy in many
-applications.  For details see our paper at [SOSP'17](SummaryStore/papers/17sosp.pdf).
+workloads.  For details see our paper at [SOSP'17](SummaryStore/papers/17sosp.pdf).
 
 ## COMPILING
 
@@ -19,6 +19,11 @@ mvn package
 SummaryStore is meant to be used as an embedded data store. After
 compiling, link against the JARs in SummaryStore/store/target, and create
 an instance of the SummaryStore class.
+
+
+## LICENSE
+
+This code is released under the terms of the Apache 2.0 License.
 
 
 ## PUBLICATIONS
