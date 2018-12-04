@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class SummaryStore implements AutoCloseable {
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(SummaryStore.class);
+    private static final String EXTERNAL_AUX_PREFIX = "EXTERNAL_";
 
     private final BackingStore backingStore;
     private final String directory;
@@ -103,23 +104,27 @@ public class SummaryStore implements AutoCloseable {
      * getAux and putAux are for retrieving and persistently storing auxiliary info, such as stream statistics, stream
      * metadata, Snode info etc. Currently not very optimized, not advisable to store large or frequently updated
      * objects here.
-     *
-     * FIXME: we use this mechanism for our internal metadata too, so it's possible for clients to
-     * accidentally/maliciously overwrite it.
      */
     public byte[] getAux(String key) throws BackingStoreException {
-        return backingStore.getAux(key);
+        return key == null ? null : getAuxInternal(EXTERNAL_AUX_PREFIX + key);
     }
 
     /**
      * getAux and putAux are for retrieving and persistently storing auxiliary info, such as stream statistics, stream
      * metadata, Snode info etc. Currently not very optimized, not advisable to store large or frequently updated
      * objects here.
-     *
-     * FIXME: we use this mechanism for our internal metadata too, so it's possible for clients to
-     * accidentally/maliciously overwrite it.
      */
     public void putAux(String key, byte[] value) throws BackingStoreException {
+        if (key != null) {
+            putAuxInternal(EXTERNAL_AUX_PREFIX + key, value);
+        }
+    }
+
+    private byte[] getAuxInternal(String key) throws BackingStoreException {
+        return backingStore.getAux(key);
+    }
+
+    private void putAuxInternal(String key, byte[] value) throws BackingStoreException {
         backingStore.putAux(key, value);
     }
 
@@ -138,7 +143,7 @@ public class SummaryStore implements AutoCloseable {
     }
 
     private void serializeMetadata() throws IOException, BackingStoreException {
-        putAux("metadata", Utilities.serialize(streams));
+        putAuxInternal("metadata", Utilities.serialize(streams));
         //Utilities.serializeObject(directory + "/metadata", streams);
         for (Stream stream : streams.values()) {
             stream.unload(directory);
@@ -147,7 +152,7 @@ public class SummaryStore implements AutoCloseable {
 
     private void deserializeMetadata() throws IOException, ClassNotFoundException {
         try {
-            streams = Utilities.deserialize(getAux("metadata"));
+            streams = Utilities.deserialize(getAuxInternal("metadata"));
         } catch (Exception e) {
             logger.debug("Could not read metadata, initializing assuming empty store");
             streams = new ConcurrentHashMap<>();
