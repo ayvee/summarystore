@@ -81,9 +81,9 @@ public class ParMeasureColdLatency {
             if (groupQueries.isEmpty()) workload.remove(group);
         }
 
-        SummaryStore.Options storeOptions = new SummaryStore.Options()
+        SummaryStore.StoreOptions storeOptions = new SummaryStore.StoreOptions()
                 .setReadOnly(true)
-                .setCacheSizePerStream(conf.getWindowCacheSize());
+                .setReadCacheSizePerStream(conf.getWindowCacheSize());
         SummaryStore[] stores = new SummaryStore[conf.getNShards()];
         try {
             for (int i = 0; i < stores.length; ++i) {

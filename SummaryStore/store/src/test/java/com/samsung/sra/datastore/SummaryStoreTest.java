@@ -45,7 +45,7 @@ public class SummaryStoreTest {
         Runtime.getRuntime().exec(new String[]{"sh", "-c", "rm -rf " + storeLoc}).waitFor();
 
         // create and populate store
-        SummaryStore store = new SummaryStore(storeLoc, new SummaryStore.Options().setKeepReadIndexes(withReadIndex));
+        SummaryStore store = new SummaryStore(storeLoc, new SummaryStore.StoreOptions().setKeepReadIndexes(withReadIndex));
         Windowing windowing = new GenericWindowing(new ExponentialWindowLengths(2));
         CountBasedWBMH wbmh = new CountBasedWBMH(windowing).setBufferSize(62);
         store.registerStream(streamID, wbmh,
@@ -81,7 +81,7 @@ public class SummaryStoreTest {
 
         // close and reopen store (in read-only mode), then check everything still OK
         store.close();
-        store = new SummaryStore(storeLoc, new SummaryStore.Options().setKeepReadIndexes(withReadIndex).setReadOnly(true));
+        store = new SummaryStore(storeLoc, new SummaryStore.StoreOptions().setKeepReadIndexes(withReadIndex).setReadOnly(true));
         assertStateIsCorrect(store);
 
         store.close();

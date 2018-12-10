@@ -80,10 +80,10 @@ class RunComparison {
             // WARNING: setting cache size to length(all time), i.e. loading all data into main memory
             long cacheSize = config.getTend() - config.getTstart() + 1;
             config.dropKernelCachesIfNecessary();
-            try (SummaryStore store = new SummaryStore(config.getStoreDirectory(decay), new SummaryStore.Options()
+            try (SummaryStore store = new SummaryStore(config.getStoreDirectory(decay), new SummaryStore.StoreOptions()
                     .setKeepReadIndexes(true)
                     .setReadOnly(true)
-                    .setCacheSizePerStream(cacheSize))) {
+                    .setReadCacheSizePerStream(cacheSize))) {
                 List<String> queryClasses = new ArrayList<>(workload.keySet());
                 storeStats = new StoreStats(
                         store.getStreamStatistics(streamID).getNumValues(), store.getNumSummaryWindows(streamID), queryClasses);

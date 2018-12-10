@@ -39,10 +39,10 @@ public class PrintErrorTrend {
         String decay = args[1];
         Query.Type queryType = Query.Type.valueOf(args[2].toUpperCase());
         if (args.length <= 3) {
-            try (SummaryStore store = new SummaryStore(conf.getStoreDirectory(decay), new SummaryStore.Options()
+            try (SummaryStore store = new SummaryStore(conf.getStoreDirectory(decay), new SummaryStore.StoreOptions()
                     .setKeepReadIndexes(true)
                     .setReadOnly(true)
-                    .setCacheSizePerStream(conf.getWindowCacheSize()))) {
+                    .setReadCacheSizePerStream(conf.getWindowCacheSize()))) {
                 System.out.println("no time range specified, printing window state");
                 store.printWindowState(streamID);
             }
@@ -70,10 +70,10 @@ public class PrintErrorTrend {
         Workload workload = new Workload();
         workload.put("all", queries);
         LRMSPopulateWorkload.computeTrueAnswers(conf, workload);
-        try (SummaryStore store = new SummaryStore(conf.getStoreDirectory(decay), new SummaryStore.Options()
+        try (SummaryStore store = new SummaryStore(conf.getStoreDirectory(decay), new SummaryStore.StoreOptions()
                 .setKeepReadIndexes(true)
                 .setReadOnly(true)
-                .setCacheSizePerStream(conf.getWindowCacheSize()))) {
+                .setReadCacheSizePerStream(conf.getWindowCacheSize()))) {
             if (queryType == Query.Type.COUNT) {
                 System.out.println("#length\ttrue answer\testimate\tCI left\tCI right");
             } else if (queryType == Query.Type.BF) {

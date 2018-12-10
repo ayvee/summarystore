@@ -43,39 +43,50 @@ public class SummaryStore implements AutoCloseable {
 
     private final BackingStore backingStore;
     private final String directory;
-    private final Options options;
+    private final StoreOptions storeOptions;
 
-    public static class Options {
+    public static class StoreOptions {
         private boolean keepReadIndexes = true;
         private boolean readonly = false;
         private boolean lazyload = false;
         private long cacheSizePerStream = 0;
 
         /**
-         * Maintain an in-memory index over window IDs for each stream. Needed to use caching when using RocksDB backing
-         * store
+         * <p>Maintain an in-memory index to speed up reads. Default true. Disabling this saves index-maintenance overhead
+         * and reduces memory footprint.</p>
+         *
+         * <p>Must be enabled from the beginning if we ever expect to use a read-cache (now or in the future). It is
+         * currently not possible to build a read index post-facto, on demand.</p>
          */
-        public Options setKeepReadIndexes(boolean keepReadIndexes) {
+        public StoreOptions setKeepReadIndexes(boolean keepReadIndexes) {
             this.keepReadIndexes = keepReadIndexes;
             return this;
         }
 
-        /** Open in read-only mode */
-        public Options setReadOnly(boolean readonly) {
+        /** Open store in read-only mode. Default false */
+        public StoreOptions setReadOnly(boolean readonly) {
+            if (!readonly && cacheSizePerStream > 0) {
+                throw new IllegalArgumentException("Read cache is only allowed in read-only mode");
+            }
             this.readonly = readonly;
             return this;
         }
 
         /**
-         * Number of summary windows to cache in memory for each stream. Set to 0 to disable caching. With RocksDB
-         * backing store, only allowed if (keepReadIndexes && readonly)
+         * Size (# windows) of in-memory cache used when serving read queries. Implies and only allowed in read-only
+         * mode. Default 0 (caching disabled)
          */
-        public Options setCacheSizePerStream(long cacheSizePerStream) {
+        public StoreOptions setReadCacheSizePerStream(long cacheSizePerStream) {
+            setReadOnly(true);
             this.cacheSizePerStream = cacheSizePerStream >= 0 ? cacheSizePerStream : 0;
             return this;
         }
 
-        public Options setLazyLoad(boolean lazyload) {
+        /**
+         * Only load stream metadata and indexes from disk when they are referenced. Default false, meaning all
+         * streams' info will be eagerly loaded on store open
+         */
+        public StoreOptions setLazyLoad(boolean lazyload) {
             this.lazyload = lazyload;
             return this;
         }
@@ -85,12 +96,11 @@ public class SummaryStore implements AutoCloseable {
 
     /**
      * @param directory  Directory to store all summary store data/indexes in. Set to null to use in-memory store
-     * @param options  Store options
      */
-    public SummaryStore(String directory, Options options) throws BackingStoreException, IOException, ClassNotFoundException {
-        this.options = options;
-        if (options.cacheSizePerStream > 0 && !(options.keepReadIndexes && options.readonly)) {
-            throw new IllegalArgumentException("Backing store cache not allowed in read/write mode (use the memory for" +
+    public SummaryStore(String directory, StoreOptions storeOptions) throws BackingStoreException, IOException, ClassNotFoundException {
+        this.storeOptions = storeOptions;
+        if (storeOptions.cacheSizePerStream > 0 && !(storeOptions.keepReadIndexes && storeOptions.readonly)) {
+            throw new IllegalArgumentException("Read cache not allowed in read/write mode (use the memory for" +
                     " ingest buffer instead)");
         }
         if (directory != null) {
@@ -99,7 +109,7 @@ public class SummaryStore implements AutoCloseable {
                 boolean created = dir.mkdirs();
                 assert created;
             }
-            this.backingStore = new RocksDBBackingStore(directory + "/rocksdb", options.cacheSizePerStream, options.readonly);
+            this.backingStore = new RocksDBBackingStore(directory + "/rocksdb", storeOptions.cacheSizePerStream, storeOptions.readonly);
             this.directory = directory;
         } else {
             this.backingStore = new MainMemoryBackingStore();
@@ -112,7 +122,7 @@ public class SummaryStore implements AutoCloseable {
      * @param directory  Directory to store all summary store data/indexes in. Set to null to use in-memory store
      */
     public SummaryStore(String directory) throws BackingStoreException, IOException, ClassNotFoundException {
-        this(directory, new Options());
+        this(directory, new StoreOptions());
     }
 
     /**
@@ -178,9 +188,9 @@ public class SummaryStore implements AutoCloseable {
             return;
         }
         streams = Utilities.deserializeObject(directory + "/metadata");*/
-        if (!options.lazyload) {
+        if (!storeOptions.lazyload) {
             for (Stream stream : streams.values()) {
-                stream.load(directory, options.readonly, backingStore);
+                stream.load(directory, storeOptions.readonly, backingStore);
             }
         }
     }
@@ -203,7 +213,7 @@ public class SummaryStore implements AutoCloseable {
                 // can happen during distributed bootup; warn instead of throwing exception
                 //throw new StreamException("attempting to register streamID " + streamID + " multiple times");
             } else {
-                Stream sm = new Stream(streamID, synchronizeWrites, wbmh, operators, options.keepReadIndexes);
+                Stream sm = new Stream(streamID, synchronizeWrites, wbmh, operators, storeOptions.keepReadIndexes);
                 sm.populateTransientFields(backingStore);
                 streams.put(streamID, sm);
             }
@@ -281,7 +291,7 @@ public class SummaryStore implements AutoCloseable {
     @Override
     public void close() throws BackingStoreException, IOException {
         synchronized (streams) { // this blocks creating new streams
-            if (!options.readonly) {
+            if (!storeOptions.readonly) {
                 for (Stream stream : streams.values()) {
                     stream.close();
                 }
