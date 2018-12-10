@@ -1,3 +1,5 @@
+# SummaryStore
+
 SummaryStore is an approximate time-series data store, designed for
 analytics applications, capable of storing large volumes of data (on the
 order of a petabyte) on a single node.
@@ -19,6 +21,9 @@ mvn package
 SummaryStore is meant to be used as an embedded data store. After
 compiling, link against the JARs in SummaryStore/store/target, and create
 an instance of the SummaryStore class.
+
+See [this test](SummaryStore/store/src/test/java/com/samsung/sra/datastore/SummaryStoreTest.java)
+for an example.
 
 
 ## LICENSE
