@@ -1,15 +1,14 @@
 #!/bin/bash
-if [ $# -lt 1 ]
-then
+if [ $# -lt 1 ]; then
 	echo "SYNTAX: $0 className [classArgs]"
 	exit 2
 fi
+
 root=`dirname $0`
-Xmx=`$root/../xmx.sh`
+Xmx=`$root/xmx.sh`
 #cp="$root:$root/target/SummaryStore-1.0-SNAPSHOT.jar"
 cp="$root:$root/target/summarystore-eval-1.0-SNAPSHOT.jar"
-for jar in $root/target/lib/*
-do
+for jar in $root/target/lib/*; do
 	cp="$cp:$jar"
 done
 cp="$cp:$root/scripts" # put all scripts on classpath, so they can be found with class.getResource()
