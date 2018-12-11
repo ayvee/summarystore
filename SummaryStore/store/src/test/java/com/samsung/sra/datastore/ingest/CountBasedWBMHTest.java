@@ -13,15 +13,15 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-package com.samsung.sra.datastore;
+package com.samsung.sra.datastore.ingest;
 
+import com.samsung.sra.datastore.ExponentialWindowLengths;
+import com.samsung.sra.datastore.GenericWindowing;
+import com.samsung.sra.datastore.WindowOperator;
 import com.samsung.sra.datastore.aggregates.SimpleCountOperator;
-import com.samsung.sra.datastore.ingest.CountBasedWBMH;
 import com.samsung.sra.datastore.storage.MainMemoryBackingStore;
 import com.samsung.sra.datastore.storage.StreamWindowManager;
 import org.junit.Test;
-
-import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertArrayEquals;
 
@@ -54,12 +54,11 @@ public class CountBasedWBMHTest {
         for (int t = 0; t < expectedEvolution.length; ++t) {
             wbmh.append(t, 0L);
             wbmh.flush();
+            //.map(w -> (int) (w.ce - w.cs + 1))
             assertArrayEquals(expectedEvolution[t], swm
                     .getSummaryWindowsOverlapping(0, t)
                     .map(w -> ((Number) w.aggregates[0]).intValue())
-                    //.map(w -> (int) (w.ce - w.cs + 1))
-                    .collect(Collectors.toList())
-                    .toArray(new Integer[0]));
+                    .toArray(Integer[]::new));
         }
     }
 }

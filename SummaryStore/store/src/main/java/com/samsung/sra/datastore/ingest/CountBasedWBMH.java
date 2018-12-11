@@ -15,11 +15,12 @@
 */
 package com.samsung.sra.datastore.ingest;
 
-import com.samsung.sra.datastore.storage.BackingStoreException;
-import com.samsung.sra.datastore.storage.StreamWindowManager;
+import com.samsung.sra.datastore.SummaryStore.StreamOptions;
 import com.samsung.sra.datastore.SummaryWindow;
 import com.samsung.sra.datastore.Utilities;
 import com.samsung.sra.datastore.Windowing;
+import com.samsung.sra.datastore.storage.BackingStoreException;
+import com.samsung.sra.datastore.storage.StreamWindowManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,10 +46,13 @@ public class CountBasedWBMH implements Serializable {
     private transient StreamWindowManager windowManager;
 
     private final Windowing windowing;
-    //private final long sizeOfNewestWindow;
+    private final StreamOptions options;
+    // Actual size of ingest buffer. Can be less than in options because buffers need to align to window boundaries
+    private int ingestBufferSize;
 
-    private long bufferSize;
-    private boolean valuesAreLongs;
+    //private final long sizeOfNewestWindow;
+    //private long bufferSize;
+    //private boolean valuesAreLongs;
 
     private final Ingester ingester;
     private final Summarizer summarizer;
@@ -65,83 +69,60 @@ public class CountBasedWBMH implements Serializable {
     private long N = 0;
 
     public CountBasedWBMH(Windowing windowing) {
+        this(windowing, new StreamOptions(), false);
+    }
+
+    public CountBasedWBMH(Windowing windowing, StreamOptions options, boolean parallelizeWindowMerge) {
         this.windowing = windowing;
+        this.options = options;
         //this.sizeOfNewestWindow = windowing.getSizeOfFirstWindow();
 
-        bufferSize = 0;
-        valuesAreLongs = false;
         flushBarrier = new FlushBarrier();
         ingester = new Ingester(emptyBuffers, summarizerQueue);
         summarizer = new Summarizer(null, emptyBuffers, partialBuffers, summarizerQueue, writerQueue, flushBarrier);
         writer = new Writer(writerQueue, mergerQueue, flushBarrier);
         //merger = new UnbatchedHeapMerger(windowing, mergerQueue, flushBarrier);
         merger = new HeapMerger(windowing, mergerQueue, flushBarrier, 1);
+
+        setIngestBufferSize(options.getIngestBufferSize());
+        merger.setWindowsPerMergeBatch(options.getWindowMergeFrequency());
+        merger.setParallelizeMerge(parallelizeWindowMerge);
     }
 
     /**
      * Use numBuffers buffers of size up to totalBufferSize / numBuffers each. Actual buffer size may be smaller since
      * buffers need to be aligned to window boundaries.
      *
-     * WARNING: please ensure stream has been flushed before calling */
-    public CountBasedWBMH setBufferSize(int totalBufferSize, int numBuffers) {
+     * NOTE: any values currently in buffers will be discarded; must ensure stream has been flushed before calling */
+    private void setIngestBufferSize(int totalBufferSize, int numBuffers) {
         destroyEmptyBuffers();
         int[] bufferWindowLengths = windowing.getWindowsCoveringUpto(totalBufferSize / numBuffers)
                 .stream().mapToInt(Long::intValue).toArray();
         summarizer.setWindowLengths(bufferWindowLengths);
-        bufferSize = IntStream.of(bufferWindowLengths).sum(); // actual buffer size, <= numValuesToBuffer
-        logger.info("{} ingest buffers each covering {} windows and {} values", numBuffers, bufferWindowLengths.length, bufferSize);
+        ingestBufferSize = IntStream.of(bufferWindowLengths).sum(); // actual buffer size, <= numValuesToBuffer
+        options.setIngestBufferSize(ingestBufferSize);
+        logger.info("{} ingest buffers each covering {} windows and {} values", numBuffers, bufferWindowLengths.length,
+                ingestBufferSize);
         /*if (bufferSize == 0 && sizeOfNewestWindow > 1) {
             throw new UnsupportedOperationException("do not yet support unbuffered ingest when size of newest window > 1");
         }*/
-        if (bufferSize > 0) {
+        if (ingestBufferSize > 0) {
             assert numBuffers > 0;
             for (int i = 0; i < numBuffers; ++i) {
-                emptyBuffers.add(valuesAreLongs
-                ? new LongIngestBuffer((int) bufferSize)
-                : new ObjectIngestBuffer((int) bufferSize));
+                emptyBuffers.add(options.getValuesAreLongs()
+                    ? new LongIngestBuffer(ingestBufferSize)
+                    : new ObjectIngestBuffer(ingestBufferSize));
             }
         }
-        return this;
     }
 
     /**
      * Use 2 buffers of size up to totalBufferSize / 2 each. Actual buffer size may be smaller since buffers need to be
      * aligned to window boundaries.
      *
-     * WARNING: please ensure stream has been flushed before calling */
-    public CountBasedWBMH setBufferSize(int totalBufferSize) {
-        return this.setBufferSize(totalBufferSize, 2);
-    }
-
-    /**
-     * If all values are longs and this flag is set, enables a special code path using off-heap long[] value arrays in
-     * the ingest buffer.
-     *
-     * Only takes effect on the next setBufferSize() call (be careful about method call order, esp. when constructing).
-     */
-    public CountBasedWBMH setValuesAreLongs(boolean valuesAreLongs) {
-        this.valuesAreLongs = valuesAreLongs;
-        return this;
-    }
-
-    /**
-     * Only call WBMH merge once every W window appends. Batches merges, merging chains of windows at a time instead of
-     * pairwise.
-     *
-     * WARNING: please ensure stream has been flushed before calling */
-    public CountBasedWBMH setWindowsPerMergeBatch(long W) {
-        merger.setWindowsPerMergeBatch(W);
-        return this;
-    }
-
-    /**
-     * Parallelize issuing merges in each stream's Merger thread. We use Java's parallel streams, which uses a single
-     * shared global work queue for all operations across all streams. */
-    public CountBasedWBMH setParallelizeMerge(int nThreads) {
-        //FIXME: global setting. Should switch to dedicated ExecutorService
-        System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", Integer.toString(nThreads));
-        merger.setParallelizeMerge(true);
-        return this;
+     * NOTE: any values currently in buffers will be discarded; must ensure stream has been flushed before calling */
+    private void setIngestBufferSize(int totalBufferSize) {
+        setIngestBufferSize(totalBufferSize, 2);
     }
 
     private void destroyEmptyBuffers() {
@@ -153,7 +134,7 @@ public class CountBasedWBMH implements Serializable {
 
     public void populateTransientFields(StreamWindowManager windowManager) {
         this.windowManager = windowManager;
-        if (bufferSize > 0) {
+        if (ingestBufferSize > 0) {
             summarizer.populateTransientFields(windowManager);
         }
         writer.populateTransientFields(windowManager);
@@ -165,7 +146,7 @@ public class CountBasedWBMH implements Serializable {
     }
 
     public void append(long ts, Object value) throws BackingStoreException {
-        if (bufferSize > 0) {
+        if (ingestBufferSize > 0) {
             if (N % 100_000_000 == 0) {
                 logger.info("N = {}M: {} unwritten windows, {} unprocessed merges, {} unissued merges, {} empty buffers",
                         N / 1_000_000,
@@ -203,7 +184,7 @@ public class CountBasedWBMH implements Serializable {
         long threshold = flushBarrier.getNextFlushThreshold();
         ingester.flush(shutdown);
         flushBarrier.wait(FlushBarrier.SUMMARIZER, threshold);
-        if (bufferSize > 0) {
+        if (ingestBufferSize > 0) {
             IngestBuffer partialBuffer = partialBuffers.poll();
             if (partialBuffer != null) {
                 N -= partialBuffer.size(); // need to undo since we pulled them out of the pipeline
@@ -217,7 +198,8 @@ public class CountBasedWBMH implements Serializable {
             assert partialBuffers.isEmpty();
         }
         if (setUnbuffered) {
-            bufferSize = 0;
+            ingestBufferSize = 0;
+            options.setIngestBufferSize(0);
             destroyEmptyBuffers();
         }
         Utilities.put(writerQueue, shutdown ? Writer.SHUTDOWN_SENTINEL : Writer.FLUSH_SENTINEL);

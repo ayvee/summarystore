@@ -18,7 +18,6 @@ package com.samsung.sra.datastore;
 import com.samsung.sra.datastore.aggregates.CMSOperator;
 import com.samsung.sra.datastore.aggregates.MaxOperator;
 import com.samsung.sra.datastore.aggregates.SimpleCountOperator;
-import com.samsung.sra.datastore.ingest.CountBasedWBMH;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.Test;
 
@@ -27,9 +26,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
+import static org.junit.Assert.*;
 
 public class SummaryStoreTest {
     private static final long streamID = 0;
@@ -47,8 +44,9 @@ public class SummaryStoreTest {
         // create and populate store
         SummaryStore store = new SummaryStore(storeLoc, new SummaryStore.StoreOptions().setKeepReadIndexes(withReadIndex));
         Windowing windowing = new GenericWindowing(new ExponentialWindowLengths(2));
-        CountBasedWBMH wbmh = new CountBasedWBMH(windowing).setBufferSize(62);
-        store.registerStream(streamID, wbmh,
+        //CountBasedWBMH wbmh = new CountBasedWBMH(windowing).setBufferSize(62);
+        store.registerStream(streamID, new SummaryStore.StreamOptions().setIngestBufferSize(62),
+                windowing,
                 new SimpleCountOperator(),
                 new CMSOperator(5, 100, 0),
                 new MaxOperator());
@@ -62,7 +60,7 @@ public class SummaryStoreTest {
             }
         }
         store.flush(streamID);
-        wbmh.setBufferSize(0);
+        //wbmh.setBufferSize(0);
 
         assertStateIsCorrect(store);
 
@@ -75,7 +73,7 @@ public class SummaryStoreTest {
             assertThat(e.getMessage(), containsString("unloaded"));
             exceptionThrown = true;
         }
-        assertEquals(true, exceptionThrown);
+        assertTrue(exceptionThrown);
         store.loadStream(streamID);
         assertStateIsCorrect(store);
 

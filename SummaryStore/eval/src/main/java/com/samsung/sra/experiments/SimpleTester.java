@@ -16,15 +16,13 @@
 package com.samsung.sra.experiments;
 
 import com.moandjiezana.toml.Toml;
+import com.samsung.sra.datastore.*;
 import com.samsung.sra.datastore.aggregates.BloomFilterOperator;
 import com.samsung.sra.datastore.aggregates.SimpleCountOperator;
-import com.samsung.sra.datastore.*;
-import com.samsung.sra.datastore.ingest.CountBasedWBMH;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
  * Created by n.agrawal1 on 7/21/16.
@@ -56,7 +54,7 @@ public class SimpleTester {
 
         try {
             store = new SummaryStore(directory);
-            store.registerStream(streamID, new CountBasedWBMH(windowing),
+            store.registerStream(streamID, windowing,
                     new SimpleCountOperator()
                     // new SimpleCountOperator(SimpleCountOperator.Estimator.PROPORTIONAL),
                     ,new BloomFilterOperator(7, 128)
@@ -121,12 +119,5 @@ public class SimpleTester {
         */
 
         store.close();
-    }
-
-    private static void registerStore(Map<String, SummaryStore> stores, String storeName, CountBasedWBMH wbmh) throws Exception {
-        SummaryStore store = new SummaryStore(directory + storeName);
-        //SummaryStore store = new SummaryStore(new MainMemoryBackingStore());
-        store.registerStream(streamID, wbmh);
-        stores.put(storeName, store);
     }
 }

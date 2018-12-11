@@ -26,6 +26,9 @@ import java.util.concurrent.Semaphore;
 public class ParPopulateData {
     private static final Logger logger = LoggerFactory.getLogger(ParPopulateData.class);
 
+    private static final int WINDOW_MERGE_POOL_SIZE = 10;
+    private static final int WINDOW_MERGE_FREQUENCY = 100_000;
+
     private static void syntaxError() {
         System.err.println("SYNTAX: ParPopulateData config.toml [shardNum]");
         System.exit(2);
@@ -59,7 +62,8 @@ public class ParPopulateData {
                 logger.warn("Decay function {} already populated at {}, skipping", decay, outdir);
                 return;
             }
-            try (SummaryStore store = new SummaryStore(outdir)) {
+            try (SummaryStore store = new SummaryStore(outdir, new SummaryStore.StoreOptions()
+                    .setSharedWindowMergePool(WINDOW_MERGE_POOL_SIZE))) {
                 long S0 = shardNum * nStreamsPerShard;
                 long Se = Math.min(S0 + nStreamsPerShard - 1, nStreams - 1);
                 int nThreads = (int) (Se - S0 + 1);
@@ -102,13 +106,12 @@ public class ParPopulateData {
         @Override
         public void run() {
             semaphore.acquireUninterruptibly();
-            CountBasedWBMH wbmh = new CountBasedWBMH(conf.parseDecayFunction(decay))
+            SummaryStore.StreamOptions streamOptions = new SummaryStore.StreamOptions()
                     .setValuesAreLongs(true)
-                    .setBufferSize(conf.getIngestBufferSize())
-                    .setWindowsPerMergeBatch(100_000)
-                    .setParallelizeMerge(10);
+                    .setIngestBufferSize(conf.getIngestBufferSize())
+                    .setWindowMergeFrequency(WINDOW_MERGE_FREQUENCY);
             try {
-                store.registerStream(streamID, wbmh, conf.getOperators());
+                store.registerStream(streamID, streamOptions, conf.parseDecayFunction(decay), conf.getOperators());
                 ParRandomStreamIterator ris = conf.getParStreamIterator(streamID);
                 while (ris.hasNext()) {
                     store.append(streamID, ris.currT, ris.currV);
